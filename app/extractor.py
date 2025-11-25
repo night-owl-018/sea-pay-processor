@@ -19,37 +19,61 @@ def parse_date(date_str):
 def clean_ship_name(raw):
     """
     Clean the ship name extracted from table columns.
-    
+
+    This version is HARDENED:
+
     Removes:
-    - ASW parentheses
-    - times (0000, 2359, 0800, etc.)
+    - USS prefix
+    - timestamps (0000, 2359, 08:45, 18-06-00, ISO timestamps)
+    - underscores
+    - parentheses blocks like (ASW C-1) (CG-65)
     - checkmark 'þ'
-    - extra spaces
+    - all numbers
+    - all hyphens
+    - leftover symbols
+    - multiple spaces
+
+    Keeps ONLY actual ship-name alphabet words.
     """
+
     if not raw:
         return ""
 
-    raw = raw.replace("þ", " ")
+    # Normalize junk characters
+    raw = raw.replace("þ", " ").replace("*", " ").replace("_", " ")
 
-    # Remove parentheses blocks: (ASW C-1), (ASW T-1)
+    # Remove parentheses content
     raw = re.sub(r"\(.*?\)", " ", raw)
 
-    # Remove times
+    # Remove USS prefix
+    raw = re.sub(r"\bUSS\b", " ", raw, flags=re.IGNORECASE)
+
+    # Remove times like 0000, 2359, 0815, etc.
     raw = re.sub(r"\b\d{3,4}\b", " ", raw)
 
-    # Remove asterisks
-    raw = raw.replace("*", " ")
+    # Remove ISO timestamps like 2025-11-22T1300
+    raw = re.sub(r"\d{4}-\d{2}-\d{2}T\d{3,4}", " ", raw)
 
-    # Collapse multiple spaces
-    raw = re.sub(r"\s+", " ", raw)
+    # Remove date/time fragments (18-06-00)
+    raw = re.sub(r"\d{1,2}-\d{1,2}-\d{1,2}", " ", raw)
 
-    return raw.strip().upper()
+    # Remove all digits and hyphens
+    raw = re.sub(r"[\d\-]", " ", raw)
+
+    # Extract ONLY alphabetic words — safest approach
+    words = re.findall(r"[A-Za-z]+", raw)
+
+    if not words:
+        return ""
+
+    cleaned = " ".join(words).upper()
+
+    return cleaned.strip()
 
 
 def group_by_ship(events):
     """
     events: list[(date, ship_name)]
-    
     Returns: list[(ship, start_date, end_date)]
     """
     grouped = {}
@@ -78,14 +102,14 @@ def extract_sailors_and_events(pdf_path):
             text = page.extract_text() or ""
             lines = text.split("\n")
 
-            # 1. Find sailor name
+            # 1. Detect sailor name line
             for line in lines:
                 if line.startswith(NAME_PREFIX):
                     extracted = line[len(NAME_PREFIX):].strip()
                     if "SSN" in extracted:
                         extracted = extracted.split("SSN")[0].strip()
 
-                    # Save previous sailor if any
+                    # Save previous sailor before starting new one
                     if current_name and current_events:
                         sailors.append({
                             "name": current_name,
@@ -94,11 +118,10 @@ def extract_sailors_and_events(pdf_path):
 
                     current_name = extracted
                     current_events = []
-                    break  # only one name per page
+                    break
 
-            # 2. Read the table rows (REAL EVENT DATA)
+            # 2. Table extraction
             table = page.extract_table()
-
             if not table:
                 continue
 
@@ -106,27 +129,22 @@ def extract_sailors_and_events(pdf_path):
                 if not row:
                     continue
 
-                # table columns often look like:
-                # [ DATE , SHIP1 , SHIP2? , STARTTIME , ENDTIME ]
                 date_col = row[0]
-
-                # Skip header rows or blank date cells
                 if not date_col or not isinstance(date_col, str):
                     continue
 
                 dt = parse_date(date_col.strip())
                 if not dt:
-                    continue  # not an event row
+                    continue
 
-                # Combine all ship-name fields (Event Column)
-                ship_parts = row[1:3]  # usually 2 columns for ship name
+                # Combine ship fields
+                ship_parts = row[1:3]
                 ship_raw = " ".join([p for p in ship_parts if p])
 
-                # Skip empties
                 if not ship_raw:
                     continue
 
-                # Skip MITE entirely
+                # Skip MITE rows
                 if SKIP_KEYWORD in ship_raw.upper():
                     continue
 
@@ -134,7 +152,7 @@ def extract_sailors_and_events(pdf_path):
                 if ship_clean:
                     current_events.append((dt, ship_clean))
 
-            # 3. Detect signature -> end of sailor
+            # 3. Signature ends sailor
             for line in lines:
                 if SIGNATURE_MARKER in line and current_name:
                     sailors.append({
