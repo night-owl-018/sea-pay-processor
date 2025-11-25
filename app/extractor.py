@@ -14,44 +14,54 @@ def parse_date(date_str):
     return None
 
 
-def clean_event_name(name: str) -> str:
+def clean_event_name(raw: str) -> str:
     """
-    Extract ONLY the ship name from the Event column.
-
-    Removes:
-    - Parentheses, e.g. (ASW C-1)
-    - Time-like blocks, e.g. 0830, 1600, 0000, 2359
-    - Asterisks and extra junk
+    Clean messy event names coming from the SEA DUTY CERT sheet.
+    Handles:
+    - Multi-line names ("PAUL\nHAMILTON")
+    - Checkmarks "þ"
+    - Times (0000 2359)
+    - Parentheses "(ASW T-1)"
+    - Extra spacing
     """
-    # Remove anything in parentheses: (ASW C-1), (ASW AS-2*1), etc.
-    name = re.sub(r"\(.*?\)", "", name)
 
-    # Remove 3–4 digit "times" like 0830, 1600, 0000, 2359
-    name = re.sub(r"\b\d{3,4}\b", "", name)
+    # Remove checkmark glyph
+    raw = raw.replace("þ", " ")
 
-    # Remove stray asterisks
-    name = name.replace("*", " ")
+    # Remove everything in parentheses: (ASW T-1)
+    raw = re.sub(r"\(.*?\)", " ", raw)
 
-    # Collapse multiple spaces
-    name = re.sub(r"\s+", " ", name)
+    # Remove time blocks like 0000 2359, 0800 1600, etc.
+    raw = re.sub(r"\b\d{3,4}\b", " ", raw)
 
-    return name.strip().upper()
+    # Remove asterisks
+    raw = raw.replace("*", " ")
+
+    # Replace newlines with space (important!)
+    raw = raw.replace("\n", " ")
+
+    # Collapse double spaces
+    raw = re.sub(r"\s+", " ", raw)
+
+    # Final clean + uppercase
+    cleaned = raw.strip().upper()
+
+    return cleaned
 
 
 def group_events_by_ship(events):
     """
-    events: list[(date, full_event_string)]
+    events: list[(date, raw_event_string)]
 
-    Returns:
-      list[(ship_name, start_date, end_date)]
-
-    Each ship for that sailor becomes ONE PG-13, using the
-    earliest and latest date for that ship.
+    Each unique ship gets:
+    - Start date (min)
+    - End date (max)
+    - One PG-13 output
     """
     grouped = {}
 
-    for dt, raw_name in events:
-        ship = clean_event_name(raw_name)
+    for dt, raw in events:
+        ship = clean_event_name(raw)
         if not ship:
             continue
         grouped.setdefault(ship, []).append(dt)
@@ -59,30 +69,27 @@ def group_events_by_ship(events):
     result = []
     for ship, dates in grouped.items():
         dates = sorted(dates)
-        result.append((ship, dates[0], dates[-1]))  # begin / end for that ship
+        result.append((ship, dates[0], dates[-1]))
 
     return result
 
 
 def extract_sailors_and_events(pdf_path):
     """
-    Parse SEA DUTY CERT PDF and return:
-      [
-        {
-          "name": "BRANDON ANDERSEN",
-          "events": [
-            ("CHOSIN", date(2025, 9, 8),  date(2025, 10, 29)),
-            ("PAUL HAMILTON", date(...), date(...)),
-            ...
-          ]
-        },
-        ...
-      ]
+    Reads SEA DUTY CERT PDF and produces:
 
-    - 'name' comes from the Name: line on the sheet.
-    - 'events' are grouped by ship name (Event column), using
-      first and last date for that ship.
+    [
+      {
+        "name": "FRANK HATTEN",
+        "events": [
+            ("PAUL HAMILTON", start, end),
+            ("CHOSIN", start, end),
+            ("ASHLAND", start, end)
+        ]
+      }
+    ]
     """
+
     sailors = []
     current_name = None
     current_events = []
@@ -96,7 +103,7 @@ def extract_sailors_and_events(pdf_path):
             for raw_line in text.split("\n"):
                 line = raw_line.strip()
 
-                # 1. Detect name line (e.g. "Name: BRANDON ANDERSEN SSN/DOD #: ...")
+                # 1. NAME line detection
                 if line.startswith(NAME_PREFIX):
                     after = line[len(NAME_PREFIX):].strip()
                     if "SSN" in after:
@@ -104,39 +111,37 @@ def extract_sailors_and_events(pdf_path):
                     else:
                         name_part = after
 
-                    # Save previous sailor if we had one
+                    # Save previous sailor
                     if current_name and current_events:
-                        events_grouped = group_events_by_ship(current_events)
                         sailors.append({
                             "name": current_name,
-                            "events": events_grouped,
+                            "events": group_events_by_ship(current_events)
                         })
 
                     current_name = name_part
                     current_events = []
                     continue
 
-                # 2. Detect event line: "8/11/2025 PAUL HAMILTON (ASW T-1)"
+                # 2. Event row detection: START WITH A DATE
                 parts = line.split(" ", 1)
                 if len(parts) == 2:
                     date_candidate, rest = parts
                     dt = parse_date(date_candidate)
-                    if dt and current_name:
-                        event_raw = rest.strip()
 
-                        # Skip MITE events completely
-                        if SKIP_KEYWORD in event_raw.upper():
+                    if dt and current_name:
+                        # Skip MITE events
+                        if SKIP_KEYWORD in rest.upper():
                             continue
 
-                        current_events.append((dt, event_raw))
+                        # Collect event raw text (even if multiline)
+                        current_events.append((dt, rest))
                         continue
 
-                # 3. End-of-sailor marker (SIGNATURE OF CERTIFYING OFFICER & DATE)
+                # 3. Signature block = end of sailor
                 if SIGNATURE_MARKER in line and current_name:
-                    events_grouped = group_events_by_ship(current_events)
                     sailors.append({
                         "name": current_name,
-                        "events": events_grouped,
+                        "events": group_events_by_ship(current_events)
                     })
                     current_name = None
                     current_events = []
