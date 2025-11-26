@@ -1,74 +1,51 @@
-import os
-import tempfile
-from flask import Flask, render_template, request, redirect, url_for, send_file, flash
+if request.method == "POST":
+    print("DEBUG: POST RECEIVED")
 
-from app.extractor import extract_sailors_and_events
-from app.generator import generate_pg13_zip
-from app.config import SECRET_KEY
+    print("DEBUG: request.files keys =", list(request.files.keys()))
+    if "pdf_file" not in request.files:
+        print("ERROR: 'pdf_file' NOT FOUND")
+        flash("Upload failed: backend did not receive file.")
+        return redirect(url_for("index"))
 
+    file = request.files["pdf_file"]
+    print("DEBUG: file object =", file)
+    print("DEBUG: filename =", file.filename)
 
-def create_app():
-    template_dir = os.path.join(os.path.dirname(__file__), "templates_web")
+    if not file:
+        print("ERROR: file is None")
+        flash("Upload failed: file is empty.")
+        return redirect(url_for("index"))
 
-    app = Flask(__name__, template_folder=template_dir)
-    app.config["SECRET_KEY"] = SECRET_KEY
+    if file.filename == "":
+        print("ERROR: filename empty")
+        flash("Upload failed: filename empty.")
+        return redirect(url_for("index"))
 
-    @app.route("/", methods=["GET", "POST"])
-    def index():
-        print("DEBUG: request.method =", request.method)
+    if not file.filename.lower().endswith(".pdf"):
+        print("ERROR: not a PDF")
+        flash("Upload failed: not a PDF file.")
+        return redirect(url_for("index"))
 
-        if request.method == "POST":
+    # SAVE FILE
+    temp_dir = tempfile.mkdtemp()
+    pdf_path = os.path.join(temp_dir, file.filename)
+    file.save(pdf_path)
+    print("DEBUG: Saved PDF to =", pdf_path)
 
-            if "pdf_file" not in request.files:
-                print("DEBUG: NO 'pdf_file' key in request.files")
-                flash("No file uploaded.")
-                return redirect(url_for("index"))
+    # PARSE PDF
+    sailors = extract_sailors_and_events(pdf_path)
+    print("DEBUG: extractor output =", sailors)
 
-            file = request.files["pdf_file"]
-            print("DEBUG: filename =", file.filename)
+    if not sailors:
+        print("ERROR: extractor returned EMPTY list")
+        flash("Extractor found no sailors or events.")
+        return redirect(url_for("index"))
 
-            if file.filename == "":
-                print("DEBUG: Empty filename")
-                flash("Please select a PDF file.")
-                return redirect(url_for("index"))
+    sailor = sailors[0]
+    print("DEBUG: Processing sailor =", sailor)
 
-            if not file.filename.lower().endswith(".pdf"):
-                print("DEBUG: Not a PDF")
-                flash("Please upload a valid PDF.")
-                return redirect(url_for("index"))
+    # GENERATE ZIP
+    zip_path = generate_pg13_zip(sailor, output_dir=temp_dir)
+    print("DEBUG: ZIP path =", zip_path)
 
-            temp_dir = tempfile.mkdtemp()
-            pdf_path = os.path.join(temp_dir, file.filename)
-            file.save(pdf_path)
-
-            print("DEBUG: PDF saved to", pdf_path)
-
-            sailors = extract_sailors_and_events(pdf_path)
-            print("DEBUG: Extracted sailors =", sailors)
-
-            if not sailors:
-                print("DEBUG: NO SAILORS FOUND")
-                flash("No valid sailors or events found in PDF.")
-                return redirect(url_for("index"))
-
-            sailor = sailors[0]
-
-            zip_path = generate_pg13_zip(sailor, output_dir=temp_dir)
-            print("DEBUG: ZIP GENERATED =", zip_path)
-
-            return send_file(zip_path, as_attachment=True,
-                             download_name=os.path.basename(zip_path))
-
-        return render_template("index.html")
-
-    @app.route("/health")
-    def health():
-        return {"status": "ok"}, 200
-
-    return app
-
-
-app = create_app()
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    return send_file(zip_path, as_attachment=True, download_name=os.path.basename(zip_path))
