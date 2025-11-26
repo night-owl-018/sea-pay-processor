@@ -31,5 +31,8 @@ jobs:
           context: .
           dockerfile: ./Dockerfile
           push: true
+          no-cache: true
+          provenance: false
+          sbom: false
           tags: |
             ghcr.io/night-owl-018/stg1_nivera_atgsd-sea-pay-processor:latest
