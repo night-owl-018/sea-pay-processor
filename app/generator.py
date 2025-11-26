@@ -1,10 +1,10 @@
 import os
 import zipfile
 from datetime import datetime
-from pypdf import PdfReader, PdfWriter, PageObject
+from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.units import inch
+from reportlab.lib.units import mm
 from app.config import PG13_TEMPLATE_PATH
 
 
@@ -24,51 +24,46 @@ def generate_pg13_zip(sailor, output_dir):
     return zip_path
 
 
-def make_overlay(name, ship, date_str, overlay_path):
-    """
-    Create a transparent overlay PDF with text placed EXACTLY where it needs to go
-    on the PG-13 form.
-    """
+def make_pg13_pdf(name, ship, start, end, root_dir):
+    output_path = os.path.join(root_dir, f"{ship}.pdf")
 
+    # Load template
+    reader = PdfReader(PG13_TEMPLATE_PATH)
+    template_page = reader.pages[0]
+
+    # Temporary overlay PDF
+    overlay_path = os.path.join(root_dir, "overlay.pdf")
     c = canvas.Canvas(overlay_path, pagesize=letter)
 
-    # -------------------------------
-    # TEXT POSITIONS ON PG-13 FORM
-    # (Measured from your uploaded PG13 TEMPLATE)
-    # -------------------------------
+    # === COORDINATES (you can adjust these if needed) ===
 
-    # 1. Date goes after "____.REPORT CAREER SEA PAY FROM"
-    c.drawString(1.65 * inch, 8.05 * inch, date_str)
+    # Name field right under SHIP OR STATION:
+    c.drawString(40 * mm, 245 * mm, name)
 
-    # 2. Ship name goes in the middle paragraph
-    c.drawString(2.15 * inch, 7.40 * inch, ship)
+    # Subject field (example: "10/15/25 TO 10/25/25")
+    date_range = f"{format_mmddyy(start)} TO {format_mmddyy(end)}"
+    c.drawString(92 * mm, 233 * mm, date_range)
 
-    # 3. Sailor Name goes in NAME (LAST, FIRST, MIDDLE)
-    c.drawString(2.80 * inch, 5.70 * inch, name)
+    # Entitlement box: ship name only (cleaned)
+    c.drawString(40 * mm, 226 * mm, ship)
+
+    # “REPORT CAREER SEA PAY FROM” line
+    c.drawString(30 * mm, 212 * mm, f"{format_mmddyy(start)} TO {format_mmddyy(end)}")
+
+    # Main body text (member performed…)
+    c.drawString(20 * mm, 195 * mm,
+                 f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
 
     c.save()
 
-
-def make_pg13_pdf(name, ship, start, end, output_dir):
-    date_str = format_mmddyy(start)
-
-    overlay_path = os.path.join(output_dir, "overlay.pdf")
-    output_path = os.path.join(output_dir, f"{ship}.pdf")
-
-    # Create overlay PDF
-    make_overlay(name, ship, date_str, overlay_path)
-
-    # Read template + overlay
-    template_reader = PdfReader(PG13_TEMPLATE_PATH)
+    # Read overlay
     overlay_reader = PdfReader(overlay_path)
-
-    template_page = template_reader.pages[0]
     overlay_page = overlay_reader.pages[0]
 
-    # Merge overlay onto template
+    # Merge overlay on top of template
     template_page.merge_page(overlay_page)
 
-    # Write final PDF
+    # Write out final PDF
     writer = PdfWriter()
     writer.add_page(template_page)
 
