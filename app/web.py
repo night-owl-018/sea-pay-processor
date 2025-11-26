@@ -8,8 +8,12 @@ from app.config import SECRET_KEY
 
 
 def create_app():
-    # Locate absolute template path correctly
-    template_dir = os.path.join(os.path.dirname(__file__), "..", "templates_web")
+    """
+    Application factory for the PG13 Sea Pay Processor.
+    """
+
+    # Correct template directory: /app/app/templates_web
+    template_dir = os.path.join(os.path.dirname(__file__), "templates_web")
 
     app = Flask(
         __name__,
@@ -26,7 +30,7 @@ def create_app():
     def index():
         if request.method == "POST":
 
-            # Handle missing file
+            # Handle missing or invalid file
             file = request.files.get("pdf_file")
             if not file or not file.filename.lower().endswith(".pdf"):
                 flash("Please upload a valid SEA DUTY CERTIFICATION SHEET PDF.")
@@ -69,7 +73,10 @@ def create_app():
 
 
 # ------------------------------
-# Run App for Docker (IMPORTANT!)
+# Run App for Docker / local dev
 # ------------------------------
-# Must listen on 0.0.0.0 so Unraid/host can access it
-# Must use port 8080 since Dockerfile EXPOSEs 8
+# Must listen on 0.0.0.0 so Unraid/host can access it.
+# Must use port 8080 to match Dockerfile EXPOSE and Unraid template.
+if __name__ == "__main__":
+    flask_app = create_app()
+    flask_app.run(host="0.0.0.0", port=8080)
