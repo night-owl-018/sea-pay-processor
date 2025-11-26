@@ -32,10 +32,15 @@ def create_app():
 
             # Handle missing or invalid file
             file = request.files.get("pdf_file")
+            print("DEBUG: request.files keys =", list(request.files.keys()))
+            print("DEBUG: file =", file)
+            print("DEBUG: filename =", file.filename if file else None)
+
             if not file or not file.filename.lower().endswith(".pdf"):
+                print("DEBUG: PDF VALIDATION FAILED")
                 flash("Please upload a valid SEA DUTY CERTIFICATION SHEET PDF.")
                 return redirect(url_for("index"))
-
+                
             # Save uploaded PDF to a temp directory
             temp_dir = tempfile.mkdtemp()
             pdf_path = os.path.join(temp_dir, file.filename)
