@@ -20,20 +20,20 @@ def clean_ship_name(raw):
     """
     Clean the ship name extracted from table columns.
 
-    This version is HARDENED:
+    HARDENED CLEANING LOGIC:
 
     Removes:
     - USS prefix
-    - timestamps (0000, 2359, 08:45, 18-06-00, ISO timestamps)
+    - timestamps (0000, 2359, 0700, 18-06-00, ISO timestamps)
     - underscores
-    - parentheses blocks like (ASW C-1) (CG-65)
+    - ASW parentheses blocks like (ASW T-1), (ASW AS-2*1)
     - checkmark 'þ'
     - all numbers
-    - all hyphens
+    - hyphens
     - leftover symbols
     - multiple spaces
 
-    Keeps ONLY actual ship-name alphabet words.
+    Returns clean alphabet-only ship names in uppercase.
     """
 
     if not raw:
@@ -42,33 +42,52 @@ def clean_ship_name(raw):
     # Normalize junk characters
     raw = raw.replace("þ", " ").replace("*", " ").replace("_", " ")
 
-    # Remove parentheses content
+    # Remove parentheses content like (ASW T-1)
     raw = re.sub(r"\(.*?\)", " ", raw)
 
     # Remove USS prefix
     raw = re.sub(r"\bUSS\b", " ", raw, flags=re.IGNORECASE)
 
-    # Remove times like 0000, 2359, 0815, etc.
+    # Remove simple 3–4 digit times (0000, 1600)
     raw = re.sub(r"\b\d{3,4}\b", " ", raw)
 
     # Remove ISO timestamps like 2025-11-22T1300
     raw = re.sub(r"\d{4}-\d{2}-\d{2}T\d{3,4}", " ", raw)
 
-    # Remove date/time fragments (18-06-00)
+    # Remove date/time fragments like 18-06-00
     raw = re.sub(r"\d{1,2}-\d{1,2}-\d{1,2}", " ", raw)
 
     # Remove all digits and hyphens
     raw = re.sub(r"[\d\-]", " ", raw)
 
-    # Extract ONLY alphabetic words — safest approach
+    # Extract alphabet words only
     words = re.findall(r"[A-Za-z]+", raw)
-
     if not words:
         return ""
 
-    cleaned = " ".join(words).upper()
+    return " ".join(words).upper().strip()
 
-    return cleaned.strip()
+
+def extract_last_name(full_name):
+    """
+    Supports:
+    - LAST, FIRST format
+    - FIRST LAST format
+    """
+    if not full_name:
+        return "UNKNOWN"
+
+    parts = full_name.split()
+
+    # Format: LAST, FIRST
+    if "," in parts[0]:
+        last = parts[0].replace(",", "")
+    else:
+        # Format: FIRST LAST
+        last = parts[-1]
+
+    last = re.sub(r"[^A-Za-z]", "", last)
+    return last.upper() if last else "UNKNOWN"
 
 
 def group_by_ship(events):
@@ -102,14 +121,20 @@ def extract_sailors_and_events(pdf_path):
             text = page.extract_text() or ""
             lines = text.split("\n")
 
-            # 1. Detect sailor name line
+            # 1. Detect sailor name (HARDENED)
             for line in lines:
-                if line.startswith(NAME_PREFIX):
-                    extracted = line[len(NAME_PREFIX):].strip()
+                # Accept ANY line containing "Name:"
+                if "Name:" in line:
+                    extracted = line.split("Name:")[1].strip()
+
+                    # Remove SSN/DoD stuff
                     if "SSN" in extracted:
                         extracted = extracted.split("SSN")[0].strip()
 
-                    # Save previous sailor before starting new one
+                    # Normalize spacing
+                    extracted = extracted.replace("  ", " ").strip()
+
+                    # Save previous sailor, if any
                     if current_name and current_events:
                         sailors.append({
                             "name": current_name,
@@ -130,29 +155,30 @@ def extract_sailors_and_events(pdf_path):
                     continue
 
                 date_col = row[0]
-                if not date_col or not isinstance(date_col, str):
+                if not isinstance(date_col, str):
                     continue
 
                 dt = parse_date(date_col.strip())
                 if not dt:
                     continue
 
-                # Combine ship fields
-                ship_parts = row[1:3]
+                # Combine ship name columns (Event names)
+                ship_parts = row[1:3]   # Usually 2 columns
                 ship_raw = " ".join([p for p in ship_parts if p])
 
                 if not ship_raw:
                     continue
 
-                # Skip MITE rows
+                # Skip MITE rows entirely including ASW MITE AUG 2025
                 if SKIP_KEYWORD in ship_raw.upper():
                     continue
 
                 ship_clean = clean_ship_name(ship_raw)
+
                 if ship_clean:
                     current_events.append((dt, ship_clean))
 
-            # 3. Signature ends sailor
+            # 3. Signature ends a sailor (if needed for multi-sailor docs)
             for line in lines:
                 if SIGNATURE_MARKER in line and current_name:
                     sailors.append({
