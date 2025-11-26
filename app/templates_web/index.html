@@ -21,12 +21,14 @@
     <li>Generate NAVPERS 1070/613 PG-13s</li>
     <li>Return a ZIP with folders per Sailor</li>
   </ul>
-  <form method="post" action="/generate" enctype="multipart/form-data">
+
+  <form method="POST" action="/" enctype="multipart/form-data">
     <div class="box">
       <span class="label">SEA DUTY CERTIFICATION SHEET PDF:</span><br>
-      <input type="file" name="sea_file" accept="application/pdf" required>
+      <input type="file" name="pdf_file" accept="application/pdf" required>
     </div>
     <button type="submit">Generate PG-13 ZIP</button>
   </form>
+
 </body>
 </html>
