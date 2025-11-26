@@ -1,9 +1,12 @@
 FROM python:3.12-slim
 
-# Ensure that Python runs from /app
+# Set working directory
 WORKDIR /app
 
-# Install system libs required by pdfplumber + reportlab
+# Ensure /app is in pythonpath
+ENV PYTHONPATH="/app"
+
+# Install system libs
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libsm6 \
@@ -12,15 +15,12 @@ RUN apt-get update && apt-get install -y \
     libcairo2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Python deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy everything into the /app directory
+# Copy all project files
 COPY . .
-
-# Add /app into Python path (CRITICAL FIX)
-ENV PYTHONPATH="/app"
 
 EXPOSE 8080
 
