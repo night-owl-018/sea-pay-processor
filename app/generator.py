@@ -49,14 +49,14 @@ def make_pg13_pdf(name, ship_raw, start, end, root_dir):
         return x * 72
 
     # Your final confirmed coordinates
-    X_LINE1 = 0.783
-    Y_LINE1 = 2.192
+    X_LINE1 = 0.533
+    Y_LINE1 = 6.526
 
-    X_LINE2 = 0.533
-    Y_LINE2 = 2.526
+    X_LINE2 = 0.783
+    Y_LINE2 = 6.192
 
     X_NAME = 0.218
-    Y_NAME = 9.997
+    Y_NAME = 1.997
 
     # Read template
     template_reader = PdfReader(PG13_TEMPLATE_PATH)
