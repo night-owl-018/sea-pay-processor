@@ -6,7 +6,6 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 from reportlab.lib.pagesizes import letter
-
 from PyPDF2 import PdfReader, PdfWriter, PageObject
 
 from app.config import PG13_TEMPLATE_PATH
@@ -16,15 +15,6 @@ from app.ship_matcher import match_ship
 # Register Times New Roman
 FONT_PATH = "/app/app/fonts/times.ttf"
 pdfmetrics.registerFont(TTFont("TimesNewRoman", FONT_PATH))
-
-
-def inches_to_points(x):
-    return x * 72
-
-
-def page_y_from_inches(y):
-    """Convert inches from top-left to PDF bottom-left."""
-    return 792 - (y * 72)
 
 
 def format_mmddyy(date_obj):
@@ -47,50 +37,58 @@ def generate_pg13_zip(sailor, output_dir):
 def make_pg13_pdf(name, ship_raw, start, end, root_dir):
     output_path = os.path.join(root_dir, f"{ship_raw}.pdf")
 
-    # Clean/match proper ship name
+    # Clean & match ship name
     ship = match_ship(ship_raw)
 
-    # Build text lines
+    # Build strings
     line1 = f"REPORT CAREER SEA PAY FROM {format_mmddyy(start)} TO {format_mmddyy(end)}."
     line2 = f"Member performed eight continuous hours per day on-board: {ship} Category A vessel."
 
-    # === FINAL FIXED COORDINATES ===
-    X = 0.90
-    Y1 = 6.95   # REPORT CAREER SEA PAY FROM ...
-    Y2 = 6.65   # Member performed eight continuous hours ...
-    X_NAME = 0.30
-    Y_NAME = 1.10
+    # Inches → points helper
+    def inches(x):
+        return x * 72
 
-    # Load template
+    # Your final confirmed coordinates
+    X_LINE1 = 0.783
+    Y_LINE1 = 2.192
+
+    X_LINE2 = 0.533
+    Y_LINE2 = 2.526
+
+    X_NAME = 0.218
+    Y_NAME = 9.997
+
+    # Read template
     template_reader = PdfReader(PG13_TEMPLATE_PATH)
     template_page = template_reader.pages[0]
 
-    # Create overlay
+    # Create overlay layer
     overlay_path = os.path.join(root_dir, "overlay.pdf")
     c = canvas.Canvas(overlay_path, pagesize=letter)
-
     c.setFont("TimesNewRoman", 10)
 
-    # Draw text
-    c.drawString(inches_to_points(X), page_y_from_inches(Y1), line1)
-    c.drawString(inches_to_points(X), page_y_from_inches(Y2), line2)
-    c.drawString(inches_to_points(X_NAME), page_y_from_inches(Y_NAME), name)
+    # Draw text EXACTLY where required (PDF origin = bottom-left)
+    c.drawString(inches(X_LINE1), inches(Y_LINE1), line1)
+    c.drawString(inches(X_LINE2), inches(Y_LINE2), line2)
+    c.drawString(inches(X_NAME), inches(Y_NAME), name)
 
     c.save()
 
-    # Merge overlay + template
+    # Merge template + overlay
     overlay_reader = PdfReader(overlay_path)
     overlay_page = overlay_reader.pages[0]
 
-    merged = PageObject.create_blank_page(
+    merged_page = PageObject.create_blank_page(
         width=template_page.mediabox.width,
         height=template_page.mediabox.height
     )
-    merged.merge_page(template_page)
-    merged.merge_page(overlay_page)
 
+    merged_page.merge_page(template_page)
+    merged_page.merge_page(overlay_page)
+
+    # Save final PG-13
     writer = PdfWriter()
-    writer.add_page(merged)
+    writer.add_page(merged_page)
 
     with open(output_path, "wb") as f:
         writer.write(f)
