@@ -16,13 +16,11 @@ from app.ship_matcher import match_ship
 FONT_PATH = "/app/app/fonts/times.ttf"
 pdfmetrics.registerFont(TTFont("TimesNewRoman", FONT_PATH))
 
-
 def format_mmddyy(date_obj):
     return date_obj.strftime("%m/%d/%y")
 
-
-def inches(value):
-    return value * 72.0
+def inches(v):
+    return v * 72
 
 
 def generate_pg13_zip(sailor, output_dir):
@@ -38,41 +36,48 @@ def generate_pg13_zip(sailor, output_dir):
 
 
 def make_pg13_pdf(name, ship_raw, start, end, root_dir):
+
     output_path = os.path.join(root_dir, f"{ship_raw}.pdf")
 
     ship = match_ship(ship_raw)
 
-    # Lines to print
     line1 = f"REPORT CAREER SEA PAY FROM {format_mmddyy(start)} TO {format_mmddyy(end)}."
     line2 = f"Member performed eight continuous hours per day on-board: {ship} Category A vessel."
-    name_text = name
 
-    # Load PG-13 Template (background)
+    # Corrected precise coordinates
+    X_R = 0.78
+    Y_R = 8.65
+
+    X_M = 0.55
+    Y_M = 8.30
+
+    X_NAME = 0.22
+    Y_NAME = 1.25
+
+    # Load template
     template_reader = PdfReader(PG13_TEMPLATE_PATH)
     template_page = template_reader.pages[0]
 
     # Create overlay
     overlay_path = os.path.join(root_dir, "overlay.pdf")
     c = canvas.Canvas(overlay_path, pagesize=letter)
-
     c.setFont("TimesNewRoman", 10)
 
-    # EXACT coordinates you supplied
-    c.drawString(inches(0.91), inches(11 - 8.43), line1)
-    c.drawString(inches(0.91), inches(11 - 8.08), line2)
-    c.drawString(inches(0.26), inches(11 - 0.63), name_text)
+    # Draw corrected text positions
+    c.drawString(inches(X_R), inches(Y_R), line1)
+    c.drawString(inches(X_M), inches(Y_M), line2)
+    c.drawString(inches(X_NAME), inches(Y_NAME), name)
 
     c.save()
 
-    # Merge overlay + template
+    # Merge
     overlay_reader = PdfReader(overlay_path)
     overlay_page = overlay_reader.pages[0]
 
     merged_page = PageObject.create_blank_page(
         width=template_page.mediabox.width,
-        height=template_page.mediabox.height,
+        height=template_page.mediabox.height
     )
-
     merged_page.merge_page(template_page)
     merged_page.merge_page(overlay_page)
 
