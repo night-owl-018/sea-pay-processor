@@ -3,8 +3,8 @@ import zipfile
 from datetime import datetime
 
 from reportlab.pdfgen import canvas
-from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase import pdfmetrics
 from reportlab.lib.pagesizes import letter
 
 from PyPDF2 import PdfReader, PdfWriter, PageObject
@@ -12,88 +12,85 @@ from PyPDF2 import PdfReader, PdfWriter, PageObject
 from app.config import PG13_TEMPLATE_PATH
 from app.ship_matcher import match_ship
 
+
 # Register Times New Roman
 FONT_PATH = "/app/app/fonts/times.ttf"
 pdfmetrics.registerFont(TTFont("TimesNewRoman", FONT_PATH))
 
-# Convenience
-def inches(x): 
+
+def inches_to_points(x):
     return x * 72
 
 
-def safe_filename(name):
-    return "".join(c for c in name if c.isalnum() or c in ("_", "-", ".")).replace(" ", "_")
+def page_y_from_inches(y):
+    """Convert inches from top-left to PDF bottom-left."""
+    return 792 - (y * 72)
 
 
-def format_mmddyy(d):
-    return d.strftime("%m/%d/%y")
+def format_mmddyy(date_obj):
+    return date_obj.strftime("%m/%d/%y")
 
 
 def generate_pg13_zip(sailor, output_dir):
     last = sailor["name"].split()[0].upper()
     zip_path = os.path.join(output_dir, f"{last}.zip")
 
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for ship_raw, start, end in sailor["events"]:
             pdf_path = make_pg13_pdf(sailor["name"], ship_raw, start, end, output_dir)
-            z.write(pdf_path, os.path.basename(pdf_path))
+            zf.write(pdf_path, os.path.basename(pdf_path))
 
     return zip_path
 
 
 def make_pg13_pdf(name, ship_raw, start, end, root_dir):
+    output_path = os.path.join(root_dir, f"{ship_raw}.pdf")
 
-    # Clean ship name properly
+    # Clean & match proper ship name
     ship = match_ship(ship_raw)
 
+    # Build strings
     line1 = f"REPORT CAREER SEA PAY FROM {format_mmddyy(start)} TO {format_mmddyy(end)}."
-    line2 = f"Member performed eight continuous hours per day on-board: {ship.replace('USS ', '')} Category A vessel."
+    line2 = f"Member performed eight continuous hours per day on-board: {ship} Category A vessel."
 
-    # Coordinates from top-left reference (your requirement)
-    PAGE_HEIGHT_INCHES = letter[1] / 72.0  # = 11
+    # Page coordinates in inches (given by you)
+    X = 0.91
+    Y1 = 8.43       # Top line
+    Y2 = 8.08       # Second line
+    X_NAME = 0.26
+    Y_NAME = 0.63
 
-    X1, Y1 = 0.91, 8.43
-    X2, Y2 = 0.91, 8.08
-    X_NAME, Y_NAME = 0.26, 0.63
-
-    # Convert to ReportLab coordinates (bottom-left)
-    def to_pdf_y(top_inches):
-        return inches(PAGE_HEIGHT_INCHES - top_inches)
-
-    output_filename = safe_filename(ship + "_PG13.pdf")
-    output_path = os.path.join(root_dir, output_filename)
-
-    # LOAD TEMPLATE
+    # Load PG-13 template
     template_reader = PdfReader(PG13_TEMPLATE_PATH)
     template_page = template_reader.pages[0]
 
-    # BUILD OVERLAY
+    # Build transparent overlay
     overlay_path = os.path.join(root_dir, "overlay.pdf")
     c = canvas.Canvas(overlay_path, pagesize=letter)
+
     c.setFont("TimesNewRoman", 10)
 
-    # Draw fields exactly at your coordinates
-    c.drawString(inches(X1), to_pdf_y(Y1), line1)
-    c.drawString(inches(X2), to_pdf_y(Y2), line2)
-    c.drawString(inches(X_NAME), to_pdf_y(Y_NAME), name)
+    # Draw lines with perfect alignment
+    c.drawString(inches_to_points(X), page_y_from_inches(Y1), line1)
+    c.drawString(inches_to_points(X), page_y_from_inches(Y2), line2)
+    c.drawString(inches_to_points(X_NAME), page_y_from_inches(Y_NAME), name)
 
     c.save()
 
-    # MERGE TEMPLATE + OVERLAY
+    # Merge overlay with template
     overlay_reader = PdfReader(overlay_path)
     overlay_page = overlay_reader.pages[0]
 
-    merged_page = PageObject.create_blank_page(
+    merged = PageObject.create_blank_page(
         width=template_page.mediabox.width,
         height=template_page.mediabox.height
     )
 
-    # Correct merge order:
-    merged_page.merge_page(template_page)   # background first
-    merged_page.merge_page(overlay_page)    # text on top
+    merged.merge_page(template_page)
+    merged.merge_page(overlay_page)
 
     writer = PdfWriter()
-    writer.add_page(merged_page)
+    writer.add_page(merged)
 
     with open(output_path, "wb") as f:
         writer.write(f)
