@@ -1,4 +1,6 @@
-.git
 __pycache__
 *.pyc
-output/*
+.git
+.gitignore
+output/
+*.log
