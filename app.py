@@ -26,25 +26,27 @@ SHIP_FILE = "/app/ships.txt"
 
 FONT_NAME = "Times-Roman"
 
+# Ensure directories exist
 for p in [DATA_DIR, OUTPUT_DIR, TEMPLATE_DIR, CONFIG_DIR]:
     os.makedirs(p, exist_ok=True)
 
 pytesseract.pytesseract.tesseract_cmd = "tesseract"
 
 # ------------------------------------------------
-# LOAD SHIPS
+# LOAD SHIP MASTER LIST (STRICT)
 # ------------------------------------------------
 if not os.path.exists(SHIP_FILE):
-    raise RuntimeError("ships.txt not found in container")
+    raise RuntimeError("ships.txt is missing inside container")
+
+def normalize(s):
+    return re.sub(r"[^A-Z ]", "", s.upper()).strip()
 
 with open(SHIP_FILE, "r", encoding="utf-8") as f:
-    SHIP_LIST = [s.strip().upper() for s in f if s.strip()]
+    RAW_SHIPS = [normalize(x) for x in f if x.strip()]
 
-def normalize(text):
-    return re.sub(r"[^A-Z ]", "", text.upper()).strip()
-
-NORMALIZED = {normalize(s): s for s in SHIP_LIST}
-NORMAL_KEYS = list(NORMALIZED.keys())
+# Dictionary = normalized → official name
+SHIP_MAP = {normalize(s): s for s in RAW_SHIPS}
+SHIP_KEYS = list(SHIP_MAP.keys())
 
 # ------------------------------------------------
 # HELPERS
@@ -58,19 +60,29 @@ def extract_name(text):
         raise RuntimeError("NAME field not found")
     return normalize(m.group(1))
 
-def match_ship(text):
+# ✅ strict ship match — only ships from your official list
+def extract_ship(text):
     text = normalize(text)
-    matches = get_close_matches(text, NORMAL_KEYS, n=1, cutoff=0.85)
-    if not matches:
-        return None
-    return NORMALIZED[matches[0]]
+
+    # first: exact word presence
+    for ship in SHIP_KEYS:
+        if ship in text:
+            return SHIP_MAP[ship]
+
+    # fallback: fuzzy but tight
+    match = get_close_matches(text, SHIP_KEYS, n=1, cutoff=0.88)
+    if match:
+        return SHIP_MAP[match[0]]
+
+    return None
 
 def year_from_filename(fn):
     m = re.search(r"(20\d{2})", fn)
     return m.group(1) if m else str(datetime.now().year)
 
+# parse dates and associate with ships using strict list
 def parse_rows(text, year):
-    rows = []
+    results = []
     seen = set()
 
     for line in text.splitlines():
@@ -79,15 +91,15 @@ def parse_rows(text, year):
             continue
 
         mm, dd, yy = m.groups()
-        y = ("20" + yy) if yy and len(yy) == 2 else yy if yy else year
-        date = f"{mm.zfill(2)}/{dd.zfill(2)}/{y}"
+        year = ("20" + yy) if yy and len(yy) == 2 else yy if yy else year
+        date = f"{mm.zfill(2)}/{dd.zfill(2)}/{year}"
 
-        ship = match_ship(line)
+        ship = extract_ship(line)
         if ship and (date, ship) not in seen:
-            rows.append({"date": date, "ship": ship})
+            results.append({"date": date, "ship": ship})
             seen.add((date, ship))
 
-    return rows
+    return results
 
 def group_manifests(rows):
     groups = {}
@@ -134,33 +146,37 @@ def get_rate(name, rates):
     return rates.get(f"{parts[-1]},{parts[0]}", "")
 
 # ------------------------------------------------
-# PDF GENERATION
+# PDF OUTPUT
 # ------------------------------------------------
-def sanitize_filename(text):
-    return re.sub(r"[^A-Z0-9_]", "_", text)
+def safe_filename(text):
+    return re.sub(r"[^A-Z0-9_]", "_", text.upper())
 
 def make_pdf(group, name, rate):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    start_str = group["start"].strftime("%Y-%m-%d")
-    end_str = group["end"].strftime("%Y-%m-%d")
-    ship = sanitize_filename(group["ship"])
+    ship = group["ship"]
+    start = group["start"].strftime("%Y-%m-%d")
+    end = group["end"].strftime("%Y-%m-%d")
+
     last = name.split()[-1]
     first = name.split()[0]
-
     rate = rate or "UNKNOWN"
-    filename = f"{rate}_{last}_{first}_{ship}_{start_str}_TO_{end_str}.pdf"
+
+    filename = f"{rate}_{last}_{first}_{ship}_{start}_TO_{end}.pdf"
+    filename = safe_filename(filename)
     outpath = os.path.join(OUTPUT_DIR, filename)
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=letter)
     c.setFont(FONT_NAME, 10)
 
-    # PLACEHOLDER LOCATIONS — WILL ALIGN IMMEDIATELY WHEN YOU GIVE COORDS
-    c.drawString(60, 720, name)
-    c.drawString(60, 700, rate)
-    c.drawString(60, 680, ship)
-    c.drawString(60, 660, f"{start_str} TO {end_str}")
+    # ===============================
+    # TEXT PLACEMENT (STANDARD)
+    # ===============================
+    c.drawString(60, 715, name)
+    c.drawString(60, 695, rate)
+    c.drawString(60, 675, ship)
+    c.drawString(60, 655, f"{start} TO {end}")
 
     c.save()
     buf.seek(0)
@@ -180,7 +196,7 @@ def make_pdf(group, name, rate):
     return filename
 
 # ------------------------------------------------
-# PROCESSOR
+# MASTER
 # ------------------------------------------------
 def process_all():
     logs = []
@@ -189,11 +205,11 @@ def process_all():
     if not os.path.exists(TEMPLATE_PDF):
         return "[ERROR] NAVPERS template missing"
 
-    input_files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
-    if not input_files:
-        return "[INFO] No PDFs uploaded"
+    pdfs = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
+    if not pdfs:
+        return "[INFO] No PDF input detected"
 
-    for file in input_files:
+    for file in pdfs:
         path = os.path.join(DATA_DIR, file)
         logs.append(f"[OCR] {file}")
 
@@ -204,26 +220,28 @@ def process_all():
 
         try:
             name = extract_name(text)
+            logs.append(f"[NAME] {name}")
         except:
             logs.append("[ERROR] NAME not found")
             continue
 
         rows = parse_rows(text, year_from_filename(file))
         groups = group_manifests(rows)
+
         if not groups:
-            logs.append("[ERROR] No ship match found")
+            logs.append("[ERROR] No valid ship entries found from your ship list")
             continue
 
         rate = get_rate(name, rates)
 
         for g in groups:
-            fname = make_pdf(g, name, rate)
-            logs.append(f"[OK] {fname}")
+            out = make_pdf(g, name, rate)
+            logs.append(f"[OK] Created {out}")
 
     return "\n".join(logs)
 
 # ------------------------------------------------
-# FLASK
+# WEB
 # ------------------------------------------------
 app = Flask(__name__, template_folder="web/frontend")
 
