@@ -1,20 +1,40 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <title>Sea Pay Processor</title>
-    <link rel="stylesheet" href="style.css">
-</head>
 <body>
-<div class="app">
-    <header>Sea Pay Processor</header>
 
-    <div class="controls">
-        <button onclick="run()">RUN PROCESSOR</button>
-    </div>
+<h2>Sea Pay Processor</h2>
 
-    <pre id="logbox"></pre>
-</div>
+<h3>Upload</h3>
+<form action="/upload" method="post" enctype="multipart/form-data">
+<select name="type">
+<option value="data">Input PDF</option>
+<option value="template">Template PDF</option>
+</select>
+<input type="file" name="file" required>
+<button>Upload</button>
+</form>
 
-<script src="app.js"></script>
+<h3>Run Processor</h3>
+<form method="post">
+<button>GENERATE</button>
+</form>
+
+<h3>Data</h3>
+{% for f in data %}
+{{ f }} | <a href="/delete/data/{{f}}">Delete</a><br>
+{% endfor %}
+
+<h3>Template</h3>
+{% for f in template %}
+{{ f }} | <a href="/delete/templates/{{f}}">Delete</a><br>
+{% endfor %}
+
+<h3>Output</h3>
+{% for f in output %}
+<a href="/download/{{f}}">{{f}}</a> | <a href="/delete/output/{{f}}">Delete</a><br>
+{% endfor %}
+
+<pre style="background:#000;color:#0f0;padding:10px;">{{logs}}</pre>
+
 </body>
 </html>
