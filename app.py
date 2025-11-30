@@ -5,6 +5,7 @@ import csv
 from datetime import datetime, timedelta
 from difflib import get_close_matches
 
+from flask import send_from_directory, redirect
 from flask import Flask, render_template, request
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
@@ -452,6 +453,31 @@ def index():
         output_dir=output_dir,
         logs="\n".join(logs)
     )
+
+@app.route("/upload-template", methods=["POST"])
+def upload_template():
+    file = request.files["file"]
+    if file:
+        os.makedirs("/templates", exist_ok=True)
+        file.save(os.path.join("/templates", file.filename))
+    return redirect("/")
+
+@app.route("/upload-rate", methods=["POST"])
+def upload_rate():
+    file = request.files["file"]
+    if file:
+        os.makedirs("/config", exist_ok=True)
+        file.save(os.path.join("/config", file.filename))
+    return redirect("/")
+
+@app.route("/upload-data", methods=["POST"])
+def upload_data():
+    files = request.files.getlist("files")
+    os.makedirs("/data", exist_ok=True)
+    for f in files:
+        if f.filename:
+            f.save(os.path.join("/data", f.filename))
+    return redirect("/")
 
 
 if __name__ == "__main__":
