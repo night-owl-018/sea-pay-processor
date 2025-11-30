@@ -6,7 +6,8 @@
 body { background:black; color:#0f0; font-family:monospace }
 label { display:block; margin-top:12px }
 input,button { background:#111;color:#0f0;border:1px solid #0f0;padding:5px }
-pre { background:#000; padding:10px; height:250px; overflow:auto }
+pre { background:#000; padding:10px; height:200px; overflow:auto }
+.small { font-size:12px; color:#6f6 }
 a { color:#6f6 }
 </style>
 </head>
@@ -22,11 +23,11 @@ a { color:#6f6 }
 
 <label>REPLACE TEMPLATE PDF</label>
 <input type="file" name="template_file">
-<div>Current: {{ template_path }}</div>
+<div class="small">Current: {{ template_path }}</div>
 
 <label>RATE CSV</label>
 <input type="file" name="rate_file">
-<div>Current: {{ rate_path }}</div>
+<div class="small">Current: {{ rate_path }}</div>
 
 <br><br>
 <button type="submit">RUN PROCESSOR</button>
@@ -36,7 +37,7 @@ a { color:#6f6 }
 <hr>
 
 <a href="/browse_output">
-<button>📂 OPEN OUTPUT FOLDER</button>
+<button type="button">📂 BROWSE OUTPUT FOLDER</button>
 </a>
 
 <hr>
@@ -46,7 +47,7 @@ a { color:#6f6 }
 {% for f in data_files %}
 <li>{{ f }} <a href="/delete/data/{{ f }}">DELETE</a></li>
 {% else %}
-<li>No uploaded files</li>
+<li>No files uploaded</li>
 {% endfor %}
 </ul>
 
@@ -55,7 +56,7 @@ a { color:#6f6 }
 {% for f in outputs %}
 <li><a href="/download/{{ f }}">{{ f }}</a></li>
 {% else %}
-<li>No PDFs generated</li>
+<li>No PDFs generated yet</li>
 {% endfor %}
 </ul>
 
