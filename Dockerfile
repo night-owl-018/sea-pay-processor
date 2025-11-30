@@ -11,5 +11,8 @@ WORKDIR /app
 COPY . /app
 
 RUN pip install --no-cache-dir pytesseract pdf2image reportlab PyPDF2 pillow
+RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["python", "app.py"]
+EXPOSE 8092
+
+CMD ["uvicorn", "web.backend.main:app", "--host", "0.0.0.0", "--port", "8092"]
