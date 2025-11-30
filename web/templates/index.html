@@ -1,1 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ATGSD Sea Pay Processor</title>
+<style>
+body { background:black; color:#00ff66; font-family:monospace; padding:20px; }
+input, button { width:100%; padding:8px; margin-top:5px; background:#111; color:#00ff66; border:1px solid #00ff66; }
+h2 { margin-top:30px; }
+.file-list { margin-top:10px; }
+a { color:#00ffff; }
+.delete { color:red; }
+pre { background:#000; border:1px solid #00ff66; padding:10px; height:300px; overflow:auto; }
+</style>
+</head>
+<body>
+
+<h1>ATGSD Sea Pay Processor</h1>
+
+<form method="POST">
+<button>RUN PROCESSOR</button>
+</form>
+
+<h2>TEMPLATE PDF</h2>
+<form action="/upload-template" method="POST" enctype="multipart/form-data">
+<input type="file" name="file">
+<button>Upload Template</button>
+</form>
+<div class="file-list">
+{% for f in template_files %}
+  {{f}} <a href="/delete-template/{{f}}" class="delete">[DELETE]</a><br>
+{% endfor %}
+</div>
+
+<h2>RATE CSV</h2>
+<form action="/upload-rate" method="POST" enctype="multipart/form-data">
+<input type="file" name="file">
+<button>Upload CSV</button>
+</form>
+<div class="file-list">
+{% for f in rate_files %}
+  {{f}} <a href="/delete-rate/{{f}}" class="delete">[DELETE]</a><br>
+{% endfor %}
+</div>
+
+<h2>INPUT PDFs</h2>
+<form action="/upload-data" method="POST" enctype="multipart/form-data">
+<input type="file" name="files" multiple>
+<button>Upload PDFs</button>
+</form>
+<div class="file-list">
+{% for f in data_files %}
+  {{f}} <a href="/delete-data/{{f}}" class="delete">[DELETE]</a><br>
+{% endfor %}
+</div>
+
+<h2>OUTPUT FILES</h2>
+<div class="file-list">
+{% for f in output_files %}
+  <a href="/download/{{f}}">{{f}}</a>
+  <a href="/delete-output/{{f}}" class="delete">[DELETE]</a><br>
+{% endfor %}
+</div>
+
+<h2>LIVE LOG</h2>
+<pre>{{logs}}</pre>
+
+</body>
+</html>
 
