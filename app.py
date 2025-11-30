@@ -6,12 +6,14 @@ OUTPUT_DIR = "/output"
 TEMPLATE_PATH = "/templates/NAVPERS_1070_613_TEMPLATE.pdf"
 RATE_PATH = "/config/atgsd_n811.csv"
 
+# Ensure mount points exist inside container
 for p in [DATA_DIR, OUTPUT_DIR, "/templates", "/config"]:
     os.makedirs(p, exist_ok=True)
 
 from process import process_all
 
-app = Flask(__name__, template_folder="templates")
+# ✅ IMPORTANT FIX — Point to the correct folder
+app = Flask(__name__, template_folder="web/frontend")
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -24,12 +26,12 @@ def index():
             if f.filename:
                 f.save(os.path.join(DATA_DIR, f.filename))
 
-        # Override template
+        # Replace template if uploaded
         tpl = request.files.get("template_file")
         if tpl and tpl.filename:
             tpl.save(TEMPLATE_PATH)
 
-        # Override CSV
+        # Replace CSV if uploaded
         csv = request.files.get("rate_file")
         if csv and csv.filename:
             csv.save(RATE_PATH)
@@ -50,9 +52,9 @@ def index():
 def delete_file(folder, name):
     base = DATA_DIR if folder == "data" else OUTPUT_DIR if folder == "output" else None
     if base:
-        f = os.path.join(base, name)
-        if os.path.exists(f):
-            os.remove(f)
+        path = os.path.join(base, name)
+        if os.path.exists(path):
+            os.remove(path)
     return redirect("/")
 
 @app.route("/download/<name>")
