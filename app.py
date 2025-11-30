@@ -35,6 +35,9 @@ pytesseract.pytesseract.tesseract_cmd = "tesseract"
 FONT_NAME = "Times-Roman"
 FONT_SIZE = 10
 
+print("🔥 RUNNING NEW BUILD — v2 WEB GUI ACTIVE 🔥")
+
+
 # ------------------------------------------------
 # SHIP LIST (UNCHANGED)
 # ------------------------------------------------
