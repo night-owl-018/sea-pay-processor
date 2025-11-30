@@ -34,32 +34,32 @@ a { color:#6f6 }
 
 </form>
 
-<br>
-
-<!-- ✅ OUTPUT FOLDER BROWSER -->
-<a href="/browse">
-  <button type="button">📂 BROWSE OUTPUT FOLDER</button>
-</a>
-
 <hr>
 
 <h3>INPUT FILES</h3>
 <ul>
 {% for f in data_files %}
-<li>{{ f }} <a href="/delete/data/{{ f }}">DELETE</a></li>
+<li>{{ f }} — <a href="/delete/data/{{ f }}">DELETE</a></li>
 {% else %}
 <li>No files uploaded.</li>
 {% endfor %}
 </ul>
 
+<hr>
+
 <h3>OUTPUT FILES</h3>
 <ul>
 {% for f in outputs %}
-<li><a href="/download/{{ f }}">{{ f }}</a> <a href="/delete/output/{{ f }}">DELETE</a></li>
+<li>
+  <a href="/download/{{ f }}">{{ f }}</a>
+  — <a href="/delete/output/{{ f }}">DELETE</a>
+</li>
 {% else %}
 <li>No PDFs generated yet.</li>
 {% endfor %}
 </ul>
+
+<hr>
 
 <h3>LOGS</h3>
 <pre>{{ logs }}</pre>
