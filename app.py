@@ -15,7 +15,7 @@ from pdf2image import convert_from_path
 # ------------------------------------------------
 # FLASK APP (✅ CRITICAL: POINT TO CORRECT TEMPLATE FOLDER)
 # ------------------------------------------------
-app = Flask(__name__, template_folder="/app/web/templates")
+app = Flask(__name__, template_folder="/app/web/templates", static_folder=None)
 
 # ------------------------------------------------
 # PATH CONFIG (DOCKER VOLUMES)
