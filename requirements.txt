@@ -1,6 +1,4 @@
-Flask
-PyPDF2
-reportlab
-pytesseract
-pdf2image
-Pillow
+fastapi
+uvicorn
+jinja2
+python-multipart
