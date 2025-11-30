@@ -3,6 +3,7 @@ import sqlite3
 import csv
 from datetime import datetime
 from pathlib import Path
+import re
 
 # ----------------------------------------------------
 # DB LOCATION
@@ -10,11 +11,12 @@ from pathlib import Path
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
-# Default to /config/seapay.db (for Docker),
-# but fall back to local file for dev/testing.
+# Default DB path:
+# - In Docker:   /config/seapay.db  (we'll mount this)
+# - Local dev:   ./seapay.db       (same folder as app.py)
 DB_PATH = os.environ.get("SEA_PAY_DB", os.path.join(ROOT, "seapay.db"))
 
-# Existing files (for initial seeding)
+# Existing text/CSV files (already in your project)
 SHIP_FILE = os.path.join(ROOT, "ships.txt")
 RATE_FILE = os.path.join(ROOT, "atgsd_n811.csv")
 
@@ -24,7 +26,7 @@ RATE_FILE = os.path.join(ROOT, "atgsd_n811.csv")
 # ----------------------------------------------------
 
 def get_conn():
-    """Return a SQLite connection with sane defaults."""
+    """Return a SQLite connection."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -79,20 +81,22 @@ CREATE TABLE IF NOT EXISTS hashes (
 );
 
 CREATE TABLE IF NOT EXISTS templates (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    name         TEXT NOT NULL,
-    filename     TEXT NOT NULL,
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL,
+    filename      TEXT NOT NULL,
     version_label TEXT,
-    upload_time  TEXT NOT NULL,
-    last_used    TEXT,
-    active       INTEGER NOT NULL DEFAULT 1
+    upload_time   TEXT NOT NULL,
+    last_used     TEXT,
+    active        INTEGER NOT NULL DEFAULT 1
 );
 """
 
 
 def init_db():
-    """Create tables if they do not exist."""
-    Path(os.path.dirname(DB_PATH) or ".").mkdir(parents=True, exist_ok=True)
+    """Create DB file and tables if needed."""
+    db_dir = os.path.dirname(DB_PATH)
+    if db_dir:
+        Path(db_dir).mkdir(parents=True, exist_ok=True)
 
     conn = get_conn()
     try:
@@ -103,32 +107,31 @@ def init_db():
 
 
 # ----------------------------------------------------
-# NORMALIZATION HELPERS (MATCH EXISTING PYTHON LOGIC)
+# NORMALIZATION HELPERS  (match your existing code)
 # ----------------------------------------------------
 
-import re
-from difflib import get_close_matches
-
-
 def normalize(text: str) -> str:
-    """Mirror the normalize() function in your current code."""
-    text = re.sub(r"\\(.*?\\)", "", text or "")
+    text = re.sub(r"\(.*?\)", "", text or "")
     text = re.sub(r"[^A-Z ]", "", text.upper())
     return " ".join(text.split())
 
 
 # ----------------------------------------------------
-# SEEDING FROM EXISTING FILES
+# CSV / TXT CLEANING HELPERS
 # ----------------------------------------------------
 
 def _clean_header(h: str) -> str:
     if h is None:
         return ""
-    return h.lstrip("\\ufeff").strip().strip('"').lower()
+    return h.lstrip("\ufeff").strip().strip('"').lower()
 
+
+# ----------------------------------------------------
+# SEED SHIPS FROM ships.txt  (ONE-TIME)
+# ----------------------------------------------------
 
 def seed_ships_from_txt():
-    """Initial one-time import from ships.txt into ships table."""
+    """Import ships.txt into ships table if table is empty."""
     if not os.path.exists(SHIP_FILE):
         print("⚠ seed_ships_from_txt: ships.txt not found, skipping.")
         return
@@ -136,7 +139,7 @@ def seed_ships_from_txt():
     conn = get_conn()
     cur = conn.cursor()
 
-    # Check if ships table already has data
+    # Check if already seeded
     cur.execute("SELECT COUNT(*) AS c FROM ships;")
     count = cur.fetchone()["c"]
     if count > 0:
@@ -145,28 +148,38 @@ def seed_ships_from_txt():
         return
 
     created_at = now_iso()
+    rows = []
 
     with open(SHIP_FILE, "r", encoding="utf-8") as f:
-        lines = [line.strip() for line in f if line.strip()]
+        for line in f:
+            name = line.strip()
+            if not name:
+                continue
+            norm = normalize(name)
+            if not norm:
+                continue
+            rows.append((name.upper(), norm, 1, created_at))
 
-    rows = []
-    for name in lines:
-        norm = normalize(name)
-        if not norm:
-            continue
-        rows.append((name.upper(), norm, 1, created_at))
+    if rows:
+        cur.executemany(
+            "INSERT OR IGNORE INTO ships (name, normalized, active, created_at) "
+            "VALUES (?, ?, ?, ?);",
+            rows,
+        )
+        conn.commit()
+        print(f"✅ Seeded {len(rows)} ships into DB.")
+    else:
+        print("⚠ No valid ships found in ships.txt.")
 
-    cur.executemany(
-        "INSERT OR IGNORE INTO ships (name, normalized, active, created_at) VALUES (?, ?, ?, ?);",
-        rows,
-    )
-    conn.commit()
     conn.close()
-    print(f"✅ Seeded {len(rows)} ships into DB.")
 
+
+# ----------------------------------------------------
+# SEED NAMES FROM atgsd_n811.csv  (ONE-TIME)
+# ----------------------------------------------------
 
 def seed_names_from_csv():
-    """Initial one-time import from atgsd_n811.csv into names table."""
+    """Import atgsd_n811.csv into names table if table is empty."""
     if not os.path.exists(RATE_FILE):
         print("⚠ seed_names_from_csv: atgsd_n811.csv not found, skipping.")
         return
@@ -174,7 +187,7 @@ def seed_names_from_csv():
     conn = get_conn()
     cur = conn.cursor()
 
-    # Check if names table already has data
+    # Check if already seeded
     cur.execute("SELECT COUNT(*) AS c FROM names;")
     count = cur.fetchone()["c"]
     if count > 0:
@@ -201,7 +214,7 @@ def seed_names_from_csv():
                 key = _clean_header(k)
                 if not key:
                     continue
-                row[key] = (v or "").replace("\\t", "").strip()
+                row[key] = (v or "").replace("\t", "").strip()
 
             last = (row.get("last") or "").upper()
             first = (row.get("first") or "").upper()
@@ -226,10 +239,19 @@ def seed_names_from_csv():
     conn.close()
 
 
+# ----------------------------------------------------
+# ONE ENTRY POINT TO CALL ON STARTUP
+# ----------------------------------------------------
+
 def initialize_and_seed():
-    """Call this once at startup (e.g., from main or backend)."""
+    """Create DB and seed ships + names if empty."""
     print(f"📦 Using DB at: {DB_PATH}")
     init_db()
     seed_ships_from_txt()
     seed_names_from_csv()
     print("✅ Database initialization and seeding complete.")
+
+
+if __name__ == "__main__":
+    # Allow you to run this file directly:
+    initialize_and_seed()
