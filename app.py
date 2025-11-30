@@ -407,6 +407,28 @@ def delete_output(name):
     os.remove(os.path.join(OUTPUT_DIR,name))
     return redirect("/")
 
+@app.route("/files/<path:folder>")
+def list_files(folder):
+    base = "/" + folder
+    files = []
+    if os.path.exists(base):
+        files = os.listdir(base)
+    return render_template("files.html", folder=folder, files=files)
+
+@app.route("/download/<path:file>")
+def download_file(file):
+    folder = os.path.dirname(file)
+    name = os.path.basename(file)
+    return send_from_directory("/" + folder, name, as_attachment=True)
+
+@app.route("/delete/<path:file>")
+def delete_file(file):
+    path = "/" + file
+    if os.path.exists(path):
+        os.remove(path)
+    return redirect("/")
+
+
 
 # ------------------------------------------------
 # START APP
