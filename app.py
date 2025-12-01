@@ -502,12 +502,7 @@ def download_all():
         
         log(f"✅ ZIP CREATED: {files_added} files")
         
-        return send_from_directory(
-            os.path.dirname(zip_path),
-            os.path.basename(zip_path),
-            as_attachment=True,
-            download_name="SeaPay_Output.zip"
-        )
+        return send_from_directory(os.path.dirname(zip_path), os.path.basename(zip_path), as_attachment=True, download_name="SeaPay_Output.zip")
     except Exception as e:
         log(f"❌ ZIP ERROR: {e}")
         return f"Error creating zip: {str(e)}", 500
@@ -525,11 +520,7 @@ def download_merged():
         latest_merged = merged_files[-1]
         log(f"📄 DOWNLOADING MERGED PDF → {latest_merged}")
         
-        return send_from_directory(
-            OUTPUT_DIR,
-            latest_merged,
-            as_attachment=True
-        )
+        return send_from_directory(OUTPUT_DIR, latest_merged, as_attachment=True)
     except Exception as e:
         log(f"❌ MERGED PDF DOWNLOAD ERROR: {e}")
         return f"Error downloading merged PDF: {str(e)}", 500
