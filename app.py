@@ -88,8 +88,6 @@ def cleanup_all_folders():
     log(f"🗑️ CLEARING ALL LOGS...")
     log("=" * 50)
     
-    # Clear logs after logging the completion message
-    # Give a small delay for the message to be sent to frontend
     return total
 
 # ------------------------------------------------
@@ -344,7 +342,6 @@ def make_pdf(group, name):
 # ------------------------------------------------
 
 def merge_all_pdfs():
-    # Exclude merged PDFs from the list - only merge individual forms
     pdf_files = sorted([
         f for f in os.listdir(OUTPUT_DIR) 
         if f.lower().endswith(".pdf") and not f.startswith("MERGED_SeaPay_Forms_")
@@ -361,10 +358,7 @@ def merge_all_pdfs():
     for pdf_file in pdf_files:
         pdf_path = os.path.join(OUTPUT_DIR, pdf_file)
         try:
-            # Get the filename without extension for bookmark
             bookmark_name = os.path.splitext(pdf_file)[0]
-            
-            # Add PDF with bookmark using the filename
             merger.append(pdf_path, outline_item=bookmark_name)
             log(f"ADDED WITH BOOKMARK → {bookmark_name}")
         except Exception as e:
@@ -389,7 +383,6 @@ def merge_all_pdfs():
 # ------------------------------------------------
 
 def process_all():
-
     files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
 
     if not files:
@@ -432,7 +425,6 @@ def process_all():
     log("✅ GENERATION COMPLETE")
     log("======================================")
     
-    # Auto-merge after generation
     log("=== STARTING AUTO-MERGE ===")
     merge_all_pdfs()
     log("======================================")
@@ -447,9 +439,7 @@ app = Flask(__name__, template_folder="web/frontend")
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-
     if request.method == "POST":
-
         for f in request.files.getlist("files"):
             if f.filename:
                 f.save(os.path.join(DATA_DIR, f.filename))
@@ -492,13 +482,11 @@ def download_all():
     try:
         zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Output.zip")
         
-        # Remove old zip if it exists
         if os.path.exists(zip_path):
             os.remove(zip_path)
         
         log("=== CREATING ZIP FILE ===")
         
-        # Create new zip with all files from OUTPUT_DIR
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
             files_added = 0
             for f in os.listdir(OUTPUT_DIR):
@@ -515,4 +503,47 @@ def download_all():
         log(f"✅ ZIP CREATED: {files_added} files")
         
         return send_from_directory(
-            os.path
+            os.path.dirname(zip_path),
+            os.path.basename(zip_path),
+            as_attachment=True,
+            download_name="SeaPay_Output.zip"
+        )
+    except Exception as e:
+        log(f"❌ ZIP ERROR: {e}")
+        return f"Error creating zip: {str(e)}", 500
+
+@app.route("/download_merged")
+def download_merged():
+    try:
+        merged_files = sorted([f for f in os.listdir(OUTPUT_DIR) 
+                              if f.startswith("MERGED_SeaPay_Forms_") and f.endswith(".pdf")])
+        
+        if not merged_files:
+            log("❌ NO MERGED PDF FOUND")
+            return "No merged PDF found", 404
+        
+        latest_merged = merged_files[-1]
+        log(f"📄 DOWNLOADING MERGED PDF → {latest_merged}")
+        
+        return send_from_directory(
+            OUTPUT_DIR,
+            latest_merged,
+            as_attachment=True
+        )
+    except Exception as e:
+        log(f"❌ MERGED PDF DOWNLOAD ERROR: {e}")
+        return f"Error downloading merged PDF: {str(e)}", 500
+
+@app.route("/reset", methods=["POST"])
+def reset():
+    total_deleted = cleanup_all_folders()
+    clear_logs()
+    
+    return jsonify({
+        "status": "success", 
+        "message": f"Reset complete! {total_deleted} files deleted. Logs cleared.",
+        "files_deleted": total_deleted
+    })
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
