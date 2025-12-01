@@ -609,6 +609,26 @@ def download_merged():
         log(f"❌ MERGED PDF DOWNLOAD ERROR: {e}")
         return f"Error downloading merged PDF: {str(e)}", 500
 
+@app.route("/download_summary")
+def download_summary():
+    try:
+        summary_files = sorted([
+            f for f in os.listdir(OUTPUT_DIR)
+            if f.startswith("SeaPay_Summary_") and f.endswith(".txt")
+        ])
+
+        if not summary_files:
+            log("❌ NO SUMMARY FILE FOUND")
+            return "No summary file found", 404
+
+        latest_summary = summary_files[-1]
+        log(f"📄 DOWNLOADING SUMMARY FILE → {latest_summary}")
+
+        return send_from_directory(OUTPUT_DIR, latest_summary, as_attachment=True)
+    except Exception as e:
+        log(f"❌ SUMMARY DOWNLOAD ERROR: {e}")
+        return f"Error downloading summary file: {str(e)}", 500
+
 @app.route("/reset", methods=["POST"])
 def reset():
     total_deleted = cleanup_all_folders()
