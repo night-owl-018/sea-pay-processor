@@ -298,7 +298,7 @@ def make_pdf(group, name):
     log(f"CREATED → {filename}")
 
 # ------------------------------------------------
-# MERGE ALL PDFs
+# MERGE ALL PDFs WITH BOOKMARKS
 # ------------------------------------------------
 
 def merge_all_pdfs():
@@ -315,7 +315,11 @@ def merge_all_pdfs():
     for pdf_file in pdf_files:
         pdf_path = os.path.join(OUTPUT_DIR, pdf_file)
         try:
-            merger.append(pdf_path)
+            # Get the filename without extension for bookmark
+            bookmark_name = os.path.splitext(pdf_file)[0]
+            
+            # Add PDF with bookmark
+            merger.append(pdf_path, outline_item=bookmark_name)
             log(f"ADDED → {pdf_file}")
         except Exception as e:
             log(f"ERROR ADDING {pdf_file}: {e}")
@@ -328,6 +332,7 @@ def merge_all_pdfs():
         merger.write(merged_path)
         merger.close()
         log(f"✅ MERGED PDF CREATED → {merged_filename}")
+        log(f"📑 {len(pdf_files)} BOOKMARKS ADDED")
         return merged_filename
     except Exception as e:
         log(f"❌ MERGE FAILED: {e}")
