@@ -6,7 +6,7 @@ import zipfile
 import tempfile
 from collections import deque
 from datetime import datetime, timedelta
-from difflib import get_close_matches
+from difflib import get_close_matches, SequenceMatcher
 
 from flask import Flask, render_template, request, send_from_directory
 from PyPDF2 import PdfReader, PdfWriter
@@ -44,7 +44,7 @@ FONT_SIZE = 10
 
 LIVE_LOGS = deque(maxlen=500)
 
-def log(msg):
+def log(msg: str) -> None:
     ts = datetime.now().strftime("%H:%M:%S")
     line = f"[{ts}] {msg}"
     print(line, flush=True)
@@ -68,9 +68,9 @@ def load_rates():
         reader.fieldnames = [_clean_header(h) for h in reader.fieldnames]
 
         for row in reader:
-            last = row.get("last", "").upper()
-            first = row.get("first", "").upper()
-            rate = row.get("rate", "").upper()
+            last = (row.get("last") or "").upper().strip()
+            first = (row.get("first") or "").upper().strip()
+            rate = (row.get("rate") or "").upper().strip()
             if last and rate:
                 rates[f"{last},{first}"] = rate
 
@@ -78,6 +78,19 @@ def load_rates():
     return rates
 
 RATES = load_rates()
+
+# Build CSV identity list for fuzzy matching
+CSV_IDENTITIES = []
+for key, rate in RATES.items():
+    last, first = key.split(",", 1)
+    # normalized "FIRST LAST"
+    full_norm = None
+    def normalize_for_id(text):
+        t = re.sub(r"\(.*?\)", "", text.upper())
+        t = re.sub(r"[^A-Z ]", "", t)
+        return " ".join(t.split())
+    full_norm = normalize_for_id(f"{first} {last}")
+    CSV_IDENTITIES.append((full_norm, rate, last, first))
 
 # ------------------------------------------------
 # LOAD SHIP LIST
@@ -99,6 +112,7 @@ NORMAL_KEYS = list(NORMALIZED_SHIPS.keys())
 # ------------------------------------------------
 
 def strip_times(text):
+    # remove time-like 4-digit blocks (e.g. 0000 2359)
     return re.sub(r"\b[0-2]?\d[0-5]\d\b", "", text)
 
 def ocr_pdf(path):
@@ -193,11 +207,41 @@ def group_by_ship(rows):
     return output
 
 # ------------------------------------------------
-# RATE LOOKUP
+# RATE / NAME LOOKUP (CSV AUTHORITY)
 # ------------------------------------------------
 
+def lookup_csv_identity(name):
+    """
+    Match the OCR name against CSV entries using fuzzy logic.
+    Returns (rate, LAST, FIRST) from CSV if a decent match is found,
+    otherwise None.
+    """
+    ocr_norm = normalize(name)
+    best = None
+    best_score = 0.0
+
+    for csv_norm, rate, last, first in CSV_IDENTITIES:
+        score = SequenceMatcher(None, ocr_norm, csv_norm).ratio()
+        if score > best_score:
+            best_score = score
+            best = (rate, last, first)
+
+    # Require at least moderate similarity
+    if best and best_score >= 0.60:
+        rate, last, first = best
+        log(f"CSV MATCH ({best_score:.2f}) → {rate} {last},{first}")
+        return best
+
+    log(f"CSV NO GOOD MATCH (best={best_score:.2f}) for [{name}]")
+    return None
+
 def get_rate(name):
+    """
+    Fallback direct lookup (kept for safety).
+    """
     parts = normalize(name).split()
+    if len(parts) < 2:
+        return ""
     key = f"{parts[-1]},{parts[0]}"
     return RATES.get(key, "")
 
@@ -206,14 +250,20 @@ def get_rate(name):
 # ------------------------------------------------
 
 def make_pdf(group, name):
+    # Resolve identity using CSV first
+    csv_id = lookup_csv_identity(name)
+    if csv_id:
+        rate, last, first = csv_id
+    else:
+        # fallback to OCR name + simple rate lookup
+        parts = name.split()
+        last = parts[-1]
+        first = " ".join(parts[:-1])
+        rate = get_rate(name)
+
     start = group["start"].strftime("%m/%d/%Y")
     end = group["end"].strftime("%m/%d/%Y")
     ship = group["ship"]
-
-    parts = name.split()
-    last = parts[-1]
-    first = " ".join(parts[:-1])
-    rate = get_rate(name)
 
     prefix = f"{rate}_" if rate else ""
     filename = f"{prefix}{last}_{first}_{ship}_{start.replace('/','-')}_TO_{end.replace('/','-')}.pdf"
@@ -225,6 +275,7 @@ def make_pdf(group, name):
     c = canvas.Canvas(buf, pagesize=letter)
     c.setFont(FONT_NAME, FONT_SIZE)
 
+    # Header
     c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
     c.drawString(373, 671, "X")
     c.setFont(FONT_NAME, 8)
@@ -232,15 +283,19 @@ def make_pdf(group, name):
     c.drawString(345, 641, "OPNAVINST 7220.14")
 
     c.setFont(FONT_NAME, FONT_SIZE)
+    # Name line (with rate if present)
     c.drawString(39, 41, f"{rate} {last}, {first}" if rate else f"{last}, {first}")
+    # Remarks
     c.drawString(38.8, 595, f"____. REPORT CAREER SEA PAY FROM {start} TO {end}.")
     c.drawString(64, 571, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
 
+    # Signature blocks
     c.drawString(356.26, 499.5, "_________________________")
     c.drawString(363.8, 487.5, "Certifying Official & Date")
     c.drawString(356.26, 427.5, "_________________________")
     c.drawString(384.1, 415.2, "FI MI Last Name")
 
+    # Footer
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
 
@@ -259,7 +314,7 @@ def make_pdf(group, name):
     with open(outpath, "wb") as f:
         writer.write(f)
 
-    log(f"CREATED: {filename}")
+    log(f"CREATED → {filename}")
 
 # ------------------------------------------------
 # PROCESS
@@ -279,8 +334,13 @@ def process_all():
         path = os.path.join(DATA_DIR, file)
 
         raw = strip_times(ocr_pdf(path))
-        name = extract_member_name(raw)
-        log(f"NAME → {name}")
+
+        try:
+            name = extract_member_name(raw)
+            log(f"NAME → {name}")
+        except Exception as e:
+            log(f"NAME ERROR → {e}")
+            continue
 
         year = extract_year_from_filename(file)
         rows = parse_rows(raw, year)
@@ -307,33 +367,52 @@ def process_all():
 
 app = Flask(__name__, template_folder="web/frontend")
 
-@app.route("/", methods=["GET","POST"])
+@app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
 
+        # Input PDFs
         for f in request.files.getlist("files"):
             if f.filename:
                 f.save(os.path.join(DATA_DIR, f.filename))
 
+        # Template
         tpl = request.files.get("template_file")
         if tpl and tpl.filename:
             tpl.save(TEMPLATE)
 
+        # Rate CSV
         csvf = request.files.get("rate_file")
         if csvf and csvf.filename:
             csvf.save(RATE_FILE)
 
+        # Re-load rates if CSV changed
+        global RATES, CSV_IDENTITIES
+        RATES = load_rates()
+        CSV_IDENTITIES = []
+        for key, rate in RATES.items():
+            last, first = key.split(",", 1)
+            def normalize_for_id(text):
+                t = re.sub(r"\(.*?\)", "", text.upper())
+                t = re.sub(r"[^A-Z ]", "", t)
+                return " ".join(t.split())
+            full_norm = normalize_for_id(f"{first} {last}")
+            CSV_IDENTITIES.append((full_norm, rate, last, first))
+
         process_all()
 
-    return render_template("index.html",
-        logs="<br>".join(LIVE_LOGS),
+    # logs as plain text lines (waterfall)
+    return render_template(
+        "index.html",
+        logs="\n".join(LIVE_LOGS),
         template_path=TEMPLATE,
         rate_path=RATE_FILE
     )
 
 @app.route("/logs")
 def get_logs():
-    return "<br>".join(LIVE_LOGS)
+    # If you later add JS polling, this route is ready
+    return "\n".join(LIVE_LOGS)
 
 @app.route("/download_all")
 def download_all():
