@@ -5,10 +5,12 @@
 <style>
 body { background:black; color:#0f0; font-family:monospace }
 label { display:block; margin-top:12px }
-input,button { background:#111;color:#0f0;border:1px solid #0f0;padding:5px }
-pre { background:#000; padding:10px; height:200px; overflow:auto }
+input,button { background:#111;color:#0f0;border:1px solid #0f;background-color:#111;border-radius:4px;padding:6px }
+pre { background:#000; padding:10px; height:220px; overflow:auto; border:1px solid #0f0 }
 .small { font-size:12px; color:#6f6 }
-a { color:#6f6 }
+a { color:#6f6; text-decoration:none }
+button { cursor:pointer }
+hr { border:1px solid #0f0 }
 </style>
 </head>
 
@@ -28,6 +30,10 @@ a { color:#6f6 }
 <label>RATE CSV</label>
 <input type="file" name="rate_file">
 <div class="small">Current: {{ rate_path }}</div>
+
+<label>OUTPUT FOLDER NAME</label>
+<input type="text" name="output_folder" placeholder="Example: HAWKINSON_NOV_2025" class="small">
+<div class="small">Saved into /output/&lt;folder&gt;</div>
 
 <br><br>
 <button type="submit">RUN PROCESSOR</button>
