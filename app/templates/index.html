@@ -3,12 +3,11 @@
 <head>
 <title>ATGSD Sea Pay Processor</title>
 <style>
-body { background:black; color:#0f0; font-family:monospace }
-label { display:block; margin-top:10px }
-input,button { background:#111;color:#0f0;border:1px solid #0f0;padding:5px }
-pre { background:#000; padding:10px; height:250px; overflow:auto }
+body { background:#000; color:#0f0; font-family:monospace }
+label { display:block; margin-top:12px }
+button,input { background:#111;color:#0f0;border:1px solid #0f0;padding:6px }
+pre { background:#000; padding:10px; height:280px; overflow:auto; border:1px solid #0f0 }
 .small { font-size:12px; color:#6f6 }
-a { color:#0ff }
 </style>
 </head>
 
@@ -18,10 +17,10 @@ a { color:#0ff }
 
 <form method="POST" enctype="multipart/form-data">
 
-<label>DATA FILES (input PDFs)</label>
-<input type="file" name="files" multiple accept=".pdf">
+<label>INPUT PDFs</label>
+<input type="file" name="files" multiple>
 
-<label>TEMPLATE PDF</label>
+<label>REPLACE TEMPLATE PDF</label>
 <input type="file" name="template_file">
 <div class="small">Current: {{ template_path }}</div>
 
@@ -29,28 +28,38 @@ a { color:#0ff }
 <input type="file" name="rate_file">
 <div class="small">Current: {{ rate_path }}</div>
 
-<div class="small">OUTPUT DIR: {{ output_path }}</div>
+<br><br>
+<button type="submit" onclick="startLogs()">RUN PROCESSOR</button>
 
-<br>
-<button type="submit">RUN PROCESSOR</button>
 </form>
 
-<h3>INPUT FILES</h3>
-<ul>
-{% for f in data_files %}
-<li>{{f}} <a href="/delete/data/{{f}}">delete</a></li>
-{% endfor %}
-</ul>
+<hr>
 
-<h3>OUTPUT FILES</h3>
-<ul>
-{% for f in outputs %}
-<li><a href="/download/{{f}}">{{f}}</a> <a href="/delete/output/{{f}}">delete</a></li>
-{% endfor %}
-</ul>
+<button onclick="downloadAll()">⬇ DOWNLOAD ALL GENERATED FILES</button>
 
-<h3>LOGS</h3>
-<pre>{{ logs }}</pre>
+<hr>
+
+<h3>LIVE LOG CONSOLE</h3>
+<pre id="logBox"></pre>   <!-- CLEANED: no default text -->
+
+<script>
+function startLogs() {
+    setTimeout(pollLogs, 1000);
+}
+
+function pollLogs() {
+    fetch("/logs")
+        .then(r => r.text())
+        .then(txt => {
+            document.getElementById("logBox").innerText = txt;
+            setTimeout(pollLogs, 1000);
+        });
+}
+
+function downloadAll() {
+    window.location.href = "/download_all";
+}
+</script>
 
 </body>
 </html>
