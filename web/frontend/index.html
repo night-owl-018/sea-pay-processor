@@ -5,12 +5,10 @@
 <style>
 body { background:black; color:#0f0; font-family:monospace }
 label { display:block; margin-top:12px }
-input,button { background:#111;color:#0f0;border:1px solid #0f;background-color:#111;border-radius:4px;padding:6px }
-pre { background:#000; padding:10px; height:220px; overflow:auto; border:1px solid #0f0 }
+input,button { background:#111;color:#0f0;border:1px solid #0f0;padding:5px }
+pre { background:#000; padding:10px; height:220px; overflow:auto }
 .small { font-size:12px; color:#6f6 }
-a { color:#6f6; text-decoration:none }
-button { cursor:pointer }
-hr { border:1px solid #0f0 }
+a { color:#6f6 }
 </style>
 </head>
 
@@ -22,6 +20,7 @@ hr { border:1px solid #0f0 }
 
 <label>INPUT PDFs</label>
 <input type="file" name="files" multiple>
+<div class="small">Reads from /data</div>
 
 <label>REPLACE TEMPLATE PDF</label>
 <input type="file" name="template_file">
@@ -31,20 +30,10 @@ hr { border:1px solid #0f0 }
 <input type="file" name="rate_file">
 <div class="small">Current: {{ rate_path }}</div>
 
-<label>OUTPUT FOLDER NAME</label>
-<input type="text" name="output_folder" placeholder="Example: HAWKINSON_NOV_2025" class="small">
-<div class="small">Saved into /output/&lt;folder&gt;</div>
-
 <br><br>
 <button type="submit">RUN PROCESSOR</button>
 
 </form>
-
-<hr>
-
-<a href="/browse_output">
-<button type="button">📂 BROWSE OUTPUT FOLDER</button>
-</a>
 
 <hr>
 
@@ -60,7 +49,7 @@ hr { border:1px solid #0f0 }
 <h3>OUTPUT FILES</h3>
 <ul>
 {% for f in outputs %}
-<li><a href="/download/{{ f }}">{{ f }}</a></li>
+<li><a href="/download/{{ f }}">{{ f }}</a> <a href="/delete/output/{{ f }}">DELETE</a></li>
 {% else %}
 <li>No PDFs generated yet</li>
 {% endfor %}
