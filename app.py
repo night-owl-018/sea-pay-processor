@@ -481,35 +481,63 @@ def get_logs():
 
 @app.route("/download_all")
 def download_all():
-    zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Output.zip")
-    with zipfile.ZipFile(zip_path, "w") as z:
-        for f in os.listdir(OUTPUT_DIR):
-            full = os.path.join(OUTPUT_DIR, f)
-            if os.path.isfile(full):
-                z.write(full, arcname=f)
-
-    return send_from_directory(
-        os.path.dirname(zip_path),
-        os.path.basename(zip_path),
-        as_attachment=True
-    )
+    try:
+        zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Output.zip")
+        
+        # Remove old zip if it exists
+        if os.path.exists(zip_path):
+            os.remove(zip_path)
+        
+        log("=== CREATING ZIP FILE ===")
+        
+        # Create new zip with all files from OUTPUT_DIR
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+            files_added = 0
+            for f in os.listdir(OUTPUT_DIR):
+                full = os.path.join(OUTPUT_DIR, f)
+                if os.path.isfile(full):
+                    z.write(full, arcname=f)
+                    files_added += 1
+                    log(f"ZIPPED → {f}")
+        
+        if files_added == 0:
+            log("❌ NO FILES TO ZIP")
+            return "No files found in output directory", 404
+        
+        log(f"✅ ZIP CREATED: {files_added} files")
+        
+        return send_from_directory(
+            os.path.dirname(zip_path),
+            os.path.basename(zip_path),
+            as_attachment=True,
+            download_name="SeaPay_Output.zip"
+        )
+    except Exception as e:
+        log(f"❌ ZIP ERROR: {e}")
+        return f"Error creating zip: {str(e)}", 500
 
 @app.route("/download_merged")
 def download_merged():
-    # Find the most recent merged PDF
-    merged_files = sorted([f for f in os.listdir(OUTPUT_DIR) 
-                          if f.startswith("MERGED_SeaPay_Forms_") and f.endswith(".pdf")])
-    
-    if not merged_files:
-        return "No merged PDF found", 404
-    
-    latest_merged = merged_files[-1]  # Get the most recent one
-    
-    return send_from_directory(
-        OUTPUT_DIR,
-        latest_merged,
-        as_attachment=True
-    )
+    try:
+        # Find the most recent merged PDF
+        merged_files = sorted([f for f in os.listdir(OUTPUT_DIR) 
+                              if f.startswith("MERGED_SeaPay_Forms_") and f.endswith(".pdf")])
+        
+        if not merged_files:
+            log("❌ NO MERGED PDF FOUND")
+            return "No merged PDF found", 404
+        
+        latest_merged = merged_files[-1]  # Get the most recent one
+        log(f"📄 DOWNLOADING MERGED PDF → {latest_merged}")
+        
+        return send_from_directory(
+            OUTPUT_DIR,
+            latest_merged,
+            as_attachment=True
+        )
+    except Exception as e:
+        log(f"❌ MERGED PDF DOWNLOAD ERROR: {e}")
+        return f"Error downloading merged PDF: {str(e)}", 500
 
 @app.route("/reset", methods=["POST"])
 def reset():
