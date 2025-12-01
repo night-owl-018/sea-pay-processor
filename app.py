@@ -302,7 +302,11 @@ def make_pdf(group, name):
 # ------------------------------------------------
 
 def merge_all_pdfs():
-    pdf_files = sorted([f for f in os.listdir(OUTPUT_DIR) if f.lower().endswith(".pdf")])
+    # Exclude merged PDFs from the list - only merge individual forms
+    pdf_files = sorted([
+        f for f in os.listdir(OUTPUT_DIR) 
+        if f.lower().endswith(".pdf") and not f.startswith("MERGED_SeaPay_Forms_")
+    ])
     
     if not pdf_files:
         log("NO PDFs TO MERGE")
@@ -318,9 +322,9 @@ def merge_all_pdfs():
             # Get the filename without extension for bookmark
             bookmark_name = os.path.splitext(pdf_file)[0]
             
-            # Add PDF with bookmark
+            # Add PDF with bookmark using the filename
             merger.append(pdf_path, outline_item=bookmark_name)
-            log(f"ADDED → {pdf_file}")
+            log(f"ADDED WITH BOOKMARK → {bookmark_name}")
         except Exception as e:
             log(f"ERROR ADDING {pdf_file}: {e}")
     
@@ -332,7 +336,7 @@ def merge_all_pdfs():
         merger.write(merged_path)
         merger.close()
         log(f"✅ MERGED PDF CREATED → {merged_filename}")
-        log(f"📑 {len(pdf_files)} BOOKMARKS ADDED")
+        log(f"📑 BOOKMARKS ADDED: {len(pdf_files)}")
         return merged_filename
     except Exception as e:
         log(f"❌ MERGE FAILED: {e}")
