@@ -5,10 +5,11 @@
 <style>
 body { background:#000; color:#0f0; font-family:monospace }
 label { display:block; margin-top:12px }
-button,input { background:#111;color:#0f0;border:1px solid #0f0;padding:6px }
+button,input { background:#111;color:#0f0;border:1px solid #0f0;padding:6px; margin:5px 5px 5px 0 }
 button:disabled { opacity:0.5; cursor:not-allowed }
 pre { background:#000; padding:10px; height:280px; overflow:auto; border:1px solid #0f0 }
 .small { font-size:12px; color:#6f6 }
+.download-section { margin-top: 10px }
 </style>
 </head>
 <body>
@@ -26,7 +27,10 @@ pre { background:#000; padding:10px; height:280px; overflow:auto; border:1px sol
 <button type="submit" id="submitBtn">RUN PROCESSOR</button>
 </form>
 <hr>
-<button onclick="downloadAll()">⬇ DOWNLOAD ALL GENERATED FILES</button>
+<div class="download-section">
+<button onclick="downloadMerged()">📄 DOWNLOAD MERGED PDF</button>
+<button onclick="downloadAll()">📦 DOWNLOAD ZIP (ALL FILES)</button>
+</div>
 <hr>
 <h3>LIVE LOG CONSOLE</h3>
 <pre id="logBox">{{ logs }}</pre>
@@ -59,7 +63,7 @@ function pollLogs() {
 
 // Handle form submission without page reload
 document.getElementById("uploadForm").addEventListener("submit", function(e) {
-    e.preventDefault();  // STOP the page reload!
+    e.preventDefault();
     
     const formData = new FormData(this);
     const submitBtn = document.getElementById("submitBtn");
@@ -74,7 +78,6 @@ document.getElementById("uploadForm").addEventListener("submit", function(e) {
     .then(response => {
         submitBtn.disabled = false;
         submitBtn.innerText = "RUN PROCESSOR";
-        // Logs continue streaming via pollLogs() - no interruption!
     })
     .catch(err => {
         console.error("Upload failed:", err);
@@ -82,6 +85,10 @@ document.getElementById("uploadForm").addEventListener("submit", function(e) {
         submitBtn.innerText = "RUN PROCESSOR";
     });
 });
+
+function downloadMerged() {
+    window.location.href = "/download_merged";
+}
 
 function downloadAll() {
     window.location.href = "/download_all";
