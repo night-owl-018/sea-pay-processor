@@ -8,7 +8,7 @@ from collections import deque
 from datetime import datetime, timedelta
 from difflib import get_close_matches, SequenceMatcher
 
-from flask import Flask, render_template, request, send_from_directory
+from flask import Flask, render_template, request, send_from_directory, jsonify
 from PyPDF2 import PdfReader, PdfWriter, PdfMerger
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -49,6 +49,40 @@ def log(msg: str) -> None:
     line = f"[{ts}] {msg}"
     print(line, flush=True)
     LIVE_LOGS.append(line)
+
+# ------------------------------------------------
+# CLEANUP FUNCTIONS
+# ------------------------------------------------
+
+def cleanup_folder(folder_path, folder_name):
+    """Delete all files in a folder"""
+    try:
+        files_deleted = 0
+        for filename in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, filename)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+                files_deleted += 1
+        
+        if files_deleted > 0:
+            log(f"🗑️ CLEANED {folder_name}: {files_deleted} files deleted")
+        return files_deleted
+    except Exception as e:
+        log(f"❌ CLEANUP ERROR in {folder_name}: {e}")
+        return 0
+
+def cleanup_all_folders():
+    """Clean up all working folders"""
+    log("=== STARTING RESET/CLEANUP ===")
+    
+    total = 0
+    total += cleanup_folder(DATA_DIR, "INPUT/DATA")
+    total += cleanup_folder(OUTPUT_DIR, "OUTPUT")
+    
+    log(f"✅ RESET COMPLETE: {total} total files deleted")
+    log("=" * 50)
+    
+    return total
 
 # ------------------------------------------------
 # LOAD RATES
@@ -476,6 +510,16 @@ def download_merged():
         latest_merged,
         as_attachment=True
     )
+
+@app.route("/reset", methods=["POST"])
+def reset():
+    """Reset/cleanup endpoint - deletes all files from data and output folders"""
+    total_deleted = cleanup_all_folders()
+    return jsonify({
+        "status": "success", 
+        "message": f"Reset complete! {total_deleted} files deleted.",
+        "files_deleted": total_deleted
+    })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
