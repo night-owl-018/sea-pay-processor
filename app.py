@@ -12,6 +12,7 @@ from flask import Flask, render_template, request, send_from_directory, jsonify
 from PyPDF2 import PdfReader, PdfWriter, PdfMerger
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+from reportlab.lib.colors import black
 
 import pytesseract
 from pdf2image import convert_from_path
@@ -288,26 +289,18 @@ def get_rate(name):
     return RATES.get(key, "")
 
 # ------------------------------------------------
-# FINAL FLATTEN MODE (ADOBE "PRINT TO PDF" STYLE) — ONLY CHANGE
+# FINAL FLATTEN MODE
 # ------------------------------------------------
 
 def flatten_pdf(path):
-    """
-    TRUE FINAL FLATTEN.
-    Removes all form logic and annotations.
-    Keeps vectors and fonts sharp.
-    Behaves like Adobe "Print to PDF" without rasterizing.
-    """
     try:
         reader = PdfReader(path)
         writer = PdfWriter()
 
         for page in reader.pages:
-            # Drop all interactive layers (buttons, widgets, JS actions)
             if "/Annots" in page:
                 del page["/Annots"]
 
-            # Normalize content stream (merge visible content)
             contents = page.get("/Contents")
             if isinstance(contents, list):
                 merged = b""
@@ -320,7 +313,6 @@ def flatten_pdf(path):
 
             writer.add_page(page)
 
-        # Remove global form structure
         if "/AcroForm" in writer._root_object:
             del writer._root_object["/AcroForm"]
 
@@ -398,10 +390,15 @@ def make_pdf(group, name):
     flatten_pdf(outpath)
     log(f"CREATED → {filename}")
 
+# ------------------------------------------------
+# MERGE PDFs
+# ------------------------------------------------
+
 def merge_all_pdfs():
     pdf_files = sorted([
         f for f in os.listdir(OUTPUT_DIR)
         if f.lower().endswith(".pdf") and not f.startswith("MERGED_SeaPay_Forms_")
+        and not f.startswith("MARKED_")
     ])
 
     if not pdf_files:
@@ -434,6 +431,65 @@ def merge_all_pdfs():
         log(f"❌ MERGE FAILED: {e}")
         return None
 
+# ------------------------------------------------
+# ### PATCH ADDED BELOW ###
+# ------------------------------------------------
+
+def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown, output_path):
+    pages = convert_from_path(original_pdf)
+    overlays = []
+
+    targets = []
+    for d in skipped_duplicates:
+        targets.append(d["date"])
+    for u in skipped_unknown:
+        targets.append(u["date"])
+
+    if not os.path.exists(os.path.dirname(output_path)):
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    for page_index, img in enumerate(pages):
+        data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pagesize=letter)
+
+        for i, text in enumerate(data["text"]):
+            if not text.strip():
+                continue
+
+            for target in targets:
+                if target in text:
+                    x = data["left"][i]
+                    y = letter[1] - data["top"][i]
+                    w = data["width"][i]
+                    h = data["height"][i]
+
+                    c.setStrokeColor(black)
+                    c.setLineWidth(2)
+                    c.line(x, y - h / 2, x + w, y - h / 2)
+
+        c.save()
+        buf.seek(0)
+        overlays.append(PdfReader(buf))
+
+    reader = PdfReader(original_pdf)
+    writer = PdfWriter()
+
+    for i, page in enumerate(reader.pages):
+        if i < len(overlays):
+            page.merge_page(overlays[i].pages[0])
+        writer.add_page(page)
+
+    with open(output_path, "wb") as f:
+        writer.write(f)
+
+    log(f"MARKED SHEET CREATED → {os.path.basename(output_path)}")
+
+# ------------------------------------------------
+# PROCESS ALL
+# ------------------------------------------------
+
 def process_all():
     files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
 
@@ -457,6 +513,21 @@ def process_all():
 
         year = extract_year_from_filename(file)
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
+
+        # ------------------------------------------------
+        # ### PATCH ADDED HERE ###
+        # ------------------------------------------------
+        marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
+        os.makedirs(marked_dir, exist_ok=True)
+
+        marked_path = os.path.join(
+            marked_dir,
+            f"MARKED_{os.path.splitext(file)[0]}.pdf"
+        )
+
+        mark_sheet_with_strikeouts(path, skipped_dupe, skipped_unknown, marked_path)
+        # ------------------------------------------------
+
         groups = group_by_ship(rows)
 
         for g in groups:
@@ -466,7 +537,7 @@ def process_all():
     log("✅ ALL OPERATIONS COMPLETE")
 
 # ------------------------------------------------
-# FLASK APP (UNCHANGED)
+# FLASK ROUTES
 # ------------------------------------------------
 
 app = Flask(__name__, template_folder="web/frontend")
@@ -534,6 +605,34 @@ def download_merged():
     merged_files = sorted([f for f in os.listdir(OUTPUT_DIR) if f.startswith("MERGED_SeaPay_Forms_")])
     latest = merged_files[-1]
     return send_from_directory(OUTPUT_DIR, latest, as_attachment=True)
+
+# ------------------------------------------------
+# ### PATCH ADDED BELOW ###
+# ------------------------------------------------
+
+@app.route("/download_marked_sheets")
+def download_marked_sheets():
+    marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
+    zip_path = os.path.join(tempfile.gettempdir(), "Marked_Sheets.zip")
+
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        if os.path.exists(marked_dir):
+            for f in os.listdir(marked_dir):
+                full = os.path.join(marked_dir, f)
+                if os.path.isfile(full):
+                    z.write(full, arcname=f)
+
+    return send_from_directory(
+        os.path.dirname(zip_path),
+        os.path.basename(zip_path),
+        as_attachment=True,
+        download_name="Marked_Sheets.zip",
+    )
+
+# ------------------------------------------------
 
 @app.route("/reset", methods=["POST"])
 def reset():
