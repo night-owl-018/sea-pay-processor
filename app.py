@@ -457,39 +457,58 @@ def process_all():
         for g in groups:
             make_pdf(g, name)
 
-        # -----------------------------
-        # BUILD SUMMARY FOR THIS FILE
-        # -----------------------------
-        summary_lines.append(f"=== FILE: {file} ===")
-        summary_lines.append(f"MEMBER: {name}")
+        # ===============================
+        # FORMATTED SUMMARY OUTPUT 
+        # ===============================
+        csv_id = lookup_csv_identity(name)
+        if csv_id:
+            rate, last, first = csv_id
+            display_name = f"{rate} {first} {last}"
+        else:
+            display_name = name
+
+        width = 69
+        summary_lines.append("=" * width)
+        summary_lines.append(display_name.upper())
+        summary_lines.append("=" * width)
         summary_lines.append("")
 
-        summary_lines.append("VALID SEA PAY PERIODS:")
+        # VALID PERIODS
+        summary_lines.append("VALID SEA PAY PERIODS")
+        summary_lines.append("-" * width)
+
         if groups:
             for g in groups:
                 start_str = g["start"].strftime("%m/%d/%Y")
                 end_str = g["end"].strftime("%m/%d/%Y")
                 ship = g["ship"]
-                summary_lines.append(f"  - {ship}: {start_str} to {end_str}")
+                summary_lines.append(f"{ship} : FROM {start_str} TO {end_str}")
         else:
-            summary_lines.append("  (none found)")
+            summary_lines.append("  NONE")
 
-        if used_fallback:
-            summary_lines.append("  NOTE: No row-level matches found; fallback ship-based entry used.")
-
-        if skipped_dupe:
-            summary_lines.append("")
-            summary_lines.append("SKIPPED (duplicate dates – multiple ships on same day):")
-            for s in skipped_dupe:
-                summary_lines.append(f"  - {s['date']}: {s['ship']}")
+        summary_lines.append("")
+        summary_lines.append("-" * width)
+        summary_lines.append("INVALID / EXCLUDED EVENTS / UNRECOGNIZED / NON-SHIP ENTRIES")
 
         if skipped_unknown:
-            summary_lines.append("")
-            summary_lines.append("SKIPPED (unrecognized ship/event text):")
             for s in skipped_unknown:
-                summary_lines.append(f"  - {s['date']}: {s['raw']}")
+                summary_lines.append(f"  {s['date']}  {s['raw']}")
+        else:
+            summary_lines.append("  NONE")
 
-        summary_lines.append("")  # blank line between files
+        summary_lines.append("")
+        summary_lines.append("-" * width)
+        summary_lines.append("DUPLICATE DATE CONFLICTS")
+
+        if skipped_dupe:
+            for s in skipped_dupe:
+                summary_lines.append(f"  {s['date']}  {s['ship']}")
+        else:
+            summary_lines.append("  NONE")
+
+        summary_lines.append("")
+        summary_lines.append("")
+
 
     log("======================================")
     log("✅ GENERATION COMPLETE")
