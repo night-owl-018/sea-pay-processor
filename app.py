@@ -396,7 +396,7 @@ def merge_all_pdfs():
         return None
 
 # ------------------------------------------------
-# PROCESS (SUMMARY CHANGES ONLY HERE)
+# PROCESS (SUMMARY + PER-NAME FILES)
 # ------------------------------------------------
 
 def process_all():
@@ -408,6 +408,12 @@ def process_all():
 
     log("=== PROCESS STARTED ===")
     summary_lines = []
+
+    # Per-name reports stored by display_name
+    per_name_reports = {}
+
+    # Single timestamp for this entire run
+    run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for file in files:
         log(f"OCR → {file}")
@@ -446,14 +452,17 @@ def process_all():
             display_name = name
 
         width = 69
-        summary_lines.append("=" * width)
-        summary_lines.append(display_name.upper())
-        summary_lines.append("=" * width)
-        summary_lines.append("")
+
+        # Build per-name block
+        block_lines = []
+        block_lines.append("=" * width)
+        block_lines.append(display_name.upper())
+        block_lines.append("=" * width)
+        block_lines.append("")
 
         # VALID PERIODS + TOTAL DAYS
-        summary_lines.append("VALID SEA PAY PERIODS")
-        summary_lines.append("-" * width)
+        block_lines.append("VALID SEA PAY PERIODS")
+        block_lines.append("-" * width)
 
         total_days = 0
         if groups:
@@ -463,49 +472,55 @@ def process_all():
                 days = (g["end"] - g["start"]).days + 1
                 total_days += days
                 ship = g["ship"]
-                summary_lines.append(f"{ship} : FROM {start_str} TO {end_str} ({days} DAYS)")
+                block_lines.append(f"{ship} : FROM {start_str} TO {end_str} ({days} DAYS)")
         else:
-            summary_lines.append("  NONE")
+            block_lines.append("  NONE")
 
-        summary_lines.append(f"TOTAL VALID DAYS: {total_days}")
-        summary_lines.append("")
-        summary_lines.append("-" * width)
-        summary_lines.append("INVALID / EXCLUDED EVENTS / UNRECOGNIZED / NON-SHIP ENTRIES")
+        block_lines.append(f"TOTAL VALID DAYS: {total_days}")
+        block_lines.append("")
+        block_lines.append("-" * width)
+        block_lines.append("INVALID / EXCLUDED EVENTS / UNRECOGNIZED / NON-SHIP ENTRIES")
 
         # MITE + SBTT NORMALIZATION (SUMMARY ONLY)
         if skipped_unknown:
             for s in skipped_unknown:
-                raw = s["raw"].upper()
-                ship = match_ship(raw) or ""
-                clean = re.sub(r"[^A-Z ]", " ", raw)
+                raw_unknown = s["raw"].upper()
+                ship = match_ship(raw_unknown) or ""
+                clean = re.sub(r"[^A-Z ]", " ", raw_unknown)
                 clean = " ".join(clean.split())
 
                 if "ASTAC" in clean and "MITE" in clean:
-                    summary_lines.append(f"  ASTAC MITE : {s['date']}")
+                    block_lines.append(f"  ASTAC MITE : {s['date']}")
                 elif "ASW" in clean and "MITE" in clean:
-                    summary_lines.append(f"  ASW MITE : {s['date']}")
+                    block_lines.append(f"  ASW MITE : {s['date']}")
                 elif "SBTT" in clean:
                     if ship:
-                        summary_lines.append(f"  {ship} SBTT : {s['date']}")
+                        block_lines.append(f"  {ship} SBTT : {s['date']}")
                     else:
-                        summary_lines.append(f"  SBTT : {s['date']}")
+                        block_lines.append(f"  SBTT : {s['date']}")
                 else:
-                    summary_lines.append(f"  {s['date']}  {s['raw']}")
+                    block_lines.append(f"  {s['date']}  {s['raw']}")
         else:
-            summary_lines.append("  NONE")
+            block_lines.append("  NONE")
 
-        summary_lines.append("")
-        summary_lines.append("-" * width)
-        summary_lines.append("DUPLICATE DATE CONFLICTS")
+        block_lines.append("")
+        block_lines.append("-" * width)
+        block_lines.append("DUPLICATE DATE CONFLICTS")
 
         if skipped_dupe:
             for s in skipped_dupe:
-                summary_lines.append(f"  {s['date']}  {s['ship']}")
+                block_lines.append(f"  {s['date']}  {s['ship']}")
         else:
-            summary_lines.append("  NONE")
+            block_lines.append("  NONE")
 
-        summary_lines.append("")
-        summary_lines.append("")
+        block_lines.append("")
+        block_lines.append("")
+
+        # Append this sailor block to overall summary
+        summary_lines.extend(block_lines)
+
+        # Append to per-name report (accumulate if multiple PDFs for same sailor)
+        per_name_reports.setdefault(display_name, []).extend(block_lines)
 
     log("======================================")
     log("✅ GENERATION COMPLETE")
@@ -516,17 +531,25 @@ def process_all():
     log("✅ ALL OPERATIONS COMPLETE — READY TO DOWNLOAD")
     log("======================================")
 
-    # WRITE SUMMARY
+    # WRITE MASTER SUMMARY
     if summary_lines:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        summary_filename = f"SeaPay_Summary_{timestamp}.txt"
-        summary_path = os.path.join(OUTPUT_DIR, summary_filename)
-        with open(summary_path, "w", encoding="utf-8") as f:
+        master_filename = f"SeaPay_Summary_{run_timestamp}.txt"
+        master_path = os.path.join(OUTPUT_DIR, master_filename)
+        with open(master_path, "w", encoding="utf-8") as f:
             f.write("\n".join(summary_lines))
-        log(f"📝 SUMMARY FILE CREATED → {summary_filename}")
+        log(f"📝 MASTER SUMMARY FILE CREATED → {master_filename}")
+
+    # WRITE PER-NAME SUMMARY FILES
+    for display_name, lines in per_name_reports.items():
+        safe_name = re.sub(r"[^A-Z0-9]+", "_", display_name.upper()).strip("_")
+        per_name_filename = f"SeaPay_Summary_{run_timestamp}_{safe_name}.txt"
+        per_name_path = os.path.join(OUTPUT_DIR, per_name_filename)
+        with open(per_name_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+        log(f"📝 PER-NAME SUMMARY FILE CREATED → {per_name_filename}")
 
 # ------------------------------------------------
-# FLASK APP (UNCHANGED)
+# FLASK APP (UNCHANGED ROUTES EXCEPT SUMMARY PICK LOGIC)
 # ------------------------------------------------
 
 app = Flask(__name__, template_folder="web/frontend")
@@ -590,8 +613,32 @@ def download_merged():
 
 @app.route("/download_summary")
 def download_summary():
-    summary_files = sorted([f for f in os.listdir(OUTPUT_DIR) if f.startswith("SeaPay_Summary_")])
-    latest = summary_files[-1]
+    # Only treat files of pattern SeaPay_Summary_YYYYMMDD_HHMMSS.txt as master summaries
+    summary_files = [
+        f for f in os.listdir(OUTPUT_DIR)
+        if f.startswith("SeaPay_Summary_") and f.endswith(".txt")
+    ]
+
+    master_candidates = []
+    for fname in summary_files:
+        stem = os.path.splitext(fname)[0]  # SeaPay_Summary_YYYYMMDD_HHMMSS[_OPTIONAL]
+        parts = stem.split("_")
+        # Expect exactly: ["SeaPay", "Summary", "YYYYMMDD", "HHMMSS"]
+        if len(parts) == 4:
+            date_part = parts[2]
+            time_part = parts[3]
+            if len(date_part) == 8 and date_part.isdigit() and len(time_part) == 6 and time_part.isdigit():
+                master_candidates.append(fname)
+
+    if master_candidates:
+        latest = sorted(master_candidates)[-1]
+    else:
+        # Fallback to old behavior if pattern not found
+        fallback = sorted([f for f in summary_files if f.startswith("SeaPay_Summary_")])
+        if not fallback:
+            return "No summary file found", 404
+        latest = fallback[-1]
+
     return send_from_directory(OUTPUT_DIR, latest, as_attachment=True)
 
 @app.route("/reset", methods=["POST"])
