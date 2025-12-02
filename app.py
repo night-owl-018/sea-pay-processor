@@ -467,9 +467,11 @@ def process_all():
             for s in skipped_unknown:
                 raw = s["raw"].upper()
                 ship = match_ship(raw) or ""
-                if "ASTAC" in raw and "MITE" in raw:
+                clean = re.sub(r"[^A-Z ]", " ", raw)
+                clean = " ".join(clean.split())
+                if "ASTAC" in clean and "MITE" in clean:
                     summary_lines.append(f"  ASTAC MITE : {s['date']}")
-                elif "ASW" in raw and "MITE" in raw:
+                elif "ASW" in clean and "MITE" in clean:
                     summary_lines.append(f"  ASW MITE : {s['date']}")
                 elif "SBTT" in raw:
                     if ship:
