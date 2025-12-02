@@ -4,6 +4,7 @@ import io
 import csv
 import zipfile
 import tempfile
+import shutil
 from collections import deque
 from datetime import datetime, timedelta
 from difflib import get_close_matches, SequenceMatcher
@@ -15,6 +16,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.colors import black
 
 import pytesseract
+from pytesseract import Output
 from pdf2image import convert_from_path
 
 # ------------------------------------------------
@@ -69,7 +71,7 @@ def cleanup_folder(folder_path, folder_name):
                 files_deleted += 1
 
         if files_deleted > 0:
-            log(f"🗑️ CLEANED {folder_name}: {files_deleted} files deleted")
+            log(f"🗑 CLEANED {folder_name}: {files_deleted} files deleted")
         return files_deleted
     except Exception as e:
         log(f"❌ CLEANUP ERROR in {folder_name}: {e}")
@@ -81,7 +83,7 @@ def cleanup_all_folders():
     total += cleanup_folder(DATA_DIR, "INPUT/DATA")
     total += cleanup_folder(OUTPUT_DIR, "OUTPUT")
     log(f"✅ RESET COMPLETE: {total} total files deleted")
-    log(f"🗑️ CLEARING ALL LOGS...")
+    log(f"🗑 CLEARING ALL LOGS...")
     log("=" * 50)
     return total
 
@@ -259,7 +261,7 @@ def group_by_ship(rows):
     return output
 
 # ------------------------------------------------
-# CSV AUTHORITY RESOLUTION
+# CSV MATCHING
 # ------------------------------------------------
 
 def lookup_csv_identity(name):
@@ -289,7 +291,7 @@ def get_rate(name):
     return RATES.get(key, "")
 
 # ------------------------------------------------
-# FINAL FLATTEN MODE
+# FLATTEN PDF
 # ------------------------------------------------
 
 def flatten_pdf(path):
@@ -321,13 +323,13 @@ def flatten_pdf(path):
             writer.write(f)
 
         os.replace(tmp, path)
-        log(f"FLATTENED (FINAL) → {os.path.basename(path)}")
+        log(f"FLATTENED → {os.path.basename(path)}")
 
     except Exception as e:
         log(f"⚠️ FLATTEN FAILED → {e}")
 
 # ------------------------------------------------
-# PDF CREATION (UNCHANGED)
+# MAKE 1070 PDF
 # ------------------------------------------------
 
 def make_pdf(group, name):
@@ -391,13 +393,14 @@ def make_pdf(group, name):
     log(f"CREATED → {filename}")
 
 # ------------------------------------------------
-# MERGE PDFs
+# MERGE
 # ------------------------------------------------
 
 def merge_all_pdfs():
     pdf_files = sorted([
         f for f in os.listdir(OUTPUT_DIR)
-        if f.lower().endswith(".pdf") and not f.startswith("MERGED_SeaPay_Forms_")
+        if f.lower().endswith(".pdf")
+        and not f.startswith("MERGED_SeaPay_Forms_")
         and not f.startswith("MARKED_")
     ])
 
@@ -410,9 +413,9 @@ def merge_all_pdfs():
 
     for pdf_file in pdf_files:
         pdf_path = os.path.join(OUTPUT_DIR, pdf_file)
-        bookmark_name = os.path.splitext(pdf_file)[0]
-        merger.append(pdf_path, outline_item=bookmark_name)
-        log(f"ADDED WITH BOOKMARK → {bookmark_name}")
+        bookmark = os.path.splitext(pdf_file)[0]
+        merger.append(pdf_path, outline_item=bookmark)
+        log(f"ADDED BOOKMARK → {bookmark}")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     merged_filename = f"MERGED_SeaPay_Forms_{timestamp}.pdf"
@@ -421,70 +424,87 @@ def merge_all_pdfs():
     try:
         merger.write(merged_path)
         merger.close()
-
         flatten_pdf(merged_path)
-
-        log(f"✅ MERGED PDF CREATED → {merged_filename}")
-        log(f"📑 BOOKMARKS ADDED: {len(pdf_files)}")
+        log(f"MERGED PDF CREATED → {merged_filename}")
         return merged_filename
     except Exception as e:
-        log(f"❌ MERGE FAILED: {e}")
+        log(f"❌ MERGE FAILED → {e}")
         return None
 
 # ------------------------------------------------
-# ### PATCH ADDED BELOW ###
+# STRIKEOUT PATCH
 # ------------------------------------------------
 
 def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown, output_path):
-    pages = convert_from_path(original_pdf)
-    overlays = []
+    try:
+        log(f"MARKING SHEET START → {os.path.basename(original_pdf)}")
 
-    targets = []
-    for d in skipped_duplicates:
-        targets.append(d["date"])
-    for u in skipped_unknown:
-        targets.append(u["date"])
+        targets = [d["date"] for d in skipped_duplicates] + [u["date"] for u in skipped_unknown]
 
-    if not os.path.exists(os.path.dirname(output_path)):
+        if not targets:
+            shutil.copy2(original_pdf, output_path)
+            log(f"NO STRIKEOUTS NEEDED, COPIED → {os.path.basename(output_path)}")
+            return
+
+        pages = convert_from_path(original_pdf)
+        overlays = []
+
+        for idx, img in enumerate(pages):
+            log(f"  PROCESSING PAGE {idx+1}/{len(pages)}")
+
+            data = pytesseract.image_to_data(img, output_type=Output.DICT)
+
+            buf = io.BytesIO()
+            c = canvas.Canvas(buf, pagesize=letter)
+            drew_any = False
+
+            for i, text in enumerate(data["text"]):
+                if not text.strip():
+                    continue
+
+                for target in targets:
+                    if target in text:
+                        x = data["left"][i]
+                        top = data["top"][i]
+                        w = data["width"][i]
+                        h = data["height"][i]
+
+                        y = letter[1] - top
+
+                        c.setStrokeColor(black)
+                        c.setLineWidth(2)
+                        c.line(x, y - h/2, x + w, y - h/2)
+                        drew_any = True
+
+            c.save()
+            buf.seek(0)
+
+            if drew_any:
+                overlays.append(PdfReader(buf))
+            else:
+                overlays.append(None)
+
+        reader = PdfReader(original_pdf)
+        writer = PdfWriter()
+
+        for i, page in enumerate(reader.pages):
+            if overlays[i] is not None:
+                page.merge_page(overlays[i].pages[0])
+            writer.add_page(page)
+
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, "wb") as f:
+            writer.write(f)
 
-    for page_index, img in enumerate(pages):
-        data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+        log(f"MARKED SHEET CREATED → {os.path.basename(output_path)}")
 
-        buf = io.BytesIO()
-        c = canvas.Canvas(buf, pagesize=letter)
-
-        for i, text in enumerate(data["text"]):
-            if not text.strip():
-                continue
-
-            for target in targets:
-                if target in text:
-                    x = data["left"][i]
-                    y = letter[1] - data["top"][i]
-                    w = data["width"][i]
-                    h = data["height"][i]
-
-                    c.setStrokeColor(black)
-                    c.setLineWidth(2)
-                    c.line(x, y - h / 2, x + w, y - h / 2)
-
-        c.save()
-        buf.seek(0)
-        overlays.append(PdfReader(buf))
-
-    reader = PdfReader(original_pdf)
-    writer = PdfWriter()
-
-    for i, page in enumerate(reader.pages):
-        if i < len(overlays):
-            page.merge_page(overlays[i].pages[0])
-        writer.add_page(page)
-
-    with open(output_path, "wb") as f:
-        writer.write(f)
-
-    log(f"MARKED SHEET CREATED → {os.path.basename(output_path)}")
+    except Exception as e:
+        log(f"⚠️ MARKING FAILED ({os.path.basename(original_pdf)}) → {e}")
+        try:
+            shutil.copy2(original_pdf, output_path)
+            log(f"FALLBACK COPY CREATED → {os.path.basename(output_path)}")
+        except Exception as e2:
+            log(f"⚠️ FALLBACK COPY FAILED → {e2}")
 
 # ------------------------------------------------
 # PROCESS ALL
@@ -502,6 +522,7 @@ def process_all():
     for file in files:
         log(f"OCR → {file}")
         path = os.path.join(DATA_DIR, file)
+
         raw = strip_times(ocr_pdf(path))
 
         try:
@@ -514,9 +535,6 @@ def process_all():
         year = extract_year_from_filename(file)
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
 
-        # ------------------------------------------------
-        # ### PATCH ADDED HERE ###
-        # ------------------------------------------------
         marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
         os.makedirs(marked_dir, exist_ok=True)
 
@@ -526,7 +544,6 @@ def process_all():
         )
 
         mark_sheet_with_strikeouts(path, skipped_dupe, skipped_unknown, marked_path)
-        # ------------------------------------------------
 
         groups = group_by_ship(rows)
 
@@ -537,7 +554,7 @@ def process_all():
     log("✅ ALL OPERATIONS COMPLETE")
 
 # ------------------------------------------------
-# FLASK ROUTES
+# ROUTES
 # ------------------------------------------------
 
 app = Flask(__name__, template_folder="web/frontend")
@@ -560,6 +577,7 @@ def index():
         global RATES, CSV_IDENTITIES
         RATES = load_rates()
         CSV_IDENTITIES.clear()
+
         for key, rate in RATES.items():
             last, first = key.split(",", 1)
             def normalize_for_id(text):
@@ -606,10 +624,6 @@ def download_merged():
     latest = merged_files[-1]
     return send_from_directory(OUTPUT_DIR, latest, as_attachment=True)
 
-# ------------------------------------------------
-# ### PATCH ADDED BELOW ###
-# ------------------------------------------------
-
 @app.route("/download_marked_sheets")
 def download_marked_sheets():
     marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
@@ -631,8 +645,6 @@ def download_marked_sheets():
         as_attachment=True,
         download_name="Marked_Sheets.zip",
     )
-
-# ------------------------------------------------
 
 @app.route("/reset", methods=["POST"])
 def reset():
