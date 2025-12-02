@@ -492,7 +492,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
 
                     # Full-row strikeout from x=40 to x=550
                     c.setStrokeColor(black)
-                    c.setLineWidth(2)
+                    c.setLineWidth(0.8)
                     c.line(40, y, 550, y)
                     drew_any = True
                     log(f"    STRIKEOUT AT TEXT='{text}' Y={y:.1f}")
