@@ -16,10 +16,6 @@ from reportlab.lib.pagesizes import letter
 import pytesseract
 from pdf2image import convert_from_path
 
-# ------------------------------------------------
-# PATH CONFIG
-# ------------------------------------------------
-
 DATA_DIR = "/data"
 OUTPUT_DIR = "/output"
 TEMPLATE_DIR = "/templates"
@@ -38,10 +34,6 @@ pytesseract.pytesseract.tesseract_cmd = "tesseract"
 FONT_NAME = "Times-Roman"
 FONT_SIZE = 10
 
-# ------------------------------------------------
-# LIVE LOG BUFFER
-# ------------------------------------------------
-
 LIVE_LOGS = deque(maxlen=500)
 
 def log(msg: str) -> None:
@@ -54,10 +46,6 @@ def clear_logs():
     LIVE_LOGS.clear()
     print("Logs cleared", flush=True)
 
-# ------------------------------------------------
-# CLEANUP FUNCTIONS
-# ------------------------------------------------
-
 def cleanup_folder(folder_path, folder_name):
     try:
         files_deleted = 0
@@ -66,7 +54,7 @@ def cleanup_folder(folder_path, folder_name):
             if os.path.isfile(file_path):
                 os.remove(file_path)
                 files_deleted += 1
-        
+
         if files_deleted > 0:
             log(f"🗑️ CLEANED {folder_name}: {files_deleted} files deleted")
         return files_deleted
@@ -83,10 +71,6 @@ def cleanup_all_folders():
     log(f"🗑️ CLEARING ALL LOGS...")
     log("=" * 50)
     return total
-
-# ------------------------------------------------
-# LOAD RATES
-# ------------------------------------------------
 
 def _clean_header(h):
     return h.lstrip("\ufeff").strip().strip('"').lower() if h else ""
@@ -116,16 +100,14 @@ RATES = load_rates()
 CSV_IDENTITIES = []
 for key, rate in RATES.items():
     last, first = key.split(",", 1)
+
     def normalize_for_id(text):
         t = re.sub(r"\(.*?\)", "", text.upper())
         t = re.sub(r"[^A-Z ]", "", t)
         return " ".join(t.split())
+
     full_norm = normalize_for_id(f"{first} {last}")
     CSV_IDENTITIES.append((full_norm, rate, last, first))
-
-# ------------------------------------------------
-# LOAD SHIP LIST
-# ------------------------------------------------
 
 with open(SHIP_FILE, "r", encoding="utf-8") as f:
     SHIP_LIST = [line.strip() for line in f if line.strip()]
@@ -138,10 +120,6 @@ def normalize(text):
 NORMALIZED_SHIPS = {normalize(s): s.upper() for s in SHIP_LIST}
 NORMAL_KEYS = list(NORMALIZED_SHIPS.keys())
 
-# ------------------------------------------------
-# OCR FUNCTIONS
-# ------------------------------------------------
-
 def strip_times(text):
     return re.sub(r"\b[0-2]?\d[0-5]\d\b", "", text)
 
@@ -152,34 +130,22 @@ def ocr_pdf(path):
         output += pytesseract.image_to_string(img)
     return output.upper()
 
-# ------------------------------------------------
-# NAME EXTRACTION
-# ------------------------------------------------
-
 def extract_member_name(text):
     m = re.search(r"NAME:\s*([A-Z\s]+?)\s+SSN", text)
     if not m:
         raise RuntimeError("NAME NOT FOUND")
     return " ".join(m.group(1).split())
 
-# ------------------------------------------------
-# SHIP MATCH
-# ------------------------------------------------
-
 def match_ship(raw_text):
     candidate = normalize(raw_text)
     words = candidate.split()
     for size in range(len(words), 0, -1):
         for i in range(len(words) - size + 1):
-            chunk = " ".join(words[i:i+size])
+            chunk = " ".join(words[i:i + size])
             match = get_close_matches(chunk, NORMAL_KEYS, n=1, cutoff=0.75)
             if match:
                 return NORMALIZED_SHIPS[match[0]]
     return None
-
-# ------------------------------------------------
-# DATES
-# ------------------------------------------------
 
 def extract_year_from_filename(fn):
     m = re.search(r"(20\d{2})", fn)
@@ -209,7 +175,6 @@ def parse_rows(text, year):
         cleaned_raw = raw.strip()
         upper_raw = cleaned_raw.upper()
 
-        # SBTT ALWAYS SKIPPED
         if "SBTT" in upper_raw:
             skipped_unknown.append({"date": date, "raw": "SBTT"})
             log(f"⚠️ SBTT EVENT, SKIPPING → {date}")
@@ -232,10 +197,6 @@ def parse_rows(text, year):
 
     return rows, skipped_duplicates, skipped_unknown
 
-# ------------------------------------------------
-# GROUPING
-# ------------------------------------------------
-
 def group_by_ship(rows):
     grouped = {}
     for r in rows:
@@ -257,10 +218,6 @@ def group_by_ship(rows):
         output.append({"ship": ship, "start": start, "end": prev})
 
     return output
-
-# ------------------------------------------------
-# CSV AUTHORITY RESOLUTION
-# ------------------------------------------------
 
 def lookup_csv_identity(name):
     ocr_norm = normalize(name)
@@ -288,25 +245,32 @@ def get_rate(name):
     key = f"{parts[-1]},{parts[0]}"
     return RATES.get(key, "")
 
-# ------------------------------------------------
-# HARD FLATTENING (ONLY CHANGE)
-# ------------------------------------------------
+# ------------------- ONLY CHANGE BELOW -------------------
 
 def flatten_pdf(path):
     """
-    HARD FLATTEN: Renders pages into images and rebuilds PDF.
-    This removes all layers, forms, and overlays permanently.
+    HARD FLATTEN — HIGH QUALITY PRINT VERSION
     """
     try:
-        images = convert_from_path(path, dpi=200)
+        images = convert_from_path(path, dpi=300, fmt="png")
         tmp = path + ".flat"
-
         c = canvas.Canvas(tmp, pagesize=letter)
 
         for img in images:
             img_path = path + ".tmp.png"
             img.save(img_path, "PNG")
-            c.drawImage(img_path, 0, 0, width=letter[0], height=letter[1])
+
+            c.drawImage(
+                img_path,
+                0,
+                0,
+                width=letter[0],
+                height=letter[1],
+                preserveAspectRatio=True,
+                anchor="c",
+                mask="auto"
+            )
+
             c.showPage()
             os.remove(img_path)
 
@@ -317,12 +281,9 @@ def flatten_pdf(path):
     except Exception as e:
         log(f"⚠️ FLATTEN FAILED → {e}")
 
-# ------------------------------------------------
-# PDF CREATION (UNCHANGED EXCEPT FLATTEN CALL)
-# ------------------------------------------------
+# ------------------- NO OTHER CHANGES -------------------
 
 def make_pdf(group, name):
-
     csv_id = lookup_csv_identity(name)
     if csv_id:
         rate, last, first = csv_id
@@ -370,7 +331,6 @@ def make_pdf(group, name):
 
     overlay = PdfReader(buf)
     template = PdfReader(TEMPLATE)
-
     base = template.pages[0]
     base.merge_page(overlay.pages[0])
 
@@ -382,10 +342,6 @@ def make_pdf(group, name):
 
     flatten_pdf(outpath)
     log(f"CREATED → {filename}")
-
-# ------------------------------------------------
-# MERGE ALL PDFs (UNCHANGED EXCEPT FLATTEN CALL)
-# ------------------------------------------------
 
 def merge_all_pdfs():
     pdf_files = sorted([
@@ -423,10 +379,6 @@ def merge_all_pdfs():
         log(f"❌ MERGE FAILED: {e}")
         return None
 
-# ------------------------------------------------
-# PROCESS (UNCHANGED)
-# ------------------------------------------------
-
 def process_all():
     files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
 
@@ -457,10 +409,6 @@ def process_all():
 
     merge_all_pdfs()
     log("✅ ALL OPERATIONS COMPLETE")
-
-# ------------------------------------------------
-# FLASK APP (UNCHANGED)
-# ------------------------------------------------
 
 app = Flask(__name__, template_folder="web/frontend")
 
