@@ -7,145 +7,153 @@
 
 <style>
 body {
+    background: #0e1117;
+    font-family: Inter, Consolas, monospace;
     margin: 0;
-    font-family: Inter, Segoe UI, sans-serif;
-    background-color: #0e1117;
-    color: #c9d1d9;
+    color:#c9d1d9;
 }
 
+/* HEADER */
 header {
-    background: #161b22;
-    padding: 16px;
-    border-bottom: 1px solid #30363d;
+    background:#161b22;
+    padding:16px;
+    border-bottom:1px solid #30363d;
 }
-
 header h1 {
-    margin: 0;
-    font-size: 20px;
-    color: #2f81f7;
+    margin:0;
+    color:#58a6ff;
+    font-size:20px;
 }
 
+/* LAYOUT */
 .container {
-    max-width: 1200px;
-    margin: 20px auto;
-    padding: 10px;
+    max-width:1200px;
+    margin:20px auto;
+    padding:10px;
 }
 
 .grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
 }
 
 .card {
-    background: #161b22;
-    padding: 16px;
-    border-radius: 8px;
-    border: 1px solid #30363d;
+    background:linear-gradient(180deg,#161b22,#0e1117);
+    border-radius:10px;
+    padding:16px;
+    border:1px solid #21262d;
 }
-
 .card h3 {
-    margin-top: 0;
-    font-size: 14px;
-    color: #8b949e;
+    margin-top:0;
+    font-size:14px;
+    letter-spacing:0.5px;
+    color:#8b949e;
 }
 
+/* FIXED FILE INPUT */
 input[type="file"] {
-    width: 100%;
-    padding: 14px;
-    border-radius: 6px;
-    background: #0e1117;
-    border: 1px dashed #30363d;
-    color: #c9d1d9;
+    width:100%;
+    padding:12px;
+    border-radius:8px;
+    background:#0e1117;
+    border:1px dashed #30363d;
+    color:#c9d1d9;
 }
 
 input[type="file"]::file-selector-button {
-    background: #21262d;
-    color: #c9d1d9;
-    border: none;
-    padding: 8px 12px;
-    border-radius: 6px;
-    cursor: pointer;
+    background:#21262d;
+    color:#c9d1d9;
+    border:1px solid #30363d;
+    padding:6px 12px;
+    margin-right:10px;
+    border-radius:6px;
+    cursor:pointer;
+}
+
+input[type="file"]::file-selector-button:hover {
+    border-color:#58a6ff;
+    color:#58a6ff;
 }
 
 input[type="file"]:hover {
-    border-color: #2f81f7;
+    border-color:#58a6ff;
 }
 
-.paths {
-    font-size: 12px;
-    color: #8b949e;
-    margin-top: 6px;
-}
-
+/* CONTROL BUTTONS */
 .toolbar {
-    display: flex;
-    gap: 12px;
-    margin-top: 16px;
-    flex-wrap: wrap;
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:12px;
 }
-
 button {
-    padding: 12px 14px;
-    background: #21262d;
-    color: #c9d1d9;
-    border: 1px solid #30363d;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
+    background:#21262d;
+    color:#c9d1d9;
+    border:1px solid #30363d;
+    padding:10px 14px;
+    border-radius:8px;
+    font-weight:600;
+    cursor:pointer;
 }
-
 button:hover {
-    border-color: #2f81f7;
+    border-color:#58a6ff;
 }
-
 button.primary {
-    background: #2f81f7;
-    color: #fff;
-    border: none;
+    background:#1f6feb;
+    border:none;
+    color:white;
 }
-
 button.danger {
-    background: #da3633;
-    color: #fff;
+    background:#da3633;
+    border:none;
+    color:white;
 }
 
+/* PATHS */
+.paths {
+    margin-top:6px;
+    font-size:12px;
+    color:#8b949e;
+}
+
+/* STATUS */
 .status {
-    margin-top: 10px;
-    font-size: 12px;
-    color: #8b949e;
+    margin-top:10px;
+    font-size:12px;
+    color:#8b949e;
 }
 
-.logs-card {
-    margin-top: 18px;
-    background: #161b22;
-    padding: 16px;
-    border-radius: 8px;
-    border: 1px solid #30363d;
+/* LOG CONSOLE */
+.logs {
+    margin-top:18px;
+    background:#161b22;
+    padding:16px;
+    border-radius:8px;
+    border:1px solid #30363d;
 }
-
-.logs-card h3 {
-    margin: 0 0 10px 0;
-    font-size: 14px;
-    color: #8b949e;
+.logs h3 {
+    margin:0 0 10px 0;
+    color:#8b949e;
+    font-size:14px;
 }
-
 #logBox {
-    height: 350px;
-    overflow-y: auto;
-    background: #0e1117;
-    border: 1px solid #30363d;
-    padding: 12px;
-    font-size: 12px;
-    font-family: Consolas, monospace;
-    white-space: pre-wrap;
+    height:340px;
+    background:#0e1117;
+    border:1px solid #30363d;
+    padding:12px;
+    font-size:12px;
+    white-space:pre-wrap;
+    overflow-y:auto;
+    font-family:Consolas, monospace;
 }
 
+/* FOOTER */
 footer {
-    text-align: center;
-    font-size: 12px;
-    color: #8b949e;
-    margin-top: 25px;
+    margin-top:24px;
+    text-align:center;
+    font-size:12px;
+    color:#8b949e;
 }
 </style>
 </head>
@@ -153,7 +161,7 @@ footer {
 <body>
 
 <header>
-    <h1>ATG SAN DIEGO | SEA PAY PROCESSOR</h1>
+<h1>ATG SAN DIEGO | SEA PAY PROCESSOR</h1>
 </header>
 
 <div class="container">
@@ -197,123 +205,100 @@ footer {
 
 </form>
 
-<div class="logs-card">
-    <h3>LIVE OPERATION LOG</h3>
-    <div id="logBox">{{ logs }}</div>
+<div class="logs">
+<h3>LIVE OPERATION LOG</h3>
+<div id="logBox">{{ logs }}</div>
 </div>
 
 <footer>
-    Tactical Admin Console | Designed for ATGSD Operations
+Tactical Navy Console | ATGSD Operations
 </footer>
 
 </div>
 
 <script>
-let isPolling = false;
-let autoScroll = true;
-let lastText = "";
+let isPolling=false;
+let autoScroll=true;
+let lastText="";
 
-const logBox = document.getElementById("logBox");
-const statusText = document.getElementById("statusText");
+const logBox=document.getElementById("logBox");
+const statusText=document.getElementById("statusText");
 
-logBox.addEventListener("scroll", function () {
-    const atBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 30;
-    autoScroll = atBottom;
+logBox.addEventListener("scroll",()=>{
+    autoScroll=(logBox.scrollHeight-logBox.scrollTop-logBox.clientHeight)<30;
 });
 
 pollLogs();
 
-function pollLogs() {
-    if (isPolling) return;
-    isPolling = true;
+function pollLogs(){
+    if(isPolling) return;
+    isPolling=true;
 
     fetch("/logs")
-        .then(r => r.text())
-        .then(txt => {
+    .then(r=>r.text())
+    .then(txt=>{
+        if(txt===lastText){
+            isPolling=false;
+            setTimeout(pollLogs,1000);
+            return;
+        }
 
-            if (txt === lastText) {
-                isPolling = false;
-                setTimeout(pollLogs, 1000);
-                return;
-            }
+        const prevTop=logBox.scrollTop;
+        const prevHeight=logBox.scrollHeight;
 
-            const previousScroll = logBox.scrollTop;
-            const previousHeight = logBox.scrollHeight;
+        logBox.innerText=txt;
+        lastText=txt;
 
-            logBox.innerText = txt;
-            lastText = txt;
+        if(autoScroll){
+            logBox.scrollTop=logBox.scrollHeight;
+        } else {
+            logBox.scrollTop=prevTop+(logBox.scrollHeight-prevHeight);
+        }
 
-            if (!autoScroll) {
-                const newHeight = logBox.scrollHeight;
-                logBox.scrollTop = previousScroll + (newHeight - previousHeight);
-            } else {
-                logBox.scrollTop = logBox.scrollHeight;
-            }
-
-            isPolling = false;
-            setTimeout(pollLogs, 1000);
-        })
-        .catch(err => {
-            console.error("Log polling failed", err);
-            isPolling = false;
-            setTimeout(pollLogs, 2000);
-        });
+        isPolling=false;
+        setTimeout(pollLogs,1000);
+    })
+    .catch(()=>{
+        isPolling=false;
+        setTimeout(pollLogs,2000);
+    });
 }
 
-
-document.getElementById("uploadForm").addEventListener("submit", function(e) {
+document.getElementById("uploadForm").addEventListener("submit",function(e){
     e.preventDefault();
 
-    const formData = new FormData(this);
-    const submitBtn = document.getElementById("submitBtn");
+    const formData=new FormData(this);
+    const btn=document.getElementById("submitBtn");
 
-    submitBtn.disabled = true;
-    submitBtn.innerText = "PROCESSING...";
-    statusText.innerText = "STATUS: PROCESSING...";
+    btn.innerText="PROCESSING...";
+    btn.disabled=true;
+    statusText.innerText="STATUS: PROCESSING...";
 
-    fetch("/", {
-        method: "POST",
-        body: formData
+    fetch("/",{method:"POST",body:formData})
+    .then(()=>{
+        btn.disabled=false;
+        btn.innerText="RUN PROCESSOR";
+        statusText.innerText="STATUS: COMPLETE";
     })
-    .then(() => {
-        submitBtn.disabled = false;
-        submitBtn.innerText = "RUN PROCESSOR";
-        statusText.innerText = "STATUS: COMPLETE";
-    })
-    .catch(err => {
-        console.error("Upload failed:", err);
-        statusText.innerText = "STATUS: ERROR";
-        submitBtn.disabled = false;
-        submitBtn.innerText = "RUN PROCESSOR";
+    .catch(()=>{
+        btn.disabled=false;
+        btn.innerText="RUN PROCESSOR";
+        statusText.innerText="STATUS: ERROR";
     });
 });
 
+function downloadMerged(){location.href="/download_merged";}
+function downloadSummary(){location.href="/download_summary";}
+function downloadAll(){location.href="/download_all";}
 
-function downloadMerged() {
-    window.location.href = "/download_merged";
-}
-
-function downloadSummary() {
-    window.location.href = "/download_summary";
-}
-
-function downloadAll() {
-    window.location.href = "/download_all";
-}
-
-function resetAll() {
-    if (!confirm("Are you sure you want to delete ALL input, output files, and logs?")) return;
-
-    fetch("/reset", { method: "POST" })
-        .then(resp => resp.json())
-        .then(data => {
-            alert(data.message || "Reset complete")
-            statusText.innerText = "STATUS: READY";
-        })
-        .catch(err => {
-            console.error("Reset failed:", err);
-            alert("Reset failed");
-        });
+function resetAll(){
+    if(!confirm("Delete ALL input/output files and logs?")) return;
+    fetch("/reset",{method:"POST"})
+    .then(r=>r.json())
+    .then(data=>{
+        alert(data.message||"Reset complete");
+        statusText.innerText="STATUS: READY";
+    });
 }
 </script>
 
