@@ -59,31 +59,47 @@ pre { background:#000; padding:10px; overflow:auto; border:1px solid #0f0 }
 <script>
 let isPolling = false;
 let autoScroll = true;
+let lastText = "";
+
 const logBox = document.getElementById("logBox");
 
-// Detect when user scrolls manually
+// Detect when user scrolls away from bottom
 logBox.addEventListener("scroll", function () {
-    const atBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
+    const atBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 30;
     autoScroll = atBottom;
 });
 
-// Start polling immediately when page loads
+// Start polling immediately
 pollLogs();
 
 function pollLogs() {
     if (isPolling) return;
     isPolling = true;
-    
+
     fetch("/logs")
         .then(r => r.text())
         .then(txt => {
-            logBox.innerText = txt;
 
-            // Only auto-scroll if user is already near bottom
-            if (autoScroll) {
+            // Do nothing if log hasn't changed (prevents scroll reset)
+            if (txt === lastText) {
+                isPolling = false;
+                setTimeout(pollLogs, 1000);
+                return;
+            }
+
+            const previousScroll = logBox.scrollTop;
+            const previousHeight = logBox.scrollHeight;
+
+            logBox.innerText = txt;
+            lastText = txt;
+
+            if (!autoScroll) {
+                const newHeight = logBox.scrollHeight;
+                logBox.scrollTop = previousScroll + (newHeight - previousHeight);
+            } else {
                 logBox.scrollTop = logBox.scrollHeight;
             }
-            
+
             isPolling = false;
             setTimeout(pollLogs, 1000);
         })
@@ -94,21 +110,22 @@ function pollLogs() {
         });
 }
 
-// Handle form submission without page reload
+
+// Handle form submission safely
 document.getElementById("uploadForm").addEventListener("submit", function(e) {
     e.preventDefault();
-    
+
     const formData = new FormData(this);
     const submitBtn = document.getElementById("submitBtn");
-    
+
     submitBtn.disabled = true;
     submitBtn.innerText = "PROCESSING...";
-    
+
     fetch("/", {
         method: "POST",
         body: formData
     })
-    .then(response => {
+    .then(() => {
         submitBtn.disabled = false;
         submitBtn.innerText = "RUN PROCESSOR";
     })
@@ -118,6 +135,7 @@ document.getElementById("uploadForm").addEventListener("submit", function(e) {
         submitBtn.innerText = "RUN PROCESSOR";
     });
 });
+
 
 function downloadMerged() {
     window.location.href = "/download_merged";
@@ -132,15 +150,11 @@ function downloadAll() {
 }
 
 function resetAll() {
-    if (!confirm("Are you sure you want to delete ALL input, output files, and logs?")) {
-        return;
-    }
+    if (!confirm("Are you sure you want to delete ALL input, output files, and logs?")) return;
 
     fetch("/reset", { method: "POST" })
         .then(resp => resp.json())
-        .then(data => {
-            alert(data.message || "Reset complete!");
-        })
+        .then(data => alert(data.message || "Reset complete"))
         .catch(err => {
             console.error("Reset failed:", err);
             alert("Reset failed - see logs for details.");
