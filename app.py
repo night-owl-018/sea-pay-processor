@@ -83,7 +83,7 @@ def cleanup_all_folders():
     total += cleanup_folder(DATA_DIR, "INPUT/DATA")
     total += cleanup_folder(OUTPUT_DIR, "OUTPUT")
 
-    # Also clear marked sheets and summary as requested
+    # Also clear marked sheets and summary
     marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
     summary_dir = os.path.join(OUTPUT_DIR, "summary")
     if os.path.exists(marked_dir):
@@ -131,7 +131,7 @@ for key, rate in RATES.items():
     def normalize_for_id(text):
         t = re.sub(r"\(.*?\)", "", text.upper())
         t = re.sub(r"[^A-Z ]", "", t)
-        return " " .join(t.split())
+        return " ".join(t.split())
     full_norm = normalize_for_id(f"{first} {last}")
     CSV_IDENTITIES.append((full_norm, rate, last, first))
 
@@ -197,13 +197,31 @@ def extract_year_from_filename(fn):
     m = re.search(r"(20\d{2})", fn)
     return m.group(1) if m else str(datetime.now().year)
 
+# ********** SMART PARSER (MISSION-FIRST, ONE SHIP PER DATE) **********
+
 def parse_rows(text, year):
+    """
+    Parse all dated rows from the OCR text.
+
+    Rules:
+    - We assign an occ_idx PER DATE in the order the OCR text is read.
+    - SBTT and unknown/invalid ships go to skipped_unknown (and will be struck out).
+    - For valid ships on the same date:
+        * If there is only ONE ship that day -> keep the first valid, rest are duplicates.
+        * If there are MULTIPLE different ships -> prefer entries that look like mission
+          rides (contain 'M-1', 'M1', 'M-2', 'M2'). Among those, keep the earliest one;
+          all others become duplicates.
+    - Exactly ONE valid ship per date is kept in rows.
+    """
     rows = []
-    seen_dates = set()
     skipped_duplicates = []
     skipped_unknown = []
 
     lines = text.splitlines()
+
+    # First pass: collect candidate entries per date
+    per_date_entries = {}   # date -> [entries]
+    date_order = []         # preserve order of first appearance
 
     for i, line in enumerate(lines):
         m = re.match(r"\s*(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?", line)
@@ -221,85 +239,92 @@ def parse_rows(text, year):
         cleaned_raw = raw.strip()
         upper_raw = cleaned_raw.upper()
 
-        # Determine occurrence index per date (first, second, etc.)
-        # so we can track which row was skipped later.
-        occ_count_for_date = sum(1 for r in rows if r["date"] == date) \
-                             + sum(1 for s in skipped_duplicates if s["date"] == date) \
-                             + sum(1 for u in skipped_unknown if u["date"] == date) + 1
-        occ_idx = occ_count_for_date
+        entry = {
+            "raw": cleaned_raw,
+            "upper": upper_raw,
+            "line_index": i,
+            "date": date,
+            "ship": None,
+            "kind": None,      # "valid", "unknown", "sbtt"
+            "occ_idx": None,
+        }
 
-        if "SBTT" in upper_raw:
-            skipped_unknown.append({"date": date, "raw": "SBTT", "occ_idx": occ_idx})
-            log(f"⚠️ SBTT EVENT, SKIPPING → {date}, OCC#{occ_idx}")
-            continue
+        if date not in per_date_entries:
+            per_date_entries[date] = []
+            date_order.append(date)
 
-        ship = match_ship(raw)
+        per_date_entries[date].append(entry)
 
-        if not ship:
-            skipped_unknown.append({"date": date, "raw": cleaned_raw, "occ_idx": occ_idx})
-            log(f"⚠️ UNKNOWN SHIP/EVENT, SKIPPING → {date} [{cleaned_raw}], OCC#{occ_idx}")
-            continue
+    # Second pass: classify, choose winner per date
+    def is_mission_entry(e):
+        up = e["upper"]
+        return ("M-1" in up) or ("M1" in up) or ("M-2" in up) or ("M2" in up)
 
-        # ---------------------------
-        # SMART SHIP CONFLICT LOGIC
-        # ---------------------------
+    for date in date_order:
+        entries = per_date_entries[date]
 
-        existing_same_date = [r for r in rows if r["date"] == date]
+        # assign occ_idx in order and classify
+        occ = 0
+        for e in entries:
+            occ += 1
+            e["occ_idx"] = occ
+            upper = e["upper"]
 
-        if existing_same_date:
-            # Already have at least one ship for this date
-            existing_ship = existing_same_date[0]["ship"]
-
-            if existing_ship != ship:
-                # Conflict: two different ships for same date
-                # Count how many times each ship appears in the entire sheet text
-                ship_counts = {}
-
-                # Each ship count starts with 1 if the ship appears once
-                for r in rows:
-                    s = r["ship"]
-                    ship_counts[s] = ship_counts.get(s, 0) + 1
-
-                # Add the new incoming ship as well
-                ship_counts[ship] = ship_counts.get(ship, 0) + 1
-
-                # Choose the ship with more occurrences as the primary ship
-                # (This matches natural sheet patterns)
-                winner = max(ship_counts, key=ship_counts.get)
-
-                if winner == ship:
-                    # The new ship wins → old one becomes duplicate (strikeout)
-                    loser = existing_ship
-                    skipped_duplicates.append({
-                        "date": date,
-                        "ship": loser,
-                        "occ_idx": existing_same_date[0]["occ_idx"],
-                    })
-                    log(f"⚠️ SHIP CONFLICT {date}: {loser} → STRIKE, {ship} → KEEP")
-
-                    # Replace row in "rows" with new ship
-                    rows = [r for r in rows if not (r["date"] == date)]
-                    rows.append({"date": date, "ship": ship, "occ_idx": occ_idx})
-
-                else:
-                    # Existing ship wins → new one is the duplicate (strikeout)
-                    skipped_duplicates.append({
-                        "date": date,
-                        "ship": ship,
-                        "occ_idx": occ_idx,
-                    })
-                    log(f"⚠️ SHIP CONFLICT {date}: {ship} → STRIKE, {existing_ship} → KEEP")
+            if "SBTT" in upper:
+                e["kind"] = "sbtt"
+                skipped_unknown.append({
+                    "date": date,
+                    "raw": "SBTT",
+                    "occ_idx": occ,
+                })
                 continue
 
+            ship = match_ship(e["raw"])
+            e["ship"] = ship
+
+            if not ship:
+                e["kind"] = "unknown"
+                skipped_unknown.append({
+                    "date": date,
+                    "raw": e["raw"],
+                    "occ_idx": occ,
+                })
             else:
-                # Same ship appearing twice = normal duplicate
-                skipped_duplicates.append({"date": date, "ship": ship, "occ_idx": occ_idx})
-                log(f"⚠️ DUPLICATE DATE FOUND, DISCARDING → {date} ({ship}), OCC#{occ_idx}")
-                continue
+                e["kind"] = "valid"
 
-        # If no conflict → add row normally
-        rows.append({"date": date, "ship": ship, "occ_idx": occ_idx})
-        seen_dates.add(date)
+        valids = [e for e in entries if e["kind"] == "valid"]
+        if not valids:
+            continue  # no valid ships for this date
+
+        ships_set = set(e["ship"] for e in valids)
+
+        if len(ships_set) == 1:
+            # Only one ship for that date; keep the first valid entry
+            kept = valids[0]
+        else:
+            # Multiple ships same date: prefer mission entries
+            mission_valids = [e for e in valids if is_mission_entry(e)]
+            if mission_valids:
+                kept = sorted(mission_valids, key=lambda e: e["occ_idx"])[0]
+            else:
+                kept = sorted(valids, key=lambda e: e["occ_idx"])[0]
+
+        # Add the kept row as valid
+        rows.append({
+            "date": date,
+            "ship": kept["ship"],
+            "occ_idx": kept["occ_idx"],
+        })
+
+        # All other valid entries become duplicates
+        for e in valids:
+            if e is kept:
+                continue
+            skipped_duplicates.append({
+                "date": date,
+                "ship": e["ship"],
+                "occ_idx": e["occ_idx"],
+            })
 
     return rows, skipped_duplicates, skipped_unknown
 
@@ -409,18 +434,30 @@ def flatten_pdf(path):
         log(f"⚠️ FLATTEN FAILED → {e}")
 
 # ------------------------------------------------
-# CREATE 1070/613 PDF (single-period version, kept for compatibility if needed)
+# CREATE 1070/613 PDF – SINGLE SHIP, MULTIPLE PERIODS (OPTION A)
 # ------------------------------------------------
 
-def make_pdf(group, name):
+def make_pdf_for_ship(ship, periods, name):
+    """
+    One 1070/613 per ship.
+    Inside the form, list all valid sea pay periods for that ship.
+    """
+    if not periods:
+        return
+
     rate, last, first = resolve_identity(name)
 
-    start = group["start"].strftime("%m/%d/%Y")
-    end = group["end"].strftime("%m/%d/%Y")
-    ship = group["ship"]
+    # Determine overall start/end for naming
+    all_starts = [g["start"] for g in periods]
+    all_ends = [g["end"] for g in periods]
+    overall_start = min(all_starts)
+    overall_end = max(all_ends)
+
+    start_str = overall_start.strftime("%m/%d/%Y")
+    end_str = overall_end.strftime("%m/%d/%Y")
 
     prefix = f"{rate}_" if rate else ""
-    filename = f"{prefix}{last}_{first}_{ship}_{start.replace('/','-')}_TO_{end.replace('/','-')}.pdf"
+    filename = f"{prefix}{last}_{first}_{ship}_{start_str.replace('/','-')}_TO_{end_str.replace('/','-')}.pdf"
     filename = filename.replace(" ", "_")
 
     outpath = os.path.join(OUTPUT_DIR, filename)
@@ -429,75 +466,7 @@ def make_pdf(group, name):
     c = canvas.Canvas(buf, pagesize=letter)
     c.setFont(FONT_NAME, FONT_SIZE)
 
-    c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
-    c.drawString(373, 671, "X")
-    c.setFont(FONT_NAME, 8)
-    c.drawString(39, 650, "ENTITLEMENT")
-    c.drawString(345, 641, "OPNAVINST 7220.14")
-
-    c.setFont(FONT_NAME, FONT_SIZE)
-    c.drawString(39, 41, f"{rate} {last}, {first}" if rate else f"{last}, {first}")
-    c.drawString(38.8, 595, f"____. REPORT CAREER SEA PAY FROM {start} TO {end}.")
-    c.drawString(64, 571, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
-
-    c.drawString(356.26, 499.5, "_________________________")
-    c.drawString(363.8, 487.5, "Certifying Official & Date")
-    c.drawString(356.26, 427.5, "_________________________")
-    c.drawString(384.1, 415.2, "FI MI Last Name")
-
-    c.drawString(38.8, 83, "SEA PAY CERTIFIER")
-    c.drawString(503.5, 40, "USN AD")
-
-    c.save()
-    buf.seek(0)
-
-    overlay = PdfReader(buf)
-    template = PdfReader(TEMPLATE)
-    base = template.pages[0]
-    base.merge_page(overlay.pages[0])
-
-    writer = PdfWriter()
-    writer.add_page(base)
-
-    with open(outpath, "wb") as f:
-        writer.write(f)
-
-    flatten_pdf(outpath)
-    log(f"CREATED → {filename}")
-
-# ------------------------------------------------
-# CREATE 1070/613 PDF – OPTION 3: ONE FORM PER SAILOR/SHEET, MULTIPLE PERIODS
-# ------------------------------------------------
-
-def make_pdf_multi(groups, name):
-    """Create a single 1070/613 for one sailor listing all valid sea pay periods
-    across all ships in that sheet. Each period becomes its own pair of lines.
-    """
-    if not groups:
-        return
-
-    rate, last, first = resolve_identity(name)
-
-    # Determine overall earliest and latest dates across all groups
-    all_starts = [g["start"] for g in groups]
-    all_ends = [g["end"] for g in groups]
-    overall_start = min(all_starts)
-    overall_end = max(all_ends)
-
-    start_str = overall_start.strftime("%m/%d/%Y")
-    end_str = overall_end.strftime("%m/%d/%Y")
-
-    prefix = f"{rate}_" if rate else ""
-    base_name = f"{prefix}{last}_{first}_SeaPay_{start_str.replace('/','-')}_TO_{end_str.replace('/','-')}"
-    filename = base_name.replace(" ", "_") + ".pdf"
-
-    outpath = os.path.join(OUTPUT_DIR, filename)
-
-    buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=letter)
-    c.setFont(FONT_NAME, FONT_SIZE)
-
-    # Header and fixed text (same as make_pdf)
+    # Header
     c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
     c.drawString(373, 671, "X")
     c.setFont(FONT_NAME, 8)
@@ -507,30 +476,26 @@ def make_pdf_multi(groups, name):
     c.setFont(FONT_NAME, FONT_SIZE)
     c.drawString(39, 41, f"{rate} {last}, {first}" if rate else f"{last}, {first}")
 
-    # Dynamic block: one REPORT line per period
-    # Start near the same area as the original single-period text and move downward
+    # Period lines
     y = 595
-    line_gap = 24  # vertical gap between the two lines for each period
-    block_gap = 32  # extra gap between periods
+    line_gap = 24
+    block_gap = 32
 
-    # Sort groups by ship then start date for a stable, readable layout
-    groups_sorted = sorted(groups, key=lambda g: (g["ship"], g["start"]))
+    periods_sorted = sorted(periods, key=lambda g: g["start"])
 
-    for g in groups_sorted:
+    for g in periods_sorted:
         s = g["start"].strftime("%m/%d/%Y")
         e = g["end"].strftime("%m/%d/%Y")
-        ship = g["ship"]
 
         if y < 120:
-            # Very unlikely with typical sheets, but avoid overwriting footer
-            break
+            break  # avoid colliding with footer
 
         c.drawString(38.8, y, f"____. REPORT CAREER SEA PAY FROM {s} TO {e}.")
         c.drawString(64, y - line_gap, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
 
         y -= (line_gap + block_gap)
 
-    # Signature / certifier lines (same place as original)
+    # Signature area
     c.drawString(356.26, 499.5, "_________________________")
     c.drawString(363.8, 487.5, "Certifying Official & Date")
     c.drawString(356.26, 427.5, "_________________________")
@@ -613,18 +578,11 @@ def _build_date_variants(date_str):
 
 def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown, output_path):
     """
-    Strikeout logic:
-
-    - Each skipped entry has (date, occ_idx).
-    - OCR reconstructs rows and assigns the same occ_idx sequence per date.
-    - INVALID (skipped_unknown) rows are marked first.
-    - Then DATE DUPLICATE (skipped_duplicates) rows are marked.
-    - Result: exactly the same rows your parser skipped are crossed out.
+    Use (date, occ_idx) to strike out exactly the rows the parser skipped.
     """
     try:
         log(f"MARKING SHEET START → {os.path.basename(original_pdf)}")
 
-        # Build target sets: invalid first, then duplicates
         targets_invalid = {(u["date"], u["occ_idx"]) for u in skipped_unknown}
         targets_dup = {(d["date"], d["occ_idx"]) for d in skipped_duplicates}
         all_targets = targets_invalid.union(targets_dup)
@@ -634,25 +592,19 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             log(f"NO STRIKEOUTS NEEDED, COPIED → {os.path.basename(output_path)}")
             return
 
-        # Collect all dates involved
         all_dates = {d for (d, _) in all_targets}
         date_variants_map = {d: _build_date_variants(d) for d in all_dates}
 
         pages = convert_from_path(original_pdf)
-        row_list = []  # each: {"page","y","text","date","occ_idx"}
+        row_list = []
 
-        # First pass: build rows per page, assign date + occ_idx by scanning top→bottom
         for page_index, img in enumerate(pages):
             log(f"  BUILDING ROWS FROM PAGE {page_index+1}/{len(pages)}")
             data = pytesseract.image_to_data(img, output_type=Output.DICT)
             img_w, img_h = img.size
             scale_y = letter[1] / float(img_h)
 
-            # ------------------------------------------------------------
-            # NEW: BUILD VISUAL ROWS USING Y-CLUSTERING
-            # ------------------------------------------------------------
-
-            # Collect tokens
+            # collect tokens
             tokens = []
             n = len(data["text"])
             for j in range(n):
@@ -672,10 +624,8 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
                     "y": y,
                 })
 
-            # Sort tokens by Y (top → bottom)
             tokens.sort(key=lambda t: -t["y"])
 
-            # Group into visual rows
             visual_rows = []
             current_row = []
             last_y = None
@@ -698,7 +648,6 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             if current_row:
                 visual_rows.append(current_row)
 
-            # Convert visual rows to rows with text/y/page info
             tmp_rows = []
             for row in visual_rows:
                 y_avg = sum(t["y"] for t in row) / len(row)
@@ -711,10 +660,8 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
                     "occ_idx": None,
                 })
 
-            # Top → bottom ordering
             tmp_rows.sort(key=lambda r: (-r["y"]))
 
-            # Assign OCC# same as parser
             date_counters = {d: 0 for d in all_dates}
             for row in tmp_rows:
                 for d in all_dates:
@@ -729,7 +676,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
 
         strike_targets = {}
 
-        # Pass 1: INVALID rows (skipped_unknown)
+        # invalid first
         for row in row_list:
             if row["date"] is None or row["occ_idx"] is None:
                 continue
@@ -737,12 +684,11 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
                 strike_targets.setdefault(row["page"], []).append(row["y"])
                 log(f"    STRIKEOUT INVALID {row['date']} OCC#{row['occ_idx']} ON PAGE {row['page']+1} Y={row['y']:.1f}")
 
-        # Pass 2: DUPLICATE rows (skipped_duplicates), but don't double-mark
+        # then duplicates
         for row in row_list:
             if row["date"] is None or row["occ_idx"] is None:
                 continue
             if (row["date"], row["occ_idx"]) in targets_dup:
-                # check if already in invalid set / already added
                 ys = strike_targets.get(row["page"], [])
                 if not any(abs(y - row["y"]) < 0.1 for y in ys):
                     strike_targets.setdefault(row["page"], []).append(row["y"])
@@ -753,7 +699,6 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             log(f"NO STRIKEOUT POSITIONS FOUND, COPIED → {os.path.basename(output_path)}")
             return
 
-        # Build overlays and merge
         overlays = []
         for page_index in range(len(pages)):
             ys = strike_targets.get(page_index)
@@ -764,7 +709,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             buf = io.BytesIO()
             c = canvas.Canvas(buf, pagesize=letter)
             c.setStrokeColor(black)
-            c.setLineWidth(0.8)  # thinner line
+            c.setLineWidth(0.8)
 
             for y in ys:
                 c.line(40, y, 550, y)
@@ -808,8 +753,7 @@ def process_all():
 
     log("=== PROCESS STARTED ===")
 
-    # Per-sailor summary accumulator
-    summary_data = {}  # key -> {"rate","last","first","periods","skipped_unknown","skipped_dupe"}
+    summary_data = {}
 
     for file in files:
         log(f"OCR → {file}")
@@ -827,10 +771,8 @@ def process_all():
         year = extract_year_from_filename(file)
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
 
-        # Mark source sheet with strikeouts
         marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
         os.makedirs(marked_dir, exist_ok=True)
-
         marked_path = os.path.join(
             marked_dir,
             f"MARKED_{os.path.splitext(file)[0]}.pdf"
@@ -838,13 +780,16 @@ def process_all():
 
         mark_sheet_with_strikeouts(path, skipped_dupe, skipped_unknown, marked_path)
 
-        # Group valid periods and create a single PDF per sailor/sheet
+        # Group valid periods, then one PDF per ship
         groups = group_by_ship(rows)
+        ship_periods = {}
+        for g in groups:
+            ship_periods.setdefault(g["ship"], []).append(g)
 
-        if groups:
-            make_pdf_multi(groups, name)
+        for ship, periods in ship_periods.items():
+            make_pdf_for_ship(ship, periods, name)
 
-        # Accumulate summary per sailor
+        # Summary tracking per sailor
         rate, last, first = resolve_identity(name)
         key = f"{rate} {last},{first}" if rate else f"{last},{first}"
 
@@ -874,7 +819,6 @@ def process_all():
 
     merge_all_pdfs()
 
-    # Build summary files in /output/summary
     summary_dir = os.path.join(OUTPUT_DIR, "summary")
     os.makedirs(summary_dir, exist_ok=True)
 
@@ -889,12 +833,9 @@ def process_all():
         skipped_unknown = sd["skipped_unknown"]
         skipped_dupe = sd["skipped_dupe"]
 
-        # Sort periods by ship then start date
         periods_sorted = sorted(periods, key=lambda p: (p["ship"], p["start"]))
-
         total_days = sum(p["days"] for p in periods_sorted)
 
-        # Build block lines in requested format
         lines = []
         lines.append("=====================================================================")
         title = f"{rate} {last}, {first}".strip()
@@ -937,25 +878,21 @@ def process_all():
 
         lines.append("")
 
-        # Write individual summary file
         safe_rate = rate.replace(" ", "") if rate else ""
         base_name = f"{safe_rate}_{last}_{first}_summary".strip("_").replace(" ", "_")
         summary_path = os.path.join(summary_dir, f"{base_name}.txt")
         with open(summary_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
-        # Append to compiled
         compiled_lines.extend(lines)
         compiled_lines.append("")
 
-    # Write compiled summary file
     compiled_path = os.path.join(summary_dir, "ALL_SUMMARIES_COMPILED.txt")
     if compiled_lines:
         with open(compiled_path, "w", encoding="utf-8") as f:
             f.write("\n".join(compiled_lines))
         log("SUMMARY FILES UPDATED")
     else:
-        # If somehow no sailor data, still create an empty compiled file
         with open(compiled_path, "w", encoding="utf-8") as f:
             f.write("NO DATA\n")
         log("SUMMARY FILES CREATED BUT EMPTY")
@@ -991,7 +928,7 @@ def index():
             def normalize_for_id(text):
                 t = re.sub(r"\(.*?\)", "", text.upper())
                 t = re.sub(r"[^A-Z ]", "", t)
-                return " " .join(t.split())
+                return " ".join(t.split())
             CSV_IDENTITIES.append((normalize_for_id(f"{first} {last}"), rate, last, first))
 
         process_all()
