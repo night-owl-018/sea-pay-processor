@@ -519,38 +519,61 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             img_w, img_h = img.size
             scale_y = letter[1] / float(img_h)
 
-            # group tokens by line_num
-            rows_by_line = {}
+            # ------------------------------------------------------------
+            # NEW: BUILD VISUAL ROWS USING Y-CLUSTERING
+            # ------------------------------------------------------------
+
+            # Collect tokens
+            tokens = []
             n = len(data["text"])
-            for i in range(n):
-                txt = data["text"][i].strip()
+            for j in range(n):
+                txt = data["text"][j].strip()
                 if not txt:
                     continue
-                line_num = data["line_num"][i]
-                top = data["top"][i]
-                h = data["height"][i]
+
+                top = data["top"][j]
+                h = data["height"][j]
 
                 center_y_img = top + h / 2.0
                 center_from_bottom_px = img_h - center_y_img
                 y = center_from_bottom_px * scale_y
 
-                if line_num not in rows_by_line:
-                    rows_by_line[line_num] = {
-                        "y_sum": y,
-                        "count": 1,
-                        "tokens": [txt],
-                    }
-                else:
-                    r = rows_by_line[line_num]
-                    r["y_sum"] += y
-                    r["count"] += 1
-                    r["tokens"].append(txt)
+                tokens.append({
+                    "text": txt.upper(),
+                    "y": y,
+                })
 
-            # convert grouped rows
+            # Sort tokens by Y (top → bottom)
+            tokens.sort(key=lambda t: -t["y"])
+
+            # Group into visual rows
+            visual_rows = []
+            current_row = []
+            last_y = None
+            threshold = 5.5
+
+            for tok in tokens:
+                if last_y is None:
+                    current_row = [tok]
+                    last_y = tok["y"]
+                    continue
+
+                if abs(tok["y"] - last_y) <= threshold:
+                    current_row.append(tok)
+                    last_y = tok["y"]
+                else:
+                    visual_rows.append(current_row)
+                    current_row = [tok]
+                    last_y = tok["y"]
+
+            if current_row:
+                visual_rows.append(current_row)
+
+            # Convert visual rows to rows with text/y/page info
             tmp_rows = []
-            for line_num, r in rows_by_line.items():
-                text = " ".join(r["tokens"]).upper()
-                y_avg = r["y_sum"] / r["count"]
+            for row in visual_rows:
+                y_avg = sum(t["y"] for t in row) / len(row)
+                text = " ".join(t["text"] for t in row)
                 tmp_rows.append({
                     "page": page_index,
                     "y": y_avg,
@@ -559,20 +582,19 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
                     "occ_idx": None,
                 })
 
-            # sort by visual order (top → bottom means higher y → lower y)
+            # Top → bottom ordering
             tmp_rows.sort(key=lambda r: (-r["y"]))
 
-            # per-date counters to assign occ_idx same way as parser
+            # Assign OCC# same as parser
             date_counters = {d: 0 for d in all_dates}
-
             for row in tmp_rows:
                 for d in all_dates:
                     variants = date_variants_map[d]
                     if any(v in row["text"] for v in variants):
-                        date_counters[d] = date_counters.get(d, 0) + 1
+                        date_counters[d] += 1
                         row["date"] = d
                         row["occ_idx"] = date_counters[d]
-                        break  # assume only one date per row
+                        break
 
             row_list.extend(tmp_rows)
 
