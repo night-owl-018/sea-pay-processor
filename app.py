@@ -240,11 +240,64 @@ def parse_rows(text, year):
             log(f"⚠️ UNKNOWN SHIP/EVENT, SKIPPING → {date} [{cleaned_raw}], OCC#{occ_idx}")
             continue
 
-        if date in seen_dates:
-            skipped_duplicates.append({"date": date, "ship": ship, "occ_idx": occ_idx})
-            log(f"⚠️ DUPLICATE DATE FOUND, DISCARDING → {date} ({ship}), OCC#{occ_idx}")
-            continue
+        # ---------------------------
+        # SMART SHIP CONFLICT LOGIC
+        # ---------------------------
 
+        existing_same_date = [r for r in rows if r["date"] == date]
+
+        if existing_same_date:
+            # Already have at least one ship for this date
+            existing_ship = existing_same_date[0]["ship"]
+
+            if existing_ship != ship:
+                # Conflict: two different ships for same date
+                # Count how many times each ship appears in the entire sheet text
+                ship_counts = {}
+
+                # Each ship count starts with 1 if the ship appears once
+                for r in rows:
+                    s = r["ship"]
+                    ship_counts[s] = ship_counts.get(s, 0) + 1
+
+                # Add the new incoming ship as well
+                ship_counts[ship] = ship_counts.get(ship, 0) + 1
+
+                # Choose the ship with more occurrences as the primary ship
+                # (This matches natural sheet patterns)
+                winner = max(ship_counts, key=ship_counts.get)
+
+                if winner == ship:
+                    # The new ship wins → old one becomes duplicate (strikeout)
+                    loser = existing_ship
+                    skipped_duplicates.append({
+                        "date": date,
+                        "ship": loser,
+                        "occ_idx": existing_same_date[0]["occ_idx"],
+                    })
+                    log(f"⚠️ SHIP CONFLICT {date}: {loser} → STRIKE, {ship} → KEEP")
+
+                    # Replace row in "rows" with new ship
+                    rows = [r for r in rows if not (r["date"] == date)]
+                    rows.append({"date": date, "ship": ship, "occ_idx": occ_idx})
+
+                else:
+                    # Existing ship wins → new one is the duplicate (strikeout)
+                    skipped_duplicates.append({
+                        "date": date,
+                        "ship": ship,
+                        "occ_idx": occ_idx,
+                    })
+                    log(f"⚠️ SHIP CONFLICT {date}: {ship} → STRIKE, {existing_ship} → KEEP")
+                continue
+
+            else:
+                # Same ship appearing twice = normal duplicate
+                skipped_duplicates.append({"date": date, "ship": ship, "occ_idx": occ_idx})
+                log(f"⚠️ DUPLICATE DATE FOUND, DISCARDING → {date} ({ship}), OCC#{occ_idx}")
+                continue
+
+        # If no conflict → add row normally
         rows.append({"date": date, "ship": ship, "occ_idx": occ_idx})
         seen_dates.add(date)
 
