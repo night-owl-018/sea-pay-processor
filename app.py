@@ -80,12 +80,28 @@ def cleanup_folder(folder_path, folder_name):
 def cleanup_all_folders():
     log("=== STARTING RESET/CLEANUP ===")
     total = 0
+
+    # Clean /data (incoming PDFs)
     total += cleanup_folder(DATA_DIR, "INPUT/DATA")
-    total += cleanup_folder(OUTPUT_DIR, "OUTPUT")
+
+    # Clean /output root files
+    total += cleanup_folder(OUTPUT_DIR, "OUTPUT ROOT")
+
+    # Clean /output/marked_sheets/*
+    marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
+    if os.path.exists(marked_dir):
+        total += cleanup_folder(marked_dir, "MARKED SHEETS")
+
+    # Clean /output/summary/*
+    summary_dir = os.path.join(OUTPUT_DIR, "summary")
+    if os.path.exists(summary_dir):
+        total += cleanup_folder(summary_dir, "SUMMARY FILES")
+
     log(f"✅ RESET COMPLETE: {total} total files deleted")
     log("🗑 CLEARING ALL LOGS...")
     log("=" * 50)
     return total
+
 
 # ------------------------------------------------
 # LOAD RATES
