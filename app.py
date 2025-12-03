@@ -80,28 +80,21 @@ def cleanup_folder(folder_path, folder_name):
 def cleanup_all_folders():
     log("=== STARTING RESET/CLEANUP ===")
     total = 0
-
-    # Clean /data (incoming PDFs)
     total += cleanup_folder(DATA_DIR, "INPUT/DATA")
+    total += cleanup_folder(OUTPUT_DIR, "OUTPUT")
 
-    # Clean /output root files
-    total += cleanup_folder(OUTPUT_DIR, "OUTPUT ROOT")
-
-    # Clean /output/marked_sheets/*
+    # Also clear marked sheets and summary as requested
     marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
-    if os.path.exists(marked_dir):
-        total += cleanup_folder(marked_dir, "MARKED SHEETS")
-
-    # Clean /output/summary/*
     summary_dir = os.path.join(OUTPUT_DIR, "summary")
+    if os.path.exists(marked_dir):
+        total += cleanup_folder(marked_dir, "MARKED_SHEETS")
     if os.path.exists(summary_dir):
-        total += cleanup_folder(summary_dir, "SUMMARY FILES")
+        total += cleanup_folder(summary_dir, "SUMMARY")
 
     log(f"✅ RESET COMPLETE: {total} total files deleted")
     log("🗑 CLEARING ALL LOGS...")
     log("=" * 50)
     return total
-
 
 # ------------------------------------------------
 # LOAD RATES
@@ -138,7 +131,7 @@ for key, rate in RATES.items():
     def normalize_for_id(text):
         t = re.sub(r"\(.*?\)", "", text.upper())
         t = re.sub(r"[^A-Z ]", "", t)
-        return " ".join(t.split())
+        return " " .join(t.split())
     full_norm = normalize_for_id(f"{first} {last}")
     CSV_IDENTITIES.append((full_norm, rate, last, first))
 
@@ -197,7 +190,7 @@ def match_ship(raw_text):
     return None
 
 # ------------------------------------------------
-# DATE HANDLING (WITH occ_idx)
+# DATE HANDLING
 # ------------------------------------------------
 
 def extract_year_from_filename(fn):
@@ -205,21 +198,12 @@ def extract_year_from_filename(fn):
     return m.group(1) if m else str(datetime.now().year)
 
 def parse_rows(text, year):
-    """
-    Parse rows from OCR text.
-
-    - Assigns an occurrence index (occ_idx) per date.
-    - First time a date is seen → occ_idx = 1 (valid, if ship recognized).
-    - Later same-date ship entries become duplicates with higher occ_idx.
-    - Unknown / SBTT / MITE / ATGSD get stored in skipped_unknown with occ_idx.
-    """
     rows = []
     seen_dates = set()
     skipped_duplicates = []
     skipped_unknown = []
 
     lines = text.splitlines()
-    date_occ_idx = {}  # date -> counter
 
     for i, line in enumerate(lines):
         m = re.match(r"\s*(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?", line)
@@ -230,10 +214,6 @@ def parse_rows(text, year):
         y = ("20" + yy) if yy and len(yy) == 2 else yy or year
         date = f"{mm.zfill(2)}/{dd.zfill(2)}/{y}"
 
-        # increment occurrence index for this date
-        date_occ_idx[date] = date_occ_idx.get(date, 0) + 1
-        occ_idx = date_occ_idx[date]
-
         raw = line[m.end():]
         if i + 1 < len(lines):
             raw += " " + lines[i + 1]
@@ -241,20 +221,25 @@ def parse_rows(text, year):
         cleaned_raw = raw.strip()
         upper_raw = cleaned_raw.upper()
 
-        # INVALID / NON-SHIP / TRAINING EVENTS FIRST
-        if "SBTT" in upper_raw or "MITE" in upper_raw or "ASTAC" in upper_raw or "ATGSD" in upper_raw:
-            skipped_unknown.append({"date": date, "raw": cleaned_raw, "occ_idx": occ_idx})
-            log(f"⚠️ NON-SHIP/TRAINING EVENT, SKIPPING → {date} [{cleaned_raw}]")
+        # Determine occurrence index per date (first, second, etc.)
+        # so we can track which row was skipped later.
+        occ_count_for_date = sum(1 for r in rows if r["date"] == date) \
+                             + sum(1 for s in skipped_duplicates if s["date"] == date) \
+                             + sum(1 for u in skipped_unknown if u["date"] == date) + 1
+        occ_idx = occ_count_for_date
+
+        if "SBTT" in upper_raw:
+            skipped_unknown.append({"date": date, "raw": "SBTT", "occ_idx": occ_idx})
+            log(f"⚠️ SBTT EVENT, SKIPPING → {date}, OCC#{occ_idx}")
             continue
 
         ship = match_ship(raw)
 
         if not ship:
             skipped_unknown.append({"date": date, "raw": cleaned_raw, "occ_idx": occ_idx})
-            log(f"⚠️ UNKNOWN SHIP/EVENT, SKIPPING → {date} [{cleaned_raw}]")
+            log(f"⚠️ UNKNOWN SHIP/EVENT, SKIPPING → {date} [{cleaned_raw}], OCC#{occ_idx}")
             continue
 
-        # DATE DUPLICATE LOGIC: first one wins, later ones are duplicates
         if date in seen_dates:
             skipped_duplicates.append({"date": date, "ship": ship, "occ_idx": occ_idx})
             log(f"⚠️ DUPLICATE DATE FOUND, DISCARDING → {date} ({ship}), OCC#{occ_idx}")
@@ -371,7 +356,7 @@ def flatten_pdf(path):
         log(f"⚠️ FLATTEN FAILED → {e}")
 
 # ------------------------------------------------
-# CREATE 1070/613 PDF
+# CREATE 1070/613 PDF (single-period version, kept for compatibility if needed)
 # ------------------------------------------------
 
 def make_pdf(group, name):
@@ -402,6 +387,97 @@ def make_pdf(group, name):
     c.drawString(38.8, 595, f"____. REPORT CAREER SEA PAY FROM {start} TO {end}.")
     c.drawString(64, 571, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
 
+    c.drawString(356.26, 499.5, "_________________________")
+    c.drawString(363.8, 487.5, "Certifying Official & Date")
+    c.drawString(356.26, 427.5, "_________________________")
+    c.drawString(384.1, 415.2, "FI MI Last Name")
+
+    c.drawString(38.8, 83, "SEA PAY CERTIFIER")
+    c.drawString(503.5, 40, "USN AD")
+
+    c.save()
+    buf.seek(0)
+
+    overlay = PdfReader(buf)
+    template = PdfReader(TEMPLATE)
+    base = template.pages[0]
+    base.merge_page(overlay.pages[0])
+
+    writer = PdfWriter()
+    writer.add_page(base)
+
+    with open(outpath, "wb") as f:
+        writer.write(f)
+
+    flatten_pdf(outpath)
+    log(f"CREATED → {filename}")
+
+# ------------------------------------------------
+# CREATE 1070/613 PDF – OPTION 3: ONE FORM PER SAILOR/SHEET, MULTIPLE PERIODS
+# ------------------------------------------------
+
+def make_pdf_multi(groups, name):
+    """Create a single 1070/613 for one sailor listing all valid sea pay periods
+    across all ships in that sheet. Each period becomes its own pair of lines.
+    """
+    if not groups:
+        return
+
+    rate, last, first = resolve_identity(name)
+
+    # Determine overall earliest and latest dates across all groups
+    all_starts = [g["start"] for g in groups]
+    all_ends = [g["end"] for g in groups]
+    overall_start = min(all_starts)
+    overall_end = max(all_ends)
+
+    start_str = overall_start.strftime("%m/%d/%Y")
+    end_str = overall_end.strftime("%m/%d/%Y")
+
+    prefix = f"{rate}_" if rate else ""
+    base_name = f"{prefix}{last}_{first}_SeaPay_{start_str.replace('/','-')}_TO_{end_str.replace('/','-')}"
+    filename = base_name.replace(" ", "_") + ".pdf"
+
+    outpath = os.path.join(OUTPUT_DIR, filename)
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=letter)
+    c.setFont(FONT_NAME, FONT_SIZE)
+
+    # Header and fixed text (same as make_pdf)
+    c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
+    c.drawString(373, 671, "X")
+    c.setFont(FONT_NAME, 8)
+    c.drawString(39, 650, "ENTITLEMENT")
+    c.drawString(345, 641, "OPNAVINST 7220.14")
+
+    c.setFont(FONT_NAME, FONT_SIZE)
+    c.drawString(39, 41, f"{rate} {last}, {first}" if rate else f"{last}, {first}")
+
+    # Dynamic block: one REPORT line per period
+    # Start near the same area as the original single-period text and move downward
+    y = 595
+    line_gap = 24  # vertical gap between the two lines for each period
+    block_gap = 32  # extra gap between periods
+
+    # Sort groups by ship then start date for a stable, readable layout
+    groups_sorted = sorted(groups, key=lambda g: (g["ship"], g["start"]))
+
+    for g in groups_sorted:
+        s = g["start"].strftime("%m/%d/%Y")
+        e = g["end"].strftime("%m/%d/%Y")
+        ship = g["ship"]
+
+        if y < 120:
+            # Very unlikely with typical sheets, but avoid overwriting footer
+            break
+
+        c.drawString(38.8, y, f"____. REPORT CAREER SEA PAY FROM {s} TO {e}.")
+        c.drawString(64, y - line_gap, f"Member performed eight continuous hours per day on-board: {ship} Category A vessel.")
+
+        y -= (line_gap + block_gap)
+
+    # Signature / certifier lines (same place as original)
     c.drawString(356.26, 499.5, "_________________________")
     c.drawString(363.8, 487.5, "Certifying Official & Date")
     c.drawString(356.26, 427.5, "_________________________")
@@ -709,11 +785,11 @@ def process_all():
 
         mark_sheet_with_strikeouts(path, skipped_dupe, skipped_unknown, marked_path)
 
-        # Group valid periods and create PDFs
+        # Group valid periods and create a single PDF per sailor/sheet
         groups = group_by_ship(rows)
 
-        for g in groups:
-            make_pdf(g, name)
+        if groups:
+            make_pdf_multi(groups, name)
 
         # Accumulate summary per sailor
         rate, last, first = resolve_identity(name)
@@ -862,7 +938,7 @@ def index():
             def normalize_for_id(text):
                 t = re.sub(r"\(.*?\)", "", text.upper())
                 t = re.sub(r"[^A-Z ]", "", t)
-                return " ".join(t.split())
+                return " " .join(t.split())
             CSV_IDENTITIES.append((normalize_for_id(f"{first} {last}"), rate, last, first))
 
         process_all()
