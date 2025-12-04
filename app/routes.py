@@ -116,6 +116,7 @@ def download_merged():
         as_attachment=True
     )
 
+
 # ------------------------------------------------
 # DOWNLOAD SUMMARIES
 # ------------------------------------------------
@@ -169,6 +170,34 @@ def download_marked_sheets():
 
 
 # ------------------------------------------------
+# ⭐ NEW — DOWNLOAD VALIDATION REPORTS
+# ------------------------------------------------
+@bp.route("/download_validation")
+def download_validation():
+    validation_dir = os.path.join(OUTPUT_DIR, "validation")
+    zip_path = os.path.join(tempfile.gettempdir(), "Validation_Reports.zip")
+
+    # Clean old zip
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+
+    # Create new zip
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        if os.path.exists(validation_dir):
+            for f in os.listdir(validation_dir):
+                full_path = os.path.join(validation_dir, f)
+                if os.path.isfile(full_path):
+                    z.write(full_path, arcname=f)
+
+    return send_from_directory(
+        os.path.dirname(zip_path),
+        os.path.basename(zip_path),
+        as_attachment=True,
+        download_name="Validation_Reports.zip",
+    )
+
+
+# ------------------------------------------------
 # RESET BUTTON
 # ------------------------------------------------
 from .core.cleanup import cleanup_all_folders
@@ -178,4 +207,3 @@ def reset():
     deleted = cleanup_all_folders()
     clear_logs()
     return jsonify({"status": "success", "message": f"Reset complete! {deleted} files deleted."})
-
