@@ -11,106 +11,227 @@ from app.core.merge import merge_all_pdfs
 from app.core.summary import write_summary_files
 from app.core.rates import resolve_identity
 
-# ------------------------------------------------
-# VALIDATION REPORT BUILDER  (TXT + PDF)
-# ------------------------------------------------
-
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 
 
-def write_validation_reports_from_summaries():
+# ------------------------------------------------
+# HELPER: WRITE A SIMPLE TEXT-STYLE PDF FROM LINES
+# ------------------------------------------------
+
+def _write_pdf_from_lines(lines, pdf_path):
     """
-    Build validation reports (TXT + PDF) from summary text files.
-    Output:
-      /output/validation/VALIDATION_REPORTS.txt
-      /output/validation/VALIDATION_REPORTS.pdf
+    Render a list of text lines into a clean, readable PDF.
+    Layout is simple and professional: Courier font, controlled wrap, page breaks.
     """
-    summary_dir = os.path.join(OUTPUT_DIR, "summary")
-    validation_dir = os.path.join(OUTPUT_DIR, "validation")
-
-    os.makedirs(validation_dir, exist_ok=True)
-
-    combined_txt_path = os.path.join(validation_dir, "VALIDATION_REPORTS.txt")
-    combined_pdf_path = os.path.join(validation_dir, "VALIDATION_REPORTS.pdf")
-
-    lines = []
-
-    if os.path.exists(summary_dir):
-        for fname in sorted(os.listdir(summary_dir)):
-            if fname.lower().endswith(".txt"):
-                full_path = os.path.join(summary_dir, fname)
-
-                try:
-                    with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
-                        content = f.read().strip()
-                except Exception:
-                    content = "[ERROR READING SUMMARY FILE]"
-
-                lines.append(f"===== {fname} =====")
-                lines.append(content)
-                lines.append("")  # blank line between sailors
-
-    # ------------------------
-    # Write TXT report
-    # ------------------------
-    if lines:
-        txt_output = "\n".join(lines)
-    else:
-        txt_output = "No validation data found.\n"
-
-    with open(combined_txt_path, "w", encoding="utf-8") as f:
-        f.write(txt_output)
-
-    # ------------------------
-    # Write PDF report (FIXED FORMAT)
-    # ------------------------
-
-    # Register monospace font
-    try:
-        pdfmetrics.registerFont(TTFont('CourierNew', 'cour.ttf'))
-        font_name = "CourierNew"
-    except:
-        # fallback if font missing
-        font_name = "Courier"
-
-    c = canvas.Canvas(combined_pdf_path, pagesize=letter)
+    c = canvas.Canvas(pdf_path, pagesize=letter)
     width, height = letter
 
     text = c.beginText(40, height - 40)
-    text.setFont(font_name, 10)
+    text.setFont("Courier", 9)
 
-    max_chars = 95
-    line_spacing = 12
+    max_chars = 95      # wrap width
+    line_spacing = 12   # not used directly; built into textLine step
 
     if not lines:
-        text.textLine("No validation data found.")
-    else:
-        for raw in lines:
-            clean = raw.encode("ascii", "ignore").decode()
+        lines = ["No validation data available."]
 
-            # wrap long lines
-            while len(clean) > max_chars:
-                text.textLine(clean[:max_chars])
-                clean = clean[max_chars:]
+    for raw in lines:
+        # Strip non-ASCII to avoid weird symbols in PDF
+        clean = raw.encode("ascii", "ignore").decode()
 
-            text.textLine(clean)
+        # Soft wrap long lines
+        while len(clean) > max_chars:
+            text.textLine(clean[:max_chars])
+            clean = clean[max_chars:]
 
-            # add spacing after section headers
-            if raw.startswith("====="):
-                text.textLine("")
-
-            # handle page overflow
+            # Handle page overflow
             if text.getY() < 40:
                 c.drawText(text)
                 c.showPage()
                 text = c.beginText(40, height - 40)
-                text.setFont(font_name, 10)
+                text.setFont("Courier", 9)
+
+        text.textLine(clean)
+
+        # Handle page overflow
+        if text.getY() < 40:
+            c.drawText(text)
+            c.showPage()
+            text = c.beginText(40, height - 40)
+            text.setFont("Courier", 9)
 
     c.drawText(text)
     c.save()
+
+
+# ------------------------------------------------
+# PROFESSIONAL VALIDATION REPORTS (TXT + PDF)
+# ------------------------------------------------
+
+def write_validation_reports(summary_data):
+    """
+    Build professional validation reports directly from summary_data.
+
+    Creates under OUTPUT_DIR/validation:
+      - VALIDATION_REPORTS_MASTER.txt
+      - VALIDATION_REPORTS_MASTER.pdf
+      - VALIDATION_<RATE>_<LAST>_<FIRST>.txt  (per sailor)
+      - VALIDATION_<RATE>_<LAST>_<FIRST>.pdf  (per sailor)
+    """
+    validation_dir = os.path.join(OUTPUT_DIR, "validation")
+    os.makedirs(validation_dir, exist_ok=True)
+
+    master_txt_path = os.path.join(validation_dir, "VALIDATION_REPORTS_MASTER.txt")
+    master_pdf_path = os.path.join(validation_dir, "VALIDATION_REPORTS_MASTER.pdf")
+
+    master_lines = []
+
+    if not summary_data:
+        # Nothing to report
+        with open(master_txt_path, "w", encoding="utf-8") as f:
+            f.write("No validation data available.\n")
+        _write_pdf_from_lines(["No validation data available."], master_pdf_path)
+        return
+
+    # Sort sailors by LAST, FIRST for a clean order
+    def sort_key(item):
+        _key, sd = item
+        return ((sd.get("last") or "").upper(), (sd.get("first") or "").upper())
+
+    for key, sd in sorted(summary_data.items(), key=sort_key):
+        rate = sd.get("rate") or ""
+        last = sd.get("last") or ""
+        first = sd.get("first") or ""
+        display_name = f"{rate} {last}, {first}".strip()
+
+        periods = sd.get("periods", []) or []
+        skipped_unknown = sd.get("skipped_unknown", []) or []
+        skipped_dupe = sd.get("skipped_dupe", []) or []
+
+        total_days = sum(p.get("days", 0) for p in periods)
+
+        # -----------------------------
+        # Build per-sailor validation text
+        # -----------------------------
+        lines = []
+
+        lines.append("=" * 69)
+        lines.append(f"SAILOR: {display_name}")
+        lines.append("=" * 69)
+        lines.append("")
+
+        # Summary block
+        lines.append("SUMMARY")
+        lines.append("-" * 69)
+        lines.append(f"  Total Valid Sea Pay Days : {total_days}")
+        lines.append(f"  Valid Period Count       : {len(periods)}")
+        lines.append(f"  Invalid / Excluded Events: {len(skipped_unknown)}")
+        lines.append(f"  Duplicate Date Conflicts : {len(skipped_dupe)}")
+        lines.append("")
+
+        # Valid periods
+        lines.append("VALID SEA PAY PERIODS")
+        lines.append("-" * 69)
+        if periods:
+            lines.append("  SHIP                START        END          DAYS")
+            lines.append("  ------------------- ------------ ------------ ----")
+            for p in periods:
+                ship = (p.get("ship") or "").upper()
+                start = p.get("start")
+                end = p.get("end")
+                days = p.get("days", 0)
+
+                if hasattr(start, "strftime"):
+                    start_str = start.strftime("%m/%d/%Y")
+                else:
+                    start_str = str(start)
+
+                if hasattr(end, "strftime"):
+                    end_str = end.strftime("%m/%d/%Y")
+                else:
+                    end_str = str(end)
+
+                lines.append(
+                    f"  {ship[:19]:19} {start_str:12} {end_str:12} {days:4}"
+                )
+        else:
+            lines.append("  NONE")
+        lines.append("")
+
+        # Invalid / excluded events
+        lines.append("INVALID / EXCLUDED EVENTS")
+        lines.append("-" * 69)
+        if skipped_unknown:
+            for entry in skipped_unknown:
+                date = entry.get("date", "UNKNOWN")
+                ship = entry.get("ship") or entry.get("ship_name") or ""
+                reason = entry.get("reason") or "Excluded / unrecognized / non-qualifying"
+                detail = f"{date}"
+                if ship:
+                    detail += f" | {ship}"
+                lines.append(f"  - {detail} — {reason}")
+        else:
+            lines.append("  NONE")
+        lines.append("")
+
+        # Duplicate date conflicts
+        lines.append("DUPLICATE DATE CONFLICTS")
+        lines.append("-" * 69)
+        if skipped_dupe:
+            for entry in skipped_dupe:
+                date = entry.get("date", "UNKNOWN")
+                ship = entry.get("ship") or entry.get("ship_name") or ""
+                occ = entry.get("occ_idx") or entry.get("occurrence") or ""
+                detail = f"{date}"
+                if ship:
+                    detail += f" | {ship}"
+                if occ:
+                    detail += f" | occurrence #{occ}"
+                lines.append(f"  - {detail}")
+        else:
+            lines.append("  NONE")
+        lines.append("")
+
+        # Recommendations
+        lines.append("RECOMMENDATIONS")
+        lines.append("-" * 69)
+        if skipped_unknown or skipped_dupe:
+            lines.append("  - Review TORIS export for the dates listed above.")
+            lines.append("  - Confirm ship names and event types against current guidance.")
+            lines.append("  - Provide corrected certification sheet to ATG/PSD if required.")
+        else:
+            lines.append("  - No discrepancies detected based on current input.")
+        lines.append("")
+        lines.append("")
+
+        # -----------------------------
+        # Write per-sailor TXT + PDF
+        # -----------------------------
+        safe_name = f"{rate}_{last}_{first}".strip().replace(" ", "_").replace(",", "")
+        if not safe_name:
+            safe_name = key.replace(" ", "_").replace(",", "")
+
+        sailor_txt_path = os.path.join(validation_dir, f"VALIDATION_{safe_name}.txt")
+        sailor_pdf_path = os.path.join(validation_dir, f"VALIDATION_{safe_name}.pdf")
+
+        with open(sailor_txt_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+        _write_pdf_from_lines(lines, sailor_pdf_path)
+
+        # Append to master
+        master_lines.extend(lines)
+        master_lines.append("=" * 69)
+        master_lines.append("")
+
+    # -----------------------------
+    # Write master TXT + PDF
+    # -----------------------------
+    with open(master_txt_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(master_lines))
+
+    _write_pdf_from_lines(master_lines, master_pdf_path)
 
 
 # ------------------------------------------------
@@ -214,10 +335,8 @@ def process_all(strike_color="black"):
     # Write summary text files
     write_summary_files(summary_data)
 
-    # ------------------------------------------------
-    # Write Validation Reports (TXT + PDF)
-    # ------------------------------------------------
-    write_validation_reports_from_summaries()
+    # Write validation reports (TXT + per-sailor + master PDFs)
+    write_validation_reports(summary_data)
     log("VALIDATION REPORTS UPDATED")
 
     log("✅ ALL OPERATIONS COMPLETE")
