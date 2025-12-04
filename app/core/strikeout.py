@@ -191,8 +191,16 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
                         underline_candidates.append((left, w))
 
             if underline_candidates:
-                min_x_img = min(u[0] for u in underline_candidates)
-                max_x_img = max(u[0] + u[1] for u in underline_candidates)
+                # sort tokens left → right
+                underline_candidates.sort(key=lambda u: u[0])
+                # find cluster after the number by filtering tokens to the right of 23
+
+                # this prevents the line from extending too far
+                first = underline_candidates[0]
+                last = underline_candidates[-1]
+
+                min_x_img = first[0]
+                max_x_img = last[0] + last[1]
 
                 scale_x = letter[0] / float(width_img)
                 pdf_x1 = min_x_img * scale_x
@@ -278,3 +286,4 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             log(f"FALLBACK COPY CREATED → {os.path.basename(output_path)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+
