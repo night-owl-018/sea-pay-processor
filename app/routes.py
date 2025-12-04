@@ -8,9 +8,6 @@ from .core.logger import LIVE_LOGS, log, clear_logs
 from .core.config import DATA_DIR, OUTPUT_DIR, TEMPLATE, RATE_FILE
 from .processing import process_all
 import app.core.rates as rates  # stays the same ONLY if folder name is app/
-# If the folder is NOT named "app", change to:
-# from .core import rates
-
 
 bp = Blueprint("main", __name__)
 
@@ -21,6 +18,9 @@ bp = Blueprint("main", __name__)
 @bp.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
+        # Strikethrough color from form (default black)
+        strike_color = request.form.get("strike_color", "black")
+
         # Upload PDFs
         for f in request.files.getlist("files"):
             if f.filename:
@@ -52,8 +52,8 @@ def index():
                 full_norm = normalize_for_id(f"{first} {last}")
                 rates.CSV_IDENTITIES.append((full_norm, rate, last, first))
 
-        # Run processing after uploads
-        process_all()
+        # Run processing after uploads, with selected color
+        process_all(strike_color=strike_color)
 
     return render_template(
         "index.html",
