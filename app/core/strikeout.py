@@ -159,12 +159,12 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
                 total_row = row
                 break
 
-        # Only apply patch if total row is found
+        # Only apply patch if total-row found
         if total_row:
             page_index = total_row["page"]
             y = total_row["y"]
 
-            # extract OLD number
+            # Find old number
             m = re.search(r"(\d+)$", total_row["text"])
             old_value = m.group(1) if m else ""
 
@@ -178,13 +178,19 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
 
             num_x = base_x + label_width
 
-            # strike out old number
+            # ---- PATCHED STRIKEOUT ----
             if old_value:
-                width_old = c.stringWidth(old_value, "Helvetica", 10)
                 c.setLineWidth(0.8)
-                c.line(num_x, y, num_x + width_old, y)
 
-            # write correct number 3 spaces after
+                # Raise strike through number, not underline
+                adjusted_y = y + 3.5
+
+                # Wide strike (covers ___23___)
+                strike_width = 80
+
+                c.line(num_x, adjusted_y, num_x + strike_width, adjusted_y)
+
+            # Write correct total 3 spaces after old value
             correct_x = num_x + c.stringWidth(old_value + "   ", "Helvetica", 10)
             c.drawString(correct_x, y, str(total_days))
 
@@ -210,8 +216,8 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             c.setStrokeColorRGB(0, 0, 0)
             c.setLineWidth(0.8)
 
-            for y in ys:
-                c.line(40, y, 550, y)
+            for y_val in ys:
+                c.line(40, y_val, 550, y_val)
 
             c.save()
             buf.seek(0)
@@ -224,11 +230,11 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
         writer = PdfWriter()
 
         for i, page in enumerate(reader.pages):
-            # normal strikeout overlays
+            # Normal strikeout overlays
             if i < len(overlays) and overlays[i] is not None:
                 page.merge_page(overlays[i].pages[0])
 
-            # total days overlay only on its page
+            # Total-days overlay
             if total_overlay and i == total_row["page"]:
                 page.merge_page(total_overlay.pages[0])
 
