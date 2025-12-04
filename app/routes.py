@@ -3,10 +3,13 @@ import tempfile
 import zipfile
 from flask import Blueprint, render_template, request, send_from_directory, jsonify
 
-from app.core.logger import LIVE_LOGS, log, clear_logs
-from app.core.config import DATA_DIR, OUTPUT_DIR, TEMPLATE, RATE_FILE
-from app.processing import process_all
-import app.core.rates as rates  # for reloading CSV
+# FIXED IMPORTS (relative)
+from .core.logger import LIVE_LOGS, log, clear_logs
+from .core.config import DATA_DIR, OUTPUT_DIR, TEMPLATE, RATE_FILE
+from .processing import process_all
+import app.core.rates as rates  # stays the same ONLY if folder name is app/
+# If the folder is NOT named "app", change to:
+# from .core import rates
 
 
 bp = Blueprint("main", __name__)
@@ -161,7 +164,7 @@ def download_marked_sheets():
 # ------------------------------------------------
 # RESET BUTTON
 # ------------------------------------------------
-from app.core.cleanup import cleanup_all_folders
+from .core.cleanup import cleanup_all_folders
 
 @bp.route("/reset", methods=["POST"])
 def reset():
