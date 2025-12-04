@@ -42,24 +42,35 @@ def process_all():
             log(f"NAME ERROR → {e}")
             continue
 
-        # Parse
+        # Parse rows into valid/invalid groups
         year = extract_year_from_filename(file)
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
+
+        # Group valid periods by ship
+        groups = group_by_ship(rows)
+
+        # ---------- NEW PATCH ----------
+        # Compute total valid days (for strikeout correction)
+        total_days = sum(
+            (g["end"] - g["start"]).days + 1
+            for g in groups
+        )
+        # -------------------------------
 
         # Strikeout marked sheet
         marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
         os.makedirs(marked_dir, exist_ok=True)
         marked_path = os.path.join(marked_dir, f"MARKED_{os.path.splitext(file)[0]}.pdf")
 
-        mark_sheet_with_strikeouts(path, skipped_dupe, skipped_unknown, marked_path)
+        # ---------- UPDATED CALL ----------
+        mark_sheet_with_strikeouts(path, skipped_dupe, skipped_unknown, marked_path, total_days)
+        # ----------------------------------
 
-        # Group valid periods by ship
-        groups = group_by_ship(rows)
+        # Create 1070 PDFs for each ship
         ship_periods = {}
         for g in groups:
             ship_periods.setdefault(g["ship"], []).append(g)
 
-        # Create 1070 PDFs
         for ship, periods in ship_periods.items():
             make_pdf_for_ship(ship, periods, name)
 
