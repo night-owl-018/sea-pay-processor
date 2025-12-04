@@ -49,7 +49,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
         row_list = []
 
         # ------------------------------------------------
-        # BUILD ALL ROWS
+        # BUILD ALL ROWS (unchanged)
         # ------------------------------------------------
         all_dates = {d for (d, _) in all_targets}
         date_variants_map = {d: _build_date_variants(d) for d in all_dates}
@@ -127,11 +127,11 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             row_list.extend(tmp_rows)
 
         # ------------------------------------------------
-        # DETECT STRIKEOUT TARGETS
+        # DETECT STANDARD STRIKEOUT TARGETS (unchanged)
         # ------------------------------------------------
         strike_targets = {}
 
-        # invalid entries
+        # invalid entries first
         for row in row_list:
             if row["date"] is None or row["occ_idx"] is None:
                 continue
@@ -139,7 +139,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
                 strike_targets.setdefault(row["page"], []).append(row["y"])
                 log(f"    STRIKEOUT INVALID {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1} Y={row['y']:.1f}")
 
-        # duplicate entries
+        # duplicate entries second
         for row in row_list:
             if row["date"] is None or row["occ_idx"] is None:
                 continue
@@ -150,7 +150,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
                     log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']} PAGE {row['page']+1} Y={row['y']:.1f}")
 
         # ------------------------------------------------
-        # LOCATE AND STRIKEOUT TOTAL DAYS ROW
+        # NEW PATCH — UNDERLINE-BASED TOTAL DAYS STRIKEOUT
         # ------------------------------------------------
         total_row = None
         for row in row_list:
@@ -159,16 +159,15 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
                 total_row = row
                 break
 
-        # Build total_days overlay
         total_overlay = None
 
         if total_row:
             page_index = total_row["page"]
             y = total_row["y"]
 
-            # find old number
-            m = re.search(r"(\d+)$", total_row["text"])
-            old_value = m.group(1) if m else ""
+            # Find underline (____), fallback to default
+            m = re.search(r"(_+)", total_row["text"])
+            underline = m.group(1) if m else "____"
 
             buf = io.BytesIO()
             c = canvas.Canvas(buf, pagesize=letter)
@@ -177,16 +176,16 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             base_x = 40
             label = "TOTAL SEA PAY DAYS FOR THIS REPORTING PERIOD: "
             label_width = c.stringWidth(label, "Helvetica", 10)
-            num_x = base_x + label_width
 
-            # strike old number
-            if old_value:
-                width_old = c.stringWidth(old_value, "Helvetica", 10)
-                c.setLineWidth(0.8)
-                c.line(num_x, y, num_x + width_old, y)
+            underline_x = base_x + label_width
+            underline_width = c.stringWidth(underline, "Helvetica", 10)
 
-            # print correct number 3 spaces after
-            correct_x = num_x + c.stringWidth(old_value + "   ", "Helvetica", 10)
+            # Strike the underline
+            c.setLineWidth(0.8)
+            c.line(underline_x, y, underline_x + underline_width, y)
+
+            # Write correct number 3 spaces after underline
+            correct_x = underline_x + underline_width + c.stringWidth("   ", "Helvetica", 10)
             c.drawString(correct_x, y, str(total_days))
 
             c.save()
@@ -194,7 +193,7 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             total_overlay = PdfReader(buf)
 
         # ------------------------------------------------
-        # NORMAL ROW STRIKEOUT OVERLAYS
+        # NORMAL STRIKEOUT OVERLAYS (unchanged)
         # ------------------------------------------------
         overlays = []
         for page_index2 in range(len(pages)):
@@ -216,22 +215,21 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             overlays.append(PdfReader(buf))
 
         # ------------------------------------------------
-        # APPLY ALL OVERLAYS (FIXED ORDER)
+        # APPLY ALL OVERLAYS (patched order)
         # ------------------------------------------------
         reader = PdfReader(original_pdf)
         writer = PdfWriter()
 
         for i, page in enumerate(reader.pages):
 
-            # FIRST: apply total-days overlay (so it appears ON TOP)
+            # FIRST: apply total-days overlay (so it appears on top)
             if total_overlay and total_row and i == total_row["page"]:
                 page.merge_page(total_overlay.pages[0])
 
-            # SECOND: apply row strikeouts
+            # SECOND: apply standard row strikeouts
             if i < len(overlays) and overlays[i] is not None:
                 page.merge_page(overlays[i].pages[0])
 
-            # ensure overlays float above everything
             try:
                 page.compress_content_streams()
             except Exception:
