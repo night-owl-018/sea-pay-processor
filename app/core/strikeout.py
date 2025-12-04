@@ -275,3 +275,20 @@ def mark_sheet_with_strikeouts(original_pdf, skipped_duplicates, skipped_unknown
             try:
                 page.compress_content_streams()
             except Exception:
+                pass
+
+            writer.add_page(page)
+
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, "wb") as f:
+            writer.write(f)
+
+        log(f"MARKED SHEET CREATED → {os.path.basename(output_path)}")
+
+    except Exception as e:
+        log(f"⚠️ MARKING FAILED → {e}")
+        try:
+            shutil.copy2(original_pdf, output_path)
+            log(f"FALLBACK COPY CREATED → {os.path.basename(output_path)}")
+        except Exception as e2:
+            log(f"⚠️ FALLBACK COPY FAILED → {e2}")
