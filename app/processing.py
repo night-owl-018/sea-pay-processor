@@ -17,6 +17,8 @@ from app.core.rates import resolve_identity
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 
 def write_validation_reports_from_summaries():
@@ -63,36 +65,51 @@ def write_validation_reports_from_summaries():
         f.write(txt_output)
 
     # ------------------------
-    # Write PDF report
+    # Write PDF report (FIXED FORMAT)
     # ------------------------
+
+    # Register monospace font
+    try:
+        pdfmetrics.registerFont(TTFont('CourierNew', 'cour.ttf'))
+        font_name = "CourierNew"
+    except:
+        # fallback if font missing
+        font_name = "Courier"
+
     c = canvas.Canvas(combined_pdf_path, pagesize=letter)
     width, height = letter
-    x = 40
-    y = height - 40
+
+    text = c.beginText(40, height - 40)
+    text.setFont(font_name, 10)
+
+    max_chars = 95
     line_spacing = 12
-    max_len = 110  # crude wrap width
 
     if not lines:
-        c.drawString(x, y, "No validation data found.")
+        text.textLine("No validation data found.")
     else:
         for raw in lines:
-            line = raw
-            # wrap long lines
-            while len(line) > max_len:
-                chunk = line[:max_len]
-                if y < 40:
-                    c.showPage()
-                    y = height - 40
-                c.drawString(x, y, chunk)
-                y -= line_spacing
-                line = line[max_len:]
-            # final fragment
-            if y < 40:
-                c.showPage()
-                y = height - 40
-            c.drawString(x, y, line)
-            y -= line_spacing
+            clean = raw.encode("ascii", "ignore").decode()
 
+            # wrap long lines
+            while len(clean) > max_chars:
+                text.textLine(clean[:max_chars])
+                clean = clean[max_chars:]
+
+            text.textLine(clean)
+
+            # add spacing after section headers
+            if raw.startswith("====="):
+                text.textLine("")
+
+            # handle page overflow
+            if text.getY() < 40:
+                c.drawText(text)
+                c.showPage()
+                text = c.beginText(40, height - 40)
+                text.setFont(font_name, 10)
+
+    c.drawText(text)
     c.save()
 
 
@@ -198,7 +215,7 @@ def process_all(strike_color="black"):
     write_summary_files(summary_data)
 
     # ------------------------------------------------
-    # ⭐ NEW: Write Validation Reports (TXT + PDF)
+    # Write Validation Reports (TXT + PDF)
     # ------------------------------------------------
     write_validation_reports_from_summaries()
     log("VALIDATION REPORTS UPDATED")
