@@ -11,6 +11,90 @@ from app.core.merge import merge_all_pdfs
 from app.core.summary import write_summary_files
 from app.core.rates import resolve_identity
 
+# ------------------------------------------------
+# VALIDATION REPORT BUILDER  (TXT + PDF)
+# ------------------------------------------------
+
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+
+
+def write_validation_reports_from_summaries():
+    """
+    Build validation reports (TXT + PDF) from summary text files.
+    Output:
+      /output/validation/VALIDATION_REPORTS.txt
+      /output/validation/VALIDATION_REPORTS.pdf
+    """
+    summary_dir = os.path.join(OUTPUT_DIR, "summary")
+    validation_dir = os.path.join(OUTPUT_DIR, "validation")
+
+    os.makedirs(validation_dir, exist_ok=True)
+
+    combined_txt_path = os.path.join(validation_dir, "VALIDATION_REPORTS.txt")
+    combined_pdf_path = os.path.join(validation_dir, "VALIDATION_REPORTS.pdf")
+
+    lines = []
+
+    if os.path.exists(summary_dir):
+        for fname in sorted(os.listdir(summary_dir)):
+            if fname.lower().endswith(".txt"):
+                full_path = os.path.join(summary_dir, fname)
+
+                try:
+                    with open(full_path, "r", encoding="utf-8", errors="ignore") as f:
+                        content = f.read().strip()
+                except Exception:
+                    content = "[ERROR READING SUMMARY FILE]"
+
+                lines.append(f"===== {fname} =====")
+                lines.append(content)
+                lines.append("")  # blank line between sailors
+
+    # ------------------------
+    # Write TXT report
+    # ------------------------
+    if lines:
+        txt_output = "\n".join(lines)
+    else:
+        txt_output = "No validation data found.\n"
+
+    with open(combined_txt_path, "w", encoding="utf-8") as f:
+        f.write(txt_output)
+
+    # ------------------------
+    # Write PDF report
+    # ------------------------
+    c = canvas.Canvas(combined_pdf_path, pagesize=letter)
+    width, height = letter
+    x = 40
+    y = height - 40
+    line_spacing = 12
+    max_len = 110  # crude wrap width
+
+    if not lines:
+        c.drawString(x, y, "No validation data found.")
+    else:
+        for raw in lines:
+            line = raw
+            # wrap long lines
+            while len(line) > max_len:
+                chunk = line[:max_len]
+                if y < 40:
+                    c.showPage()
+                    y = height - 40
+                c.drawString(x, y, chunk)
+                y -= line_spacing
+                line = line[max_len:]
+            # final fragment
+            if y < 40:
+                c.showPage()
+                y = height - 40
+            c.drawString(x, y, line)
+            y -= line_spacing
+
+    c.save()
+
 
 # ------------------------------------------------
 # PROCESS ALL PDFs
@@ -112,5 +196,11 @@ def process_all(strike_color="black"):
 
     # Write summary text files
     write_summary_files(summary_data)
+
+    # ------------------------------------------------
+    # ⭐ NEW: Write Validation Reports (TXT + PDF)
+    # ------------------------------------------------
+    write_validation_reports_from_summaries()
+    log("VALIDATION REPORTS UPDATED")
 
     log("✅ ALL OPERATIONS COMPLETE")
