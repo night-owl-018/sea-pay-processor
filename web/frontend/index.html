@@ -45,7 +45,7 @@ header h1 {
     padding:16px;
     border:1px solid #21262d;
     box-sizing:border-box;
-    overflow:hidden;
+    /* overflow removed so card can grow */
 }
 
 .card h3 {
@@ -212,7 +212,7 @@ footer {
     <div class="card">
         <h3>PROCESS CONTROL</h3>
 
-        <!-- FIXED + PROPERLY STYLED STRIKETHROUGH DROPDOWN -->
+        <!-- DROPDOWN NOW VISIBLE -->
         <label for="strike_color" style="color:#8b949e; font-size:12px;">Strikethrough Color:</label>
         <select name="strike_color" id="strike_color">
             <option value="black" selected>Black (Default)</option>
@@ -224,10 +224,10 @@ footer {
             <button type="button" onclick="downloadMerged()">MERGED PDF</button>
             <button type="button" onclick="downloadSummary()">SUMMARY TXT</button>
             <button type="button" onclick="downloadAll()">DOWNLOAD ZIP</button>
-            
+
             <button type="button" onclick="location.href='/download_marked_sheets'">MARKED SHEETS</button>
             <button type="button" onclick="location.href='/download_validation'">VALIDATION REPORTS</button>
-            
+
             <button type="button" onclick="resetAll()" class="danger">RESET</button>
         </div>
 
