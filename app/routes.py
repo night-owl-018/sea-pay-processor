@@ -103,11 +103,18 @@ def download_merged():
         f for f in os.listdir(OUTPUT_DIR)
         if f.startswith("MERGED_SeaPay_Forms_")
     )
-    latest = merged_files[-1]
-    return send_from_directory(
-        OUTPUT_DIR, latest, as_attachment=True
-    )
 
+    # FIX #3 — Guard against no merged file existing
+    if not merged_files:
+        return "No merged PDF available. Run the processor first.", 404
+
+    latest = merged_files[-1]
+
+    return send_from_directory(
+        OUTPUT_DIR,
+        latest,
+        as_attachment=True
+    )
 
 # ------------------------------------------------
 # DOWNLOAD SUMMARIES
@@ -171,3 +178,4 @@ def reset():
     deleted = cleanup_all_folders()
     clear_logs()
     return jsonify({"status": "success", "message": f"Reset complete! {deleted} files deleted."})
+
