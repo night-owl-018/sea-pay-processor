@@ -1,342 +1,244 @@
 import os
-from datetime import datetime, timedelta
+import tempfile
+import zipfile
+from flask import Blueprint, render_template, request, send_from_directory, jsonify
 
-from app.core.logger import log
-from app.core.config import DATA_DIR, OUTPUT_DIR
-from app.core.ocr import ocr_pdf, strip_times, extract_member_name
-from app.core.parser import parse_rows, extract_year_from_filename, group_by_ship
-from app.core.pdf_writer import make_pdf_for_ship
-from app.core.strikeout import mark_sheet_with_strikeouts
-from app.core.merge import merge_all_pdfs
-from app.core.summary import write_summary_files
-from app.core.rates import resolve_identity
+# FIXED IMPORTS (relative)
+from .core.logger import LIVE_LOGS, log, clear_logs
+from .core.config import DATA_DIR, OUTPUT_DIR, TEMPLATE, RATE_FILE
+from .processing import process_all
+import app.core.rates as rates  # stays the same ONLY if folder name is app/
 
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
+bp = Blueprint("main", __name__)
 
 
 # ------------------------------------------------
-# HELPER: WRITE A SIMPLE TEXT-STYLE PDF FROM LINES
+# ROOT PAGE
 # ------------------------------------------------
+@bp.route("/", methods=["GET", "POST"])
+def index():
+    if request.method == "POST":
+        # Strikethrough color from form (default black)
+        strike_color = request.form.get("strike_color", "black")
 
-def _write_pdf_from_lines(lines, pdf_path):
-    """
-    Render a list of text lines into a clean, readable PDF.
-    Layout is simple and professional: Courier font, controlled wrap, page breaks.
-    """
-    c = canvas.Canvas(pdf_path, pagesize=letter)
-    width, height = letter
+        # Upload PDFs
+        for f in request.files.getlist("files"):
+            if f.filename:
+                f.save(os.path.join(DATA_DIR, f.filename))
 
-    text = c.beginText(40, height - 40)
-    text.setFont("Courier", 9)
+        # Upload template override
+        tpl = request.files.get("template_file")
+        if tpl and tpl.filename:
+            tpl.save(TEMPLATE)
 
-    max_chars = 95      # wrap width
-    line_spacing = 12   # not used directly; built into textLine step
+        # Upload CSV (rates)
+        csvf = request.files.get("rate_file")
+        if csvf and csvf.filename:
+            csvf.save(RATE_FILE)
 
-    if not lines:
-        lines = ["No validation data available."]
+            # Reload CSV after upload
+            rates.RATES = rates.load_rates()
+            rates.CSV_IDENTITIES.clear()
 
-    for raw in lines:
-        # Strip non-ASCII to avoid weird symbols in PDF
-        clean = raw.encode("ascii", "ignore").decode()
+            for key, rate in rates.RATES.items():
+                last, first = key.split(",", 1)
 
-        # Soft wrap long lines
-        while len(clean) > max_chars:
-            text.textLine(clean[:max_chars])
-            clean = clean[max_chars:]
+                def normalize_for_id(text):
+                    import re
+                    t = re.sub(r"\(.*?\)", "", text.upper())
+                    t = re.sub(r"[^A-Z ]", "", t)
+                    return " ".join(t.split())
 
-            # Handle page overflow
-            if text.getY() < 40:
-                c.drawText(text)
-                c.showPage()
-                text = c.beginText(40, height - 40)
-                text.setFont("Courier", 9)
+                full_norm = normalize_for_id(f"{first} {last}")
+                rates.CSV_IDENTITIES.append((full_norm, rate, last, first))
 
-        text.textLine(clean)
+        # Run processing after uploads, with selected color
+        process_all(strike_color=strike_color)
 
-        # Handle page overflow
-        if text.getY() < 40:
-            c.drawText(text)
-            c.showPage()
-            text = c.beginText(40, height - 40)
-            text.setFont("Courier", 9)
-
-    c.drawText(text)
-    c.save()
+    return render_template(
+        "index.html",
+        logs="\n".join(LIVE_LOGS),
+        template_path=TEMPLATE,
+        rate_path=RATE_FILE,
+    )
 
 
 # ------------------------------------------------
-# PROFESSIONAL VALIDATION REPORTS (TXT + PDF)
+# FETCH LIVE LOGS
 # ------------------------------------------------
+@bp.route("/logs")
+def get_logs():
+    return "\n".join(LIVE_LOGS)
 
-def write_validation_reports(summary_data):
-    """
-    Build professional validation reports directly from summary_data.
 
-    Creates under OUTPUT_DIR/validation:
-      - VALIDATION_REPORTS_MASTER.txt
-      - VALIDATION_REPORTS_MASTER.pdf
-      - VALIDATION_<RATE>_<LAST>_<FIRST>.txt  (per sailor)
-      - VALIDATION_<RATE>_<LAST>_<FIRST>.pdf  (per sailor)
-    """
+# ------------------------------------------------
+# DOWNLOAD ALL OUTPUT FILES 
+# ------------------------------------------------
+@bp.route("/download_all")
+def download_all():
+    zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Output.zip")
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in os.listdir(OUTPUT_DIR):
+            full = os.path.join(OUTPUT_DIR, f)
+            if os.path.isfile(full):
+                z.write(full, arcname=f)
+
+    return send_from_directory(
+        os.path.dirname(zip_path),
+        os.path.basename(zip_path),
+        as_attachment=True,
+        download_name="SeaPay_Output.zip",
+    )
+
+
+# ------------------------------------------------
+# DOWNLOAD MERGED MASTER PDF
+# ------------------------------------------------
+@bp.route("/download_merged")
+def download_merged():
+    merged_files = sorted(
+        f for f in os.listdir(OUTPUT_DIR)
+        if f.startswith("MERGED_SeaPay_Forms_")
+    )
+
+    # FIX #3 — Guard against no merged file existing
+    if not merged_files:
+        return "No merged PDF available. Run the processor first.", 404
+
+    latest = merged_files[-1]
+
+    return send_from_directory(
+        OUTPUT_DIR,
+        latest,
+        as_attachment=True
+    )
+
+
+# ------------------------------------------------
+# DOWNLOAD SUMMARIES
+# ------------------------------------------------
+@bp.route("/download_summary")
+def download_summary():
+    summary_dir = os.path.join(OUTPUT_DIR, "summary")
+    zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Summaries.zip")
+
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        if os.path.exists(summary_dir):
+            for f in os.listdir(summary_dir):
+                full = os.path.join(summary_dir, f)
+                if os.path.isfile(full):
+                    z.write(full, arcname=f)
+
+    return send_from_directory(
+        os.path.dirname(zip_path),
+        os.path.basename(zip_path),
+        as_attachment=True,
+        download_name="SeaPay_Summaries.zip",
+    )
+
+
+# ------------------------------------------------
+# DOWNLOAD STRIKEOUT SHEETS
+# ------------------------------------------------
+@bp.route("/download_marked_sheets")
+def download_marked_sheets():
+    marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
+    zip_path = os.path.join(tempfile.gettempdir(), "Marked_Sheets.zip")
+
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        if os.path.exists(marked_dir):
+            for f in os.listdir(marked_dir):
+                full = os.path.join(marked_dir, f)
+                if os.path.isfile(full):
+                    z.write(full, arcname=f)
+
+    return send_from_directory(
+        os.path.dirname(zip_path),
+        os.path.basename(zip_path),
+        as_attachment=True,
+        download_name="Marked_Sheets.zip",
+    )
+
+
+# ------------------------------------------------
+# DOWNLOAD VALIDATION REPORTS
+# ------------------------------------------------
+@bp.route("/download_validation")
+def download_validation():
     validation_dir = os.path.join(OUTPUT_DIR, "validation")
-    os.makedirs(validation_dir, exist_ok=True)
+    zip_path = os.path.join(tempfile.gettempdir(), "Validation_Reports.zip")
 
-    master_txt_path = os.path.join(validation_dir, "VALIDATION_REPORTS_MASTER.txt")
-    master_pdf_path = os.path.join(validation_dir, "VALIDATION_REPORTS_MASTER.pdf")
+    # Clean old zip
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
 
-    master_lines = []
+    # Create new zip
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        if os.path.exists(validation_dir):
+            for f in os.listdir(validation_dir):
+                full_path = os.path.join(validation_dir, f)
+                if os.path.isfile(full_path):
+                    z.write(full_path, arcname=f)
 
-    if not summary_data:
-        # Nothing to report
-        with open(master_txt_path, "w", encoding="utf-8") as f:
-            f.write("No validation data available.\n")
-        _write_pdf_from_lines(["No validation data available."], master_pdf_path)
-        return
-
-    # Sort sailors by LAST, FIRST for a clean order
-    def sort_key(item):
-        _key, sd = item
-        return ((sd.get("last") or "").upper(), (sd.get("first") or "").upper())
-
-    for key, sd in sorted(summary_data.items(), key=sort_key):
-        rate = sd.get("rate") or ""
-        last = sd.get("last") or ""
-        first = sd.get("first") or ""
-        display_name = f"{rate} {last}, {first}".strip()
-
-        periods = sd.get("periods", []) or []
-        skipped_unknown = sd.get("skipped_unknown", []) or []
-        skipped_dupe = sd.get("skipped_dupe", []) or []
-
-        total_days = sum(p.get("days", 0) for p in periods)
-
-        # -----------------------------
-        # Build per-sailor validation text
-        # -----------------------------
-        lines = []
-
-        lines.append("=" * 69)
-        lines.append(f"SAILOR: {display_name}")
-        lines.append("=" * 69)
-        lines.append("")
-
-        # Summary block
-        lines.append("SUMMARY")
-        lines.append("-" * 69)
-        lines.append(f"  Total Valid Sea Pay Days : {total_days}")
-        lines.append(f"  Valid Period Count       : {len(periods)}")
-        lines.append(f"  Invalid / Excluded Events: {len(skipped_unknown)}")
-        lines.append(f"  Duplicate Date Conflicts : {len(skipped_dupe)}")
-        lines.append("")
-
-        # Valid periods
-        lines.append("VALID SEA PAY PERIODS")
-        lines.append("-" * 69)
-        if periods:
-            lines.append("  SHIP                START        END          DAYS")
-            lines.append("  ------------------- ------------ ------------ ----")
-            for p in periods:
-                ship = (p.get("ship") or "").upper()
-                start = p.get("start")
-                end = p.get("end")
-                days = p.get("days", 0)
-
-                if hasattr(start, "strftime"):
-                    start_str = start.strftime("%m/%d/%Y")
-                else:
-                    start_str = str(start)
-
-                if hasattr(end, "strftime"):
-                    end_str = end.strftime("%m/%d/%Y")
-                else:
-                    end_str = str(end)
-
-                lines.append(
-                    f"  {ship[:19]:19} {start_str:12} {end_str:12} {days:4}"
-                )
-        else:
-            lines.append("  NONE")
-        lines.append("")
-
-        # Invalid / excluded events
-        lines.append("INVALID / EXCLUDED EVENTS")
-        lines.append("-" * 69)
-        if skipped_unknown:
-            for entry in skipped_unknown:
-                date = entry.get("date", "UNKNOWN")
-                ship = entry.get("ship") or entry.get("ship_name") or ""
-                reason = entry.get("reason") or "Excluded / unrecognized / non-qualifying"
-                detail = f"{date}"
-                if ship:
-                    detail += f" | {ship}"
-                lines.append(f"  - {detail} — {reason}")
-        else:
-            lines.append("  NONE")
-        lines.append("")
-
-        # Duplicate date conflicts
-        lines.append("DUPLICATE DATE CONFLICTS")
-        lines.append("-" * 69)
-        if skipped_dupe:
-            for entry in skipped_dupe:
-                date = entry.get("date", "UNKNOWN")
-                ship = entry.get("ship") or entry.get("ship_name") or ""
-                occ = entry.get("occ_idx") or entry.get("occurrence") or ""
-                detail = f"{date}"
-                if ship:
-                    detail += f" | {ship}"
-                if occ:
-                    detail += f" | occurrence #{occ}"
-                lines.append(f"  - {detail}")
-        else:
-            lines.append("  NONE")
-        lines.append("")
-
-        # Recommendations
-        lines.append("RECOMMENDATIONS")
-        lines.append("-" * 69)
-        if skipped_unknown or skipped_dupe:
-            lines.append("  - Review TORIS export for the dates listed above.")
-            lines.append("  - Confirm ship names and event types against current guidance.")
-            lines.append("  - Provide corrected certification sheet to ATG/PSD if required.")
-        else:
-            lines.append("  - No discrepancies detected based on current input.")
-        lines.append("")
-        lines.append("")
-
-        # -----------------------------
-        # Write per-sailor TXT + PDF
-        # -----------------------------
-        safe_name = f"{rate}_{last}_{first}".strip().replace(" ", "_").replace(",", "")
-        if not safe_name:
-            safe_name = key.replace(" ", "_").replace(",", "")
-
-        sailor_txt_path = os.path.join(validation_dir, f"VALIDATION_{safe_name}.txt")
-        sailor_pdf_path = os.path.join(validation_dir, f"VALIDATION_{safe_name}.pdf")
-
-        with open(sailor_txt_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
-
-        _write_pdf_from_lines(lines, sailor_pdf_path)
-
-        # Append to master
-        master_lines.extend(lines)
-        master_lines.append("=" * 69)
-        master_lines.append("")
-
-    # -----------------------------
-    # Write master TXT + PDF
-    # -----------------------------
-    with open(master_txt_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(master_lines))
-
-    _write_pdf_from_lines(master_lines, master_pdf_path)
+    return send_from_directory(
+        os.path.dirname(zip_path),
+        os.path.basename(zip_path),
+        as_attachment=True,
+        download_name="Validation_Reports.zip",
+    )
 
 
 # ------------------------------------------------
-# PROCESS ALL PDFs
+# DOWNLOAD TRACKING PACKAGE (VALIDATION + TRACKING)
 # ------------------------------------------------
+@bp.route("/download_tracking")
+def download_tracking():
+    validation_dir = os.path.join(OUTPUT_DIR, "validation")
+    tracking_dir = os.path.join(OUTPUT_DIR, "tracking")
+    zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Tracking_Package.zip")
 
-def process_all(strike_color="black"):
-    files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
 
-    if not files:
-        log("NO INPUT FILES")
-        return
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        # Include validation reports
+        if os.path.exists(validation_dir):
+            for f in os.listdir(validation_dir):
+                full = os.path.join(validation_dir, f)
+                if os.path.isfile(full):
+                    z.write(full, arcname=f"validation/{f}")
 
-    log("=== PROCESS STARTED ===")
+        # Include tracking files (JSON/CSV/DB future)
+        if os.path.exists(tracking_dir):
+            for f in os.listdir(tracking_dir):
+                full = os.path.join(tracking_dir, f)
+                if os.path.isfile(full):
+                    z.write(full, arcname=f"tracking/{f}")
 
-    summary_data = {}
+    return send_from_directory(
+        os.path.dirname(zip_path),
+        os.path.basename(zip_path),
+        as_attachment=True,
+        download_name="SeaPay_Tracking_Package.zip",
+    )
 
-    for file in files:
-        log(f"OCR → {file}")
-        path = os.path.join(DATA_DIR, file)
 
-        # OCR
-        raw = strip_times(ocr_pdf(path))
+# ------------------------------------------------
+# RESET BUTTON
+# ------------------------------------------------
+from .core.cleanup import cleanup_all_folders
 
-        # Extract Name
-        try:
-            name = extract_member_name(raw)
-            log(f"NAME → {name}")
-        except Exception as e:
-            log(f"NAME ERROR → {e}")
-            continue
-
-        # Parse rows into valid/invalid groups
-        year = extract_year_from_filename(file)
-        rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
-
-        # Group valid periods by ship
-        groups = group_by_ship(rows)
-
-        # Compute total valid days (for total-days correction)
-        total_days = sum(
-            (g["end"] - g["start"]).days + 1
-            for g in groups
-        )
-
-        # Strikeout marked sheet
-        marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
-        os.makedirs(marked_dir, exist_ok=True)
-        marked_path = os.path.join(marked_dir, f"MARKED_{os.path.splitext(file)[0]}.pdf")
-
-        mark_sheet_with_strikeouts(
-            path,
-            skipped_dupe,
-            skipped_unknown,
-            marked_path,
-            total_days,
-            strike_color=strike_color,
-        )
-
-        # Create 1070 PDFs for each ship
-        ship_periods = {}
-        for g in groups:
-            ship_periods.setdefault(g["ship"], []).append(g)
-
-        for ship, periods in ship_periods.items():
-            make_pdf_for_ship(ship, periods, name)
-
-        # Prepare summary data for this sailor
-        rate, last, first = resolve_identity(name)
-        key = f"{rate} {last},{first}" if rate else f"{last},{first}"
-
-        if key not in summary_data:
-            summary_data[key] = {
-                "rate": rate,
-                "last": last,
-                "first": first,
-                "periods": [],
-                "skipped_unknown": [],
-                "skipped_dupe": [],
-            }
-
-        sd = summary_data[key]
-
-        # Add valid grouped periods
-        for g in groups:
-            days = (g["end"] - g["start"]).days + 1
-            sd["periods"].append({
-                "ship": g["ship"],
-                "start": g["start"],
-                "end": g["end"],
-                "days": days,
-            })
-
-        # Add invalid/skipped entries
-        sd["skipped_unknown"].extend(skipped_unknown)
-        sd["skipped_dupe"].extend(skipped_dupe)
-
-    # Merge all PDFs into one
-    merge_all_pdfs()
-
-    # Write summary text files
-    write_summary_files(summary_data)
-
-    # Write validation reports (TXT + per-sailor + master PDFs)
-    write_validation_reports(summary_data)
-    log("VALIDATION REPORTS UPDATED")
-
-    log("✅ ALL OPERATIONS COMPLETE")
+@bp.route("/reset", methods=["POST"])
+def reset():
+    deleted = cleanup_all_folders()
+    clear_logs()
+    return jsonify({"status": "success", "message": f"Reset complete! {deleted} files deleted."})
