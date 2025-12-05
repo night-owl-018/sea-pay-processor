@@ -38,22 +38,62 @@ def _build_psd_summary_text(sd):
 
     invalid_rows = []
 
+    # -------------------------------------------------------------------------
+    # UPDATED INVALID / MITE NORMALIZATION BLOCK (OS → ASTAC MITE, STG → ASW MITE)
+    # -------------------------------------------------------------------------
     for e in sd.get("skipped_unknown", []):
         date = e.get("date", "UNKNOWN")
         raw = (e.get("raw") or "").strip()
         up = raw.upper()
+
+        sailor_rate = (sd.get("rate") or "").upper()
+
+        # SBTT stays unchanged
         if "SBTT" in up:
+            cleaned = raw or "SBTT"
             reason = "SBTT / Training Event"
-        elif "MITE" in up or "ATG" in up:
-            reason = "Not Sea Pay Qualified"
+
+        # MITE logic (updated rules)
+        elif "MITE" in up:
+
+            # Rule 1: OS rates → ASTAC MITE
+            if sailor_rate.startswith("OS"):
+                cleaned = "ASTAC MITE"
+
+            # Rule 2: STG rates → ASW MITE
+            elif sailor_rate.startswith("STG"):
+                cleaned = "ASW MITE"
+
+            else:
+                # Non-OS / Non-STG logic
+                if "ASTAC" in up:
+                    cleaned = "ASTAC MITE"
+                elif "ASW" in up:
+                    cleaned = "ASW MITE"
+                else:
+                    # "MITE" alone → decide by rate
+                    if sailor_rate.startswith("OS"):
+                        cleaned = "ASTAC MITE"
+                    elif sailor_rate.startswith("STG"):
+                        cleaned = "ASW MITE"
+                    else:
+                        cleaned = "MITE"
+
+            reason = "MITE / Not Sea Pay Qualified"
+
+        # Everything else = Unknown / Not Sea Pay Qualified
         else:
+            cleaned = raw or "UNKNOWN"
             reason = "Unknown / Not Sea Pay Qualified"
+
         invalid_rows.append({
             "date": date,
-            "raw": raw or "UNKNOWN",
+            "raw": cleaned,
             "reason": reason,
         })
+    # -------------------------------------------------------------------------
 
+    # Duplicate rows stay the same behavior
     for e in sd.get("skipped_dupe", []):
         date = e.get("date", "UNKNOWN")
         ship = e.get("ship") or "UNKNOWN SHIP"
@@ -66,6 +106,7 @@ def _build_psd_summary_text(sd):
 
     pg13_count = len(periods)
 
+    # Build output lines
     lines = []
     lines.append("PSD SEA PAY SUMMARY")
     lines.append("")
@@ -73,6 +114,7 @@ def _build_psd_summary_text(sd):
     lines.append(f"Member: {member_line}")
     lines.append(f"Documented Period: {header_from} to {header_to}")
     lines.append("")
+
     lines.append("VALID SEA PAY PERIODS (PAY AUTHORIZED):")
     if periods:
         for p in periods:
@@ -83,6 +125,7 @@ def _build_psd_summary_text(sd):
     else:
         lines.append("- None")
     lines.append("")
+
     lines.append("INVALID / NON-PAYABLE ENTRIES:")
     if invalid_rows:
         for r in invalid_rows:
@@ -90,11 +133,13 @@ def _build_psd_summary_text(sd):
     else:
         lines.append("- None")
     lines.append("")
+
     lines.append("DOCUMENTS PROVIDED:")
     lines.append(f"- Generated Sea Pay PG13 ({pg13_count})")
     lines.append("- TORIS Sea Pay Cert Sheet")
     lines.append("- Summary PDF")
     lines.append("")
+
     lines.append("NOTES FOR PSD:")
     lines.append("- Valid events confirmed using continuous-date logic.")
     lines.append("- Non-platform, SBTT, and invalid rows removed per policy.")
@@ -152,10 +197,7 @@ def write_summary_files(summary_data):
         master_lines.append(text)
         master_lines.append("")
 
-    # -------------------------------
-    # FIX: MASTER SUMMARY NOW WRITES
-    # INTO SUMMARY_PDF AND SUMMARY_TXT
-    # -------------------------------
+    # Master Summary → store in same folders (not PACKAGE)
     if master_lines:
         master_text = "\n".join(master_lines)
     else:
