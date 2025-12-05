@@ -24,7 +24,6 @@ def _build_psd_summary_text(sd):
     last = sd.get("last", "").strip()
     name = f"{first} {last}".strip()
 
-    # Reporting window (use earliest start, latest end across all sheets)
     rp = sd.get("reporting_periods", []) or []
     valid_starts = [r["start"] for r in rp if r.get("start")]
     valid_ends = [r["end"] for r in rp if r.get("end")]
@@ -32,13 +31,11 @@ def _build_psd_summary_text(sd):
     header_from = _fmt_date(min(valid_starts)) if valid_starts else "UNKNOWN"
     header_to = _fmt_date(max(valid_ends)) if valid_ends else "UNKNOWN"
 
-    # Valid periods (Sea Pay authorized)
     periods = sorted(
         sd.get("periods", []),
         key=lambda p: p.get("start") or datetime.min,
     )
 
-    # Invalid / non-payable entries
     invalid_rows = []
 
     for e in sd.get("skipped_unknown", []):
@@ -67,7 +64,6 @@ def _build_psd_summary_text(sd):
             "reason": reason,
         })
 
-    # Count of PG13s = count of valid periods
     pg13_count = len(periods)
 
     lines = []
@@ -126,10 +122,6 @@ def _write_member_pdf(text, out_path):
 
 
 def write_summary_files(summary_data):
-    """
-    Build per-member PSD-optimized summaries (TXT + PDF)
-    and a master TXT/PDF summary.
-    """
     os.makedirs(SUMMARY_TXT_FOLDER, exist_ok=True)
     os.makedirs(SUMMARY_PDF_FOLDER, exist_ok=True)
     os.makedirs(PACKAGE_FOLDER, exist_ok=True)
@@ -149,11 +141,8 @@ def write_summary_files(summary_data):
         if not base:
             base = key.replace(" ", "_").replace(",", "_")
 
-        txt_name = f"{base}__SUMMARY.txt"
-        pdf_name = f"{base}__SUMMARY.pdf"
-
-        txt_path = os.path.join(SUMMARY_TXT_FOLDER, txt_name)
-        pdf_path = os.path.join(SUMMARY_PDF_FOLDER, pdf_name)
+        txt_path = os.path.join(SUMMARY_TXT_FOLDER, f"{base}__SUMMARY.txt")
+        pdf_path = os.path.join(SUMMARY_PDF_FOLDER, f"{base}__SUMMARY.pdf")
 
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(text)
@@ -161,16 +150,19 @@ def write_summary_files(summary_data):
         _write_member_pdf(text, pdf_path)
 
         master_lines.append(text)
-        master_lines.append("")  # blank line between members
+        master_lines.append("")
 
-    # Master TXT + PDF live in /output/PACKAGE/
+    # -------------------------------
+    # FIX: MASTER SUMMARY NOW WRITES
+    # INTO SUMMARY_PDF AND SUMMARY_TXT
+    # -------------------------------
     if master_lines:
         master_text = "\n".join(master_lines)
     else:
         master_text = "NO DATA"
 
-    master_txt_path = os.path.join(PACKAGE_FOLDER, "MASTER_SUMMARY.txt")
-    master_pdf_path = os.path.join(PACKAGE_FOLDER, "MASTER_SUMMARY.pdf")
+    master_txt_path = os.path.join(SUMMARY_TXT_FOLDER, "MASTER_SUMMARY.txt")
+    master_pdf_path = os.path.join(SUMMARY_PDF_FOLDER, "MASTER_SUMMARY.pdf")
 
     with open(master_txt_path, "w", encoding="utf-8") as f:
         f.write(master_text)
