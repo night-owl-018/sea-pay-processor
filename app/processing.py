@@ -286,57 +286,113 @@ def write_validation_reports(summary_data):
 # ------------------------------------------------
 
 def write_validation_ledger(summary_data, generated_at):
+    """
+    Produces a perfectly aligned ASCII box-table ledger with overflow protection.
+    Total line width = 90 characters. Guaranteed no wrapping.
+    """
+
     validation_dir = os.path.join(OUTPUT_DIR, "validation")
     os.makedirs(validation_dir, exist_ok=True)
 
     txt_path = os.path.join(validation_dir, "VALIDATION_LEDGER.txt")
     pdf_path = os.path.join(validation_dir, "VALIDATION_LEDGER.pdf")
 
+    # Column exact width limits (characters)
+    W_RATE = 4
+    W_NAME = 24
+    W_START = 17
+    W_END = 17
+    W_GEN = 20
+
+    # Build header border
+    border = (
+        "+" + "-" * (W_RATE + 2)
+        + "+" + "-" * (W_NAME + 2)
+        + "+" + "-" * (W_START + 2)
+        + "+" + "-" * (W_END + 2)
+        + "+" + "-" * (W_GEN + 2)
+        + "+"
+    )
+
     lines = []
-    lines.append("=" * 95)
-    lines.append("SEA PAY CERTIFICATION LEDGER")
-    lines.append(f"Generated: {generated_at.strftime('%d %b %Y %H:%M')} LOCAL")
-    lines.append("=" * 95)
-    lines.append("")
+    lines.append(border)
     lines.append(
-        "RATE  NAME                      REPORTING PERIOD START      REPORTING PERIOD END        GENERATED"
+        "| RATE | NAME" + " " * (W_NAME - 4) +
+        " | START DATE" + " " * (W_START - 10) +
+        " | END DATE" + " " * (W_END - 8) +
+        " | GENERATED" + " " * (W_GEN - 9) + " |"
     )
-    lines.append(
-        "----- ------------------------  ---------------------------  ---------------------------  ---------------------"
-    )
+    lines.append(border)
+
+    def fix_width(text, width):
+        """Trim or pad text to fixed width, add ellipsis if needed."""
+        if text is None:
+            text = ""
+        text = str(text)
+        if len(text) > width:
+            return text[: width - 1] + "…"  # ellipsis
+        return text.ljust(width)
 
     def sort_key(item):
         _k, sd = item
-        return (
-            (sd.get("last") or "").upper(),
-            (sd.get("first") or "").upper()
-        )
+        return ((sd.get("last") or "").upper(), (sd.get("first") or "").upper())
+
+    gen_str = generated_at.strftime("%d %b %Y %H:%M")
 
     for key, sd in sorted(summary_data.items(), key=sort_key):
-        rate = sd.get("rate", "")
-        last = sd.get("last", "")
-        first = sd.get("first", "")
+        rate = sd.get("rate", "") or ""
+        last = sd.get("last", "") or ""
+        first = sd.get("first", "") or ""
         name = f"{last}, {first}"
 
         reporting_periods = sd.get("reporting_periods", [])
-        if reporting_periods:
-            for rp in reporting_periods:
-                rs = _fmt_dmy(rp.get("start"))
-                re_ = _fmt_dmy(rp.get("end"))
-                gen_str = generated_at.strftime("%d %b %Y %H:%M")
-                lines.append(
-                    f"{rate:5} {name[:24]:24}  {rs:27}  {re_:27}  {gen_str}"
-                )
-        else:
-            gen_str = generated_at.strftime("%d %b %Y %H:%M")
-            lines.append(
-                f"{rate:5} {name[:24]:24}  {'UNKNOWN':27}  {'UNKNOWN':27}  {gen_str}"
+        if not reporting_periods:
+            # Still output one row with UNKNOWNs
+            start_s = "UNKNOWN"
+            end_s = "UNKNOWN"
+
+            row = (
+                "| " + fix_width(rate, W_RATE) + " | " +
+                fix_width(name, W_NAME) + " | " +
+                fix_width(start_s, W_START) + " | " +
+                fix_width(end_s, W_END) + " | " +
+                fix_width(gen_str, W_GEN) + " |"
             )
 
+            # Overflow protection: hard-trim final line
+            if len(row) > 90:
+                row = row[:90]
+
+            lines.append(row)
+            continue
+
+        # Multiple reporting windows possible
+        for rp in reporting_periods:
+            rs = _fmt_dmy(rp.get("start"))
+            re_ = _fmt_dmy(rp.get("end"))
+
+            row = (
+                "| " + fix_width(rate, W_RATE) + " | " +
+                fix_width(name, W_NAME) + " | " +
+                fix_width(rs, W_START) + " | " +
+                fix_width(re_, W_END) + " | " +
+                fix_width(gen_str, W_GEN) + " |"
+            )
+
+            if len(row) > 90:
+                row = row[:90]
+
+            lines.append(row)
+
+    lines.append(border)
+
+    # Write TXT
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
+    # Write matching PDF
     _write_pdf_from_lines(lines, pdf_path)
+
 
 
 # ------------------------------------------------
@@ -608,3 +664,4 @@ def process_all(strike_color="black"):
     log("TRACKING DONE")
 
     log("✅ ALL OPERATIONS COMPLETE")
+
