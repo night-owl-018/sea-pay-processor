@@ -17,13 +17,10 @@ from reportlab.lib.pagesizes import letter
 
 
 # ------------------------------------------------
-# SMALL HELPERS
+# TEXT TO PDF WRITER
 # ------------------------------------------------
 
 def _write_pdf_from_lines(lines, pdf_path):
-    """
-    Render a list of text lines into a clean, readable PDF.
-    """
     c = canvas.Canvas(pdf_path, pagesize=letter)
     width, height = letter
 
@@ -37,7 +34,6 @@ def _write_pdf_from_lines(lines, pdf_path):
     for raw in lines:
         clean = raw.encode("ascii", "ignore").decode()
 
-        # Soft wrap long lines
         while len(clean) > max_chars:
             text.textLine(clean[:max_chars])
             clean = clean[max_chars:]
@@ -60,96 +56,121 @@ def _write_pdf_from_lines(lines, pdf_path):
     c.save()
 
 
+# ------------------------------------------------
+# DATE FORMATTING HELPERS
+# ------------------------------------------------
+
 def _fmt_dmy(d, default="UNKNOWN"):
-    """
-    Format a datetime as DD MON YYYY in UPPERCASE (04 AUG 2025).
-    """
     if not d or not hasattr(d, "strftime"):
         return default
     return d.strftime("%d %b %Y").upper()
 
 
 def _fmt_iso(d, default=""):
-    """
-    Format a datetime as YYYY-MM-DD for JSON/CSV.
-    """
     if not d or not hasattr(d, "strftime"):
         return default
     return d.strftime("%Y-%m-%d")
 
 
+def _parse_flex_date(date_str):
+    """
+    Parse date in any of these formats:
+      8/4/2025
+      8-4-2025
+      8_4_2025
+    Normalized to %m/%d/%Y internally.
+    """
+    if not date_str:
+        return None
+
+    cleaned = re.sub(r"[-_]", "/", date_str.strip())
+
+    try:
+        return datetime.strptime(cleaned, "%m/%d/%Y")
+    except Exception:
+        return None
+
+
+# ------------------------------------------------
+# BULLETPROOF REPORTING PERIOD EXTRACTOR
+# ------------------------------------------------
+
 def extract_reporting_period(raw_text, filename):
     """
-    Extract reporting period From/To dates from:
-      1) The OCR text: 'From: 8/4/2025 To: 11/24/2025'
-      2) Fallback: the filename: '... 8-04-2025 to 11-24-2025.pdf'
-    Returns: (start_dt, end_dt, range_text_str)
+    Extract the reporting window from either:
+      • The text inside the Sea Duty Certification Sheet (preferred)
+      • The filename (fallback)
     """
-    # Try inside the sheet text first
-    m = re.search(
+    # 1) BEST SOURCE → The sheet text itself:
+    # Matches actual TORIS output:
+    #   "From: 8/4/2025 To: 11/24/2025"
+    m1 = re.search(
         r"From:\s*(\d{1,2}/\d{1,2}/\d{4})\s*To:\s*(\d{1,2}/\d{1,2}/\d{4})",
         raw_text,
         re.IGNORECASE,
     )
-    if m:
-        start_str, end_str = m.group(1), m.group(2)
-        try:
-            start_dt = datetime.strptime(start_str, "%m/%d/%Y")
-            end_dt = datetime.strptime(end_str, "%m/%d/%Y")
-            return start_dt, end_dt, f"{start_str} to {end_str}"
-        except Exception:
-            pass
+    if m1:
+        start_str, end_str = m1.group(1), m1.group(2)
+        start_dt = datetime.strptime(start_str, "%m/%d/%Y")
+        end_dt = datetime.strptime(end_str, "%m/%d/%Y")
+        return start_dt, end_dt, f"{start_str} to {end_str}"
 
-    # Fallback to filename pattern: 8-04-2025 to 11-24-2025
+    # 2) FALLBACK → Filename flexible matcher:
+    # Handles:
+    #   8_4_2025 - 11_24_2025.pdf
+    #   8-4-2025 to 11-24-2025.pdf
+    #   8/4/2025 - 11/24/2025.pdf
     m2 = re.search(
-        r"(\d{1,2}-\d{1,2}-\d{4})\s*to\s*(\d{1,2}-\d{1,2}-\d{4})",
+        r"(\d{1,2}[-_/]\d{1,2}[-_/]\d{4})\s*(?:to|-)\s*(\d{1,2}[-_/]\d{1,2}[-_/]\d{4})",
         filename,
         re.IGNORECASE,
     )
-    if m2:
-        start_str, end_str = m2.group(1), m2.group(2)
-        try:
-            start_dt = datetime.strptime(start_str, "%m-%d-%Y")
-            end_dt = datetime.strptime(end_str, "%m-%d-%Y")
-            return start_dt, end_dt, f"{start_str} to {end_str}"
-        except Exception:
-            pass
 
-    # Nothing found
+    if m2:
+        raw_start, raw_end = m2.group(1), m2.group(2)
+        start_dt = _parse_flex_date(raw_start)
+        end_dt = _parse_flex_date(raw_end)
+
+        start_str = re.sub(r"[-_]", "/", raw_start)
+        end_str = re.sub(r"[-_]", "/", raw_end)
+
+        if start_dt and end_dt:
+            return start_dt, end_dt, f"{start_str} to {end_str}"
+
+    # 3) FAILSAFE:
     return None, None, "UNKNOWN"
 
 
 # ------------------------------------------------
-# PROFESSIONAL VALIDATION REPORTS
+# VALIDATION REPORTS (PER SAILOR + MASTER)
 # ------------------------------------------------
 
 def write_validation_reports(summary_data):
-    """
-    Per-sailor and master validation reports.
-    Now includes REPORTING PERIODS section for each sailor.
-    """
     validation_dir = os.path.join(OUTPUT_DIR, "validation")
     os.makedirs(validation_dir, exist_ok=True)
 
-    master_txt_path = os.path.join(validation_dir, "VALIDATION_REPORTS_MASTER.txt")
-    master_pdf_path = os.path.join(validation_dir, "VALIDATION_REPORTS_MASTER.pdf")
+    master_txt = os.path.join(validation_dir, "VALIDATION_REPORTS_MASTER.txt")
+    master_pdf = os.path.join(validation_dir, "VALIDATION_REPORTS_MASTER.pdf")
 
     master_lines = []
 
     if not summary_data:
-        with open(master_txt_path, "w", encoding="utf-8") as f:
-            f.write("No validation data available.\n")
-        _write_pdf_from_lines(["No validation data available."], master_pdf_path)
+        with open(master_txt, "w", encoding="utf-8") as f:
+            f.write("No validation data.")
+        _write_pdf_from_lines(["No validation data."], master_pdf)
         return
 
     def sort_key(item):
-        _key, sd = item
-        return ((sd.get("last") or "").upper(), (sd.get("first") or "").upper())
+        _k, sd = item
+        return (
+            (sd.get("last") or "").upper(),
+            (sd.get("first") or "").upper()
+        )
 
     for key, sd in sorted(summary_data.items(), key=sort_key):
-        rate = sd.get("rate") or ""
-        last = sd.get("last") or ""
-        first = sd.get("first") or ""
+        rate = sd.get("rate", "")
+        last = sd.get("last", "")
+        first = sd.get("first", "")
 
         display_name = f"{rate} {last}, {first}".strip()
 
@@ -161,60 +182,60 @@ def write_validation_reports(summary_data):
         total_days = sum(p["days"] for p in periods)
 
         lines = []
-        lines.append("=" * 69)
+        lines.append("=" * 80)
         lines.append(f"SAILOR: {display_name}")
-        lines.append("=" * 69)
+        lines.append("=" * 80)
         lines.append("")
 
-        # REPORTING PERIODS
-        lines.append("REPORTING PERIODS (SEA DUTY CERTIFICATION SHEETS)")
-        lines.append("-" * 69)
+        # REPORTING WINDOWS
+        lines.append("REPORTING PERIODS")
+        lines.append("-" * 80)
         if reporting_periods:
-            lines.append("  REPORTING PERIOD START   REPORTING PERIOD END     SOURCE FILE")
-            lines.append("  -----------------------  -----------------------  ------------------------------")
+            lines.append("  REPORTING PERIOD START     REPORTING PERIOD END       SOURCE FILE")
+            lines.append("  -------------------------  -------------------------  ----------------------------")
             for rp in reporting_periods:
                 rs = _fmt_dmy(rp.get("start"))
                 re_ = _fmt_dmy(rp.get("end"))
-                src = os.path.basename(rp.get("file", ""))[:30]
-                lines.append(f"  {rs:23}  {re_:23}  {src}")
+                src = rp.get("file", "")
+                lines.append(f"  {rs:25}  {re_:25}  {src}")
         else:
-            lines.append("  NONE RECORDED")
+            lines.append("  NONE")
         lines.append("")
 
         # SUMMARY
         lines.append("SUMMARY")
-        lines.append("-" * 69)
+        lines.append("-" * 80)
         lines.append(f"  Total Valid Sea Pay Days : {total_days}")
         lines.append(f"  Valid Period Count       : {len(periods)}")
-        lines.append(f"  Invalid / Excluded Events: {len(skipped_unknown)}")
+        lines.append(f"  Invalid Events           : {len(skipped_unknown)}")
         lines.append(f"  Duplicate Date Conflicts : {len(skipped_dupe)}")
         lines.append("")
 
         # VALID PERIODS
         lines.append("VALID SEA PAY PERIODS")
-        lines.append("-" * 69)
+        lines.append("-" * 80)
         if periods:
-            lines.append("  SHIP                START        END          DAYS")
-            lines.append("  ------------------- ------------ ------------ ----")
+            lines.append("  SHIP                 START            END              DAYS")
+            lines.append("  -------------------  ----------------  ----------------  ----")
             for p in periods:
                 ship = (p["ship"] or "").upper()
                 start = _fmt_dmy(p["start"])
                 end = _fmt_dmy(p["end"])
                 days = p["days"]
-                lines.append(f"  {ship[:19]:19} {start:12} {end:12} {days:4}")
+                lines.append(f"  {ship[:19]:19}  {start:16}  {end:16}  {days:4}")
         else:
             lines.append("  NONE")
         lines.append("")
 
-        # INVALID / EXCLUDED
+        # INVALID EVENTS
         lines.append("INVALID / EXCLUDED EVENTS")
-        lines.append("-" * 69)
+        lines.append("-" * 80)
         if skipped_unknown:
             for entry in skipped_unknown:
-                date = entry.get("date", "UNKNOWN")
-                ship = entry.get("ship") or entry.get("ship_name") or ""
-                reason = entry.get("reason") or "Excluded / unrecognized / non-qualifying"
-                detail = f"{date}"
+                dt = entry.get("date", "UNKNOWN")
+                ship = entry.get("ship") or entry.get("ship_name", "")
+                reason = entry.get("reason", "Excluded")
+                detail = dt
                 if ship:
                     detail += f" | {ship}"
                 lines.append(f"  - {detail} — {reason}")
@@ -223,14 +244,14 @@ def write_validation_reports(summary_data):
         lines.append("")
 
         # DUPLICATES
-        lines.append("DUPLICATE DATE CONFLICTS")
-        lines.append("-" * 69)
+        lines.append("DUPLICATES")
+        lines.append("-" * 80)
         if skipped_dupe:
             for entry in skipped_dupe:
-                date = entry.get("date", "UNKNOWN")
-                ship = entry.get("ship") or entry.get("ship_name") or ""
-                occ = entry.get("occ_idx") or entry.get("occurrence") or ""
-                detail = f"{date}"
+                dt = entry.get("date", "UNKNOWN")
+                ship = entry.get("ship") or entry.get("ship_name", "")
+                occ = entry.get("occ_idx") or entry.get("occurrence", "")
+                detail = dt
                 if ship:
                     detail += f" | {ship}"
                 if occ:
@@ -240,82 +261,61 @@ def write_validation_reports(summary_data):
             lines.append("  NONE")
         lines.append("")
 
-        # RECOMMENDATIONS
-        lines.append("RECOMMENDATIONS")
-        lines.append("-" * 69)
-        if skipped_unknown or skipped_dupe:
-            lines.append("  - Review TORIS export for the dates listed above.")
-            lines.append("  - Confirm ship names and event types against current guidance.")
-            lines.append("  - Provide corrected certification sheet to ATG/PSD if required.")
-        else:
-            lines.append("  - No discrepancies detected based on current input.")
-        lines.append("")
-        lines.append("")
+        # OUTPUT PER-SAILOR REPORT
+        safe_name = f"{rate}_{last}_{first}".replace(" ", "_").replace(",", "")
+        txt_path = os.path.join(validation_dir, f"VALIDATION_{safe_name}.txt")
+        pdf_path = os.path.join(validation_dir, f"VALIDATION_{safe_name}.pdf")
 
-        # Per-sailor outputs
-        safe_name = f"{rate}_{last}_{first}".strip().replace(" ", "_").replace(",", "")
-        if not safe_name:
-            safe_name = key.replace(" ", "_").replace(",", "")
-
-        sailor_txt_path = os.path.join(validation_dir, f"VALIDATION_{safe_name}.txt")
-        sailor_pdf_path = os.path.join(validation_dir, f"VALIDATION_{safe_name}.pdf")
-
-        with open(sailor_txt_path, "w", encoding="utf-8") as f:
+        with open(txt_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
-        _write_pdf_from_lines(lines, sailor_pdf_path)
+        _write_pdf_from_lines(lines, pdf_path)
 
-        # Add to master
         master_lines.extend(lines)
-        master_lines.append("=" * 69)
+        master_lines.append("=" * 80)
         master_lines.append("")
 
-    with open(master_txt_path, "w", encoding="utf-8") as f:
+    with open(master_txt, "w", encoding="utf-8") as f:
         f.write("\n".join(master_lines))
 
-    _write_pdf_from_lines(master_lines, master_pdf_path)
+    _write_pdf_from_lines(master_lines, master_pdf)
 
 
 # ------------------------------------------------
-# VALIDATION LEDGER (MASTER SHEET)
+# VALIDATION LEDGER (MASTER VIEW)
 # ------------------------------------------------
 
 def write_validation_ledger(summary_data, generated_at):
-    """
-    Build a master ledger of all sailors and reporting periods.
-    One row per sailor per reporting window.
-    """
     validation_dir = os.path.join(OUTPUT_DIR, "validation")
     os.makedirs(validation_dir, exist_ok=True)
 
-    ledger_txt_path = os.path.join(validation_dir, "VALIDATION_LEDGER.txt")
-    ledger_pdf_path = os.path.join(validation_dir, "VALIDATION_LEDGER.pdf")
+    txt_path = os.path.join(validation_dir, "VALIDATION_LEDGER.txt")
+    pdf_path = os.path.join(validation_dir, "VALIDATION_LEDGER.pdf")
 
     lines = []
-    lines.append("=" * 69)
+    lines.append("=" * 95)
     lines.append("SEA PAY CERTIFICATION LEDGER")
     lines.append(f"Generated: {generated_at.strftime('%d %b %Y %H:%M')} LOCAL")
-    lines.append("=" * 69)
+    lines.append("=" * 95)
     lines.append("")
-
-    header = (
-        "RATE  NAME                     REPORTING PERIOD START   "
-        "REPORTING PERIOD END     GENERATED"
-    )
-    lines.append(header)
     lines.append(
-        "----- ------------------------- -----------------------  "
-        "-----------------------  ------------------------"
+        "RATE  NAME                      REPORTING PERIOD START      REPORTING PERIOD END        GENERATED"
+    )
+    lines.append(
+        "----- ------------------------  ---------------------------  ---------------------------  ---------------------"
     )
 
     def sort_key(item):
-        _key, sd = item
-        return ((sd.get("last") or "").upper(), (sd.get("first") or "").upper())
+        _k, sd = item
+        return (
+            (sd.get("last") or "").upper(),
+            (sd.get("first") or "").upper()
+        )
 
     for key, sd in sorted(summary_data.items(), key=sort_key):
-        rate = sd.get("rate") or ""
-        last = sd.get("last") or ""
-        first = sd.get("first") or ""
+        rate = sd.get("rate", "")
+        last = sd.get("last", "")
+        first = sd.get("first", "")
         name = f"{last}, {first}"
 
         reporting_periods = sd.get("reporting_periods", [])
@@ -325,29 +325,25 @@ def write_validation_ledger(summary_data, generated_at):
                 re_ = _fmt_dmy(rp.get("end"))
                 gen_str = generated_at.strftime("%d %b %Y %H:%M")
                 lines.append(
-                    f"{rate:5} {name[:25]:25} {rs:23}  {re_:23}  {gen_str}"
+                    f"{rate:5} {name[:24]:24}  {rs:27}  {re_:27}  {gen_str}"
                 )
         else:
             gen_str = generated_at.strftime("%d %b %Y %H:%M")
             lines.append(
-                f"{rate:5} {name[:25]:25} {'UNKNOWN':23}  {'UNKNOWN':23}  {gen_str}"
+                f"{rate:5} {name[:24]:24}  {'UNKNOWN':27}  {'UNKNOWN':27}  {gen_str}"
             )
 
-    with open(ledger_txt_path, "w", encoding="utf-8") as f:
+    with open(txt_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
-    _write_pdf_from_lines(lines, ledger_pdf_path)
+    _write_pdf_from_lines(lines, pdf_path)
 
 
 # ------------------------------------------------
-# TRACKING EXPORTS (JSON + CSV)
+# TRACKING (JSON + CSV)
 # ------------------------------------------------
 
 def write_json_tracker(summary_data, generated_at):
-    """
-    Build a local JSON tracking file for the user to download and store.
-    Includes reporting periods and per-ship periods.
-    """
     import json
 
     tracking_dir = os.path.join(OUTPUT_DIR, "tracking")
@@ -355,15 +351,15 @@ def write_json_tracker(summary_data, generated_at):
 
     payload = {
         "generated_at": generated_at.isoformat(),
-        "tool_version": "1.0.0",
+        "tool_version": "1.1.0",
         "sailors": []
     }
 
     for key, sd in summary_data.items():
         periods = sd.get("periods", [])
+        reporting_periods = sd.get("reporting_periods", [])
         skipped_unknown = sd.get("skipped_unknown", [])
         skipped_dupe = sd.get("skipped_dupe", [])
-        reporting_periods = sd.get("reporting_periods", [])
 
         total_days = sum(p["days"] for p in periods)
         status = "VALID" if not (skipped_unknown or skipped_dupe) else "WITH_DISCREPANCIES"
@@ -379,7 +375,7 @@ def write_json_tracker(summary_data, generated_at):
                     "start": _fmt_iso(rp.get("start")),
                     "end": _fmt_iso(rp.get("end")),
                     "file": rp.get("file", ""),
-                    "range_text": rp.get("range_text", ""),
+                    "range_text": rp.get("range_text", "")
                 }
                 for rp in reporting_periods
             ],
@@ -391,32 +387,26 @@ def write_json_tracker(summary_data, generated_at):
                     "days": p["days"],
                     "reporting_period_start": _fmt_iso(p.get("sheet_start")),
                     "reporting_period_end": _fmt_iso(p.get("sheet_end")),
-                    "source_file": p.get("sheet_file", ""),
+                    "source_file": p.get("sheet_file", "")
                 }
                 for p in periods
             ],
             "invalid_events": skipped_unknown,
-            "duplicate_events": skipped_dupe,
+            "duplicate_events": skipped_dupe
         })
 
-    json_name = f"SeaPay_Tracking_{generated_at.strftime('%Y-%m-%d')}.json"
-    out_path = os.path.join(tracking_dir, json_name)
+    out_path = os.path.join(tracking_dir, f"SeaPay_Tracking_{generated_at.strftime('%Y-%m-%d')}.json")
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
 
 
 def write_csv_tracker(summary_data, generated_at):
-    """
-    Build a CSV tracking file that PSD / ATG can open in Excel.
-    One row per valid sea pay period, including reporting window.
-    """
     import csv
 
     tracking_dir = os.path.join(OUTPUT_DIR, "tracking")
     os.makedirs(tracking_dir, exist_ok=True)
 
-    csv_name = f"SeaPay_Tracking_{generated_at.strftime('%Y-%m-%d')}.csv"
-    csv_path = os.path.join(tracking_dir, csv_name)
+    csv_path = os.path.join(tracking_dir, f"SeaPay_Tracking_{generated_at.strftime('%Y-%m-%d')}.csv")
 
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -434,13 +424,14 @@ def write_csv_tracker(summary_data, generated_at):
             "DuplicateCount",
             "Status",
             "GeneratedAt",
-            "SourceFile",
+            "SourceFile"
         ])
 
         generated_at_str = generated_at.isoformat()
 
         for key, sd in summary_data.items():
             periods = sd.get("periods", [])
+            reporting_periods = sd.get("reporting_periods", [])
             skipped_unknown = sd.get("skipped_unknown", [])
             skipped_dupe = sd.get("skipped_dupe", [])
 
@@ -452,14 +443,21 @@ def write_csv_tracker(summary_data, generated_at):
             last = sd.get("last", "")
             first = sd.get("first", "")
 
+            if reporting_periods:
+                rp_start = _fmt_iso(reporting_periods[0]["start"])
+                rp_end = _fmt_iso(reporting_periods[0]["end"])
+            else:
+                rp_start = ""
+                rp_end = ""
+
             if periods:
                 for p in periods:
                     writer.writerow([
                         rate,
                         last,
                         first,
-                        _fmt_iso(p.get("sheet_start")),
-                        _fmt_iso(p.get("sheet_end")),
+                        rp_start,
+                        rp_end,
                         p["ship"],
                         _fmt_iso(p["start"]),
                         _fmt_iso(p["end"]),
@@ -468,19 +466,9 @@ def write_csv_tracker(summary_data, generated_at):
                         dupe_count,
                         status,
                         generated_at_str,
-                        p.get("sheet_file", ""),
+                        p.get("sheet_file", "")
                     ])
             else:
-                # No valid periods, still record the sailor with reporting period if any
-                reporting_periods = sd.get("reporting_periods", [])
-                if reporting_periods:
-                    rp0 = reporting_periods[0]
-                    rp_start = _fmt_iso(rp0.get("start"))
-                    rp_end = _fmt_iso(rp0.get("end"))
-                else:
-                    rp_start = ""
-                    rp_end = ""
-
                 writer.writerow([
                     rate,
                     last,
@@ -495,7 +483,7 @@ def write_csv_tracker(summary_data, generated_at):
                     dupe_count,
                     status,
                     generated_at_str,
-                    "",
+                    ""
                 ])
 
 
@@ -518,13 +506,12 @@ def process_all(strike_color="black"):
         path = os.path.join(DATA_DIR, file)
         log(f"OCR → {file}")
 
-        # OCR and strip times
         raw = strip_times(ocr_pdf(path))
 
-        # Extract reporting period from sheet / filename
+        # Extract reporting period
         sheet_start, sheet_end, sheet_range_text = extract_reporting_period(raw, file)
 
-        # Extract member name
+        # Member name
         try:
             name = extract_member_name(raw)
             log(f"NAME → {name}")
@@ -532,17 +519,16 @@ def process_all(strike_color="black"):
             log(f"NAME ERROR → {e}")
             continue
 
-        # Parse rows
+        # Parse TORIS rows
         year = extract_year_from_filename(file)
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
 
-        # Group valid periods by ship
+        # Group periods by ship
         groups = group_by_ship(rows)
 
-        # Total valid days for sheet (for total-days correction on struck sheet)
         total_days = sum((g["end"] - g["start"]).days + 1 for g in groups)
 
-        # Strikeout marked sheet
+        # Strikeout sheet
         marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
         os.makedirs(marked_dir, exist_ok=True)
         marked_path = os.path.join(marked_dir, f"MARKED_{os.path.splitext(file)[0]}.pdf")
@@ -553,10 +539,10 @@ def process_all(strike_color="black"):
             skipped_unknown,
             marked_path,
             total_days,
-            strike_color=strike_color,
+            strike_color=strike_color
         )
 
-        # Build 1070 PDFs for each ship
+        # NAVPERS per ship
         ship_periods = {}
         for g in groups:
             ship_periods.setdefault(g["ship"], []).append(g)
@@ -564,7 +550,7 @@ def process_all(strike_color="black"):
         for ship, periods in ship_periods.items():
             make_pdf_for_ship(ship, periods, name)
 
-        # Resolve sailor identity (rate/last/first)
+        # Identity
         rate, last, first = resolve_identity(name)
         key = f"{rate} {last},{first}" if rate else f"{last},{first}"
 
@@ -576,20 +562,18 @@ def process_all(strike_color="black"):
                 "periods": [],
                 "skipped_unknown": [],
                 "skipped_dupe": [],
-                "reporting_periods": [],
+                "reporting_periods": []
             }
 
         sd = summary_data[key]
 
-        # Track reporting period per sheet
         sd["reporting_periods"].append({
             "start": sheet_start,
             "end": sheet_end,
             "file": file,
-            "range_text": sheet_range_text,
+            "range_text": sheet_range_text
         })
 
-        # Add valid grouped periods with linkage back to reporting period + source file
         for g in groups:
             days = (g["end"] - g["start"]).days + 1
             sd["periods"].append({
@@ -599,30 +583,28 @@ def process_all(strike_color="black"):
                 "days": days,
                 "sheet_start": sheet_start,
                 "sheet_end": sheet_end,
-                "sheet_file": file,
+                "sheet_file": file
             })
 
-        # Add invalid/skipped entries
         sd["skipped_unknown"].extend(skipped_unknown)
         sd["skipped_dupe"].extend(skipped_dupe)
 
-    # Merge all NAVPERS PDFs
+    # Merge 1070s
     merge_all_pdfs()
 
-    # Write summary text files
+    # Summary
     write_summary_files(summary_data)
 
-    # Validation reports per sailor + master
+    # Validation
     write_validation_reports(summary_data)
-    log("VALIDATION REPORTS UPDATED")
+    log("VALIDATION REPORTS DONE")
 
-    # Validation Ledger (master reporting-period view)
     write_validation_ledger(summary_data, run_generated_at)
-    log("VALIDATION LEDGER UPDATED")
+    log("LEDGER DONE")
 
-    # Tracking (JSON + CSV)
+    # Tracking
     write_json_tracker(summary_data, run_generated_at)
     write_csv_tracker(summary_data, run_generated_at)
-    log("TRACKING FILES UPDATED")
+    log("TRACKING DONE")
 
     log("✅ ALL OPERATIONS COMPLETE")
