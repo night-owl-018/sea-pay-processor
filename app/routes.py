@@ -5,7 +5,18 @@ from flask import Blueprint, render_template, request, send_from_directory, json
 
 # Correct imports (relative)
 from .core.logger import LIVE_LOGS, log, clear_logs
-from .core.config import DATA_DIR, OUTPUT_DIR, TEMPLATE, RATE_FILE
+from .core.config import (
+    DATA_DIR,
+    OUTPUT_DIR,
+    TEMPLATE,
+    RATE_FILE,
+    SEA_PAY_PG13_FOLDER,
+    TORIS_CERT_FOLDER,
+    SUMMARY_TXT_FOLDER,
+    SUMMARY_PDF_FOLDER,
+    PACKAGE_FOLDER,
+    TRACKER_FOLDER,
+)
 from .processing import process_all
 import app.core.rates as rates  # keep as-is for correct loading
 
@@ -13,27 +24,20 @@ bp = Blueprint("main", __name__)
 
 
 # ------------------------------------------------
-# INTERNAL CLEANUP HELPER
+# CLEANUP ALL INPUT + OUTPUT
 # ------------------------------------------------
-
 def cleanup_all_folders():
-    """
-    Delete ALL files under DATA_DIR (inputs) and OUTPUT_DIR (all output folders),
-    but keep the directory structure so the processor can recreate what it needs.
-    Returns the number of files deleted.
-    """
     deleted = 0
     for base in (DATA_DIR, OUTPUT_DIR):
         if not os.path.isdir(base):
             continue
         for root, dirs, files in os.walk(base):
             for f in files:
-                full = os.path.join(root, f)
                 try:
-                    os.remove(full)
+                    os.remove(os.path.join(root, f))
                     deleted += 1
                 except Exception as e:
-                    log(f"CLEANUP ERROR → {full}: {e}")
+                    log(f"CLEANUP ERROR → {f}: {e}")
     return deleted
 
 
@@ -43,9 +47,10 @@ def cleanup_all_folders():
 @bp.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
+
         strike_color = request.form.get("strike_color", "black")
 
-        # Main PDFs
+        # Upload PDF sheets
         for f in request.files.getlist("files"):
             if f.filename:
                 f.save(os.path.join(DATA_DIR, f.filename))
@@ -60,11 +65,10 @@ def index():
         if csvf and csvf.filename:
             csvf.save(RATE_FILE)
 
-            # Reload CSV
+            # Reload CSV mappings
             rates.RATES = rates.load_rates()
             rates.CSV_IDENTITIES.clear()
 
-            # Normalize identities
             for key, rate in rates.RATES.items():
                 last, first = key.split(",", 1)
 
@@ -77,7 +81,7 @@ def index():
                 full_norm = normalize_for_id(f"{first} {last}")
                 rates.CSV_IDENTITIES.append((full_norm, rate, last, first))
 
-        # Run processor
+        # Run engine
         process_all(strike_color=strike_color)
 
     return render_template(
@@ -97,18 +101,75 @@ def get_logs():
 
 
 # ------------------------------------------------
-# DOWNLOAD ALL OUTPUT (root of OUTPUT_DIR only)
+# EXPORT ZIP – EVERYTHING IN OUTPUT FOLDER
 # ------------------------------------------------
 @bp.route("/download_all")
 def download_all():
     zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Output.zip")
-
     if os.path.exists(zip_path):
         os.remove(zip_path)
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        for f in os.listdir(OUTPUT_DIR):
-            full = os.path.join(OUTPUT_DIR, f)
+        for root, dirs, files in os.walk(OUTPUT_DIR):
+            for f in files:
+                full = os.path.join(root, f)
+                arc = os.path.relpath(full, OUTPUT_DIR)
+                z.write(full, arcname=arc)
+
+    return send_from_directory(
+        os.path.dirname(zip_path),
+        os.path.basename(zip_path),
+        as_attachment=True,
+        download_name="SeaPay_Output.zip",
+    )
+
+
+# ------------------------------------------------
+# MERGED SEA PAY PG13 DOWNLOAD
+# ------------------------------------------------
+@bp.route("/download_merged")
+def download_merged():
+    fpath = os.path.join(PACKAGE_FOLDER, "MERGED_SEA_PAY_PG13.pdf")
+
+    if not os.path.isfile(fpath):
+        return "Merged PG13 file not found. Run processor first.", 404
+
+    return send_from_directory(
+        PACKAGE_FOLDER,
+        "MERGED_SEA_PAY_PG13.pdf",
+        as_attachment=True,
+    )
+
+
+# ------------------------------------------------
+# MERGED SUMMARY DOWNLOAD
+# ------------------------------------------------
+@bp.route("/download_summary")
+def download_summary():
+    fpath = os.path.join(PACKAGE_FOLDER, "MERGED_SUMMARY.pdf")
+
+    if not os.path.isfile(fpath):
+        return "Merged Summary PDF not found. Run processor first.", 404
+
+    return send_from_directory(
+        PACKAGE_FOLDER,
+        "MERGED_SUMMARY.pdf",
+        as_attachment=True,
+    )
+
+
+# ------------------------------------------------
+# TORIS SEA PAY CERT SHEETS DOWNLOAD
+# ------------------------------------------------
+@bp.route("/download_marked_sheets")
+def download_marked_sheets():
+    zip_path = os.path.join(tempfile.gettempdir(), "TORIS_Sea_Pay_Cert_Sheets.zip")
+    if os.path.exists(zip_path):
+        os.remove(zip_path)
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in os.listdir(TORIS_CERT_FOLDER):
+            full = os.path.join(TORIS_CERT_FOLDER, f)
             if os.path.isfile(full):
                 z.write(full, arcname=f)
 
@@ -116,97 +177,23 @@ def download_all():
         os.path.dirname(zip_path),
         os.path.basename(zip_path),
         as_attachment=True,
-        download_name="SeaPay_Output.zip"
+        download_name="TORIS_Sea_Pay_Cert_Sheets.zip",
     )
 
 
 # ------------------------------------------------
-# DOWNLOAD MASTER MERGED PDF
-# ------------------------------------------------
-@bp.route("/download_merged")
-def download_merged():
-    merged_files = sorted(
-        f for f in os.listdir(OUTPUT_DIR)
-        if f.startswith("MERGED_SeaPay_Forms_")
-    )
-
-    if not merged_files:
-        return "No merged PDF available. Run the processor first.", 404
-
-    latest = merged_files[-1]
-
-    return send_from_directory(
-        OUTPUT_DIR,
-        latest,
-        as_attachment=True
-    )
-
-
-# ------------------------------------------------
-# DOWNLOAD SUMMARY TEXT FILES
-# ------------------------------------------------
-@bp.route("/download_summary")
-def download_summary():
-    summary_dir = os.path.join(OUTPUT_DIR, "summary")
-    zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Summaries.zip")
-
-    if os.path.exists(zip_path):
-        os.remove(zip_path)
-
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        if os.path.exists(summary_dir):
-            for f in os.listdir(summary_dir):
-                full = os.path.join(summary_dir, f)
-                if os.path.isfile(full):
-                    z.write(full, arcname=f)
-
-    return send_from_directory(
-        os.path.dirname(zip_path),
-        os.path.basename(zip_path),
-        as_attachment=True,
-        download_name="SeaPay_Summaries.zip"
-    )
-
-
-# ------------------------------------------------
-# DOWNLOAD MARKED STRIKEOUT SHEETS
-# ------------------------------------------------
-@bp.route("/download_marked_sheets")
-def download_marked_sheets():
-    marked_dir = os.path.join(OUTPUT_DIR, "marked_sheets")
-    zip_path = os.path.join(tempfile.gettempdir(), "Marked_Sheets.zip")
-
-    if os.path.exists(zip_path):
-        os.remove(zip_path)
-
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        if os.path.exists(marked_dir):
-            for f in os.listdir(marked_dir):
-                full = os.path.join(marked_dir, f)
-                if os.path.isfile(full):
-                    z.write(full, arcname=f)
-
-    return send_from_directory(
-        os.path.dirname(zip_path),
-        os.path.basename(zip_path),
-        as_attachment=True,
-        download_name="Marked_Sheets.zip"
-    )
-
-
-# ------------------------------------------------
-# DOWNLOAD VALIDATION REPORTS + LEDGER
+# VALIDATION LOGS DOWNLOAD
 # ------------------------------------------------
 @bp.route("/download_validation")
 def download_validation():
     validation_dir = os.path.join(OUTPUT_DIR, "validation")
-    zip_path = os.path.join(tempfile.gettempdir(), "Validation_Reports.zip")
 
+    zip_path = os.path.join(tempfile.gettempdir(), "Validation_Reports.zip")
     if os.path.exists(zip_path):
         os.remove(zip_path)
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-        if os.path.exists(validation_dir):
+        if os.path.isdir(validation_dir):
             for f in os.listdir(validation_dir):
                 full = os.path.join(validation_dir, f)
                 if os.path.isfile(full):
@@ -216,49 +203,46 @@ def download_validation():
         os.path.dirname(zip_path),
         os.path.basename(zip_path),
         as_attachment=True,
-        download_name="Validation_Reports.zip"
+        download_name="Validation_Reports.zip",
     )
 
 
 # ------------------------------------------------
-# DOWNLOAD TRACKING PACKAGE (JSON + CSV + VALIDATION)
+# TRACKER DOWNLOAD
 # ------------------------------------------------
 @bp.route("/download_tracking")
 def download_tracking():
-    validation_dir = os.path.join(OUTPUT_DIR, "validation")
-    tracking_dir = os.path.join(OUTPUT_DIR, "tracking")
-
     zip_path = os.path.join(tempfile.gettempdir(), "SeaPay_Tracking_Package.zip")
-
     if os.path.exists(zip_path):
         os.remove(zip_path)
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
 
-        # ALL validation files
-        if os.path.exists(validation_dir):
-            for f in os.listdir(validation_dir):
-                full = os.path.join(validation_dir, f)
+        # Validation
+        vdir = os.path.join(OUTPUT_DIR, "validation")
+        if os.path.isdir(vdir):
+            for f in os.listdir(vdir):
+                full = os.path.join(vdir, f)
                 if os.path.isfile(full):
                     z.write(full, arcname=f"validation/{f}")
 
-        # Tracking JSON / CSV
-        if os.path.exists(tracking_dir):
-            for f in os.listdir(tracking_dir):
-                full = os.path.join(tracking_dir, f)
+        # Tracker JSON + CSV
+        if os.path.isdir(TRACKER_FOLDER):
+            for f in os.listdir(TRACKER_FOLDER):
+                full = os.path.join(TRACKER_FOLDER, f)
                 if os.path.isfile(full):
-                    z.write(full, arcname=f"tracking/{f}")
+                    z.write(full, arcname=f"tracker/{f}")
 
     return send_from_directory(
         os.path.dirname(zip_path),
         os.path.basename(zip_path),
         as_attachment=True,
-        download_name="SeaPay_Tracking_Package.zip"
+        download_name="SeaPay_Tracking_Package.zip",
     )
 
 
 # ------------------------------------------------
-# RESET (INPUT + OUTPUT + LOGS)
+# RESET SYSTEM
 # ------------------------------------------------
 @bp.route("/reset", methods=["POST"])
 def reset():
