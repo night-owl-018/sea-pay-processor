@@ -1,139 +1,115 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>ATGSD SEA PAY PROCESSOR</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
+    <title>ATGSD SEA PAY PROCESSOR</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121417;
+            color: #e3e3e3;
+            margin: 0;
+            padding: 0;
+        }
 
-<style>
-    body {
-        background-color: #0f0f10;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial;
-        color: #e6e6e6;
-        margin: 0;
-        padding: 20px;
-    }
+        h1 {
+            padding: 20px;
+            margin: 0;
+            background-color: #0d1115;
+            border-bottom: 1px solid #222;
+            font-size: 20px;
+        }
 
-    h1 {
-        text-align: center;
-        margin-bottom: 28px;
-        color: #ffffff;
-        font-weight: 600;
-    }
+        .container {
+            max-width: 1500px;
+            margin: auto;
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+        }
 
-    h2 {
-        margin-top: 0;
-        font-weight: 600;
-        color: #ffffff;
-        font-size: 1.05em;
-    }
+        .left-col, .right-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
 
-    .container {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 25px;
-    }
+        .card {
+            background-color: #1b1e23;
+            padding: 18px;
+            border-radius: 8px;
+            border: 1px solid #2a2f36;
+        }
 
-    .card {
-        background: #1a1b1e;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 0 12px rgba(0,0,0,0.4);
-    }
+        .card h2 {
+            font-size: 15px;
+            margin-bottom: 10px;
+            color: #80bfff;
+        }
 
-    label {
-        font-size: 0.9em;
-        margin-bottom: 6px;
-        display: block;
-    }
+        input[type="file"], select {
+            width: 100%;
+            padding: 8px;
+            background-color: #262a30;
+            border: 1px solid #3a3f47;
+            color: white;
+            border-radius: 6px;
+        }
 
-    input[type="file"],
-    select {
-        width: 100%;
-        padding: 10px;
-        border-radius: 8px;
-        background: #2a2b2f;
-        border: 1px solid #3a3b3f;
-        color: #ffffff;
-    }
+        button {
+            background-color: #0078ff;
+            border: none;
+            padding: 9px 16px;
+            color: white;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 13px;
+        }
 
-    button {
-        background-color: #007aff;
-        color: white;
-        border: none;
-        padding: 10px 16px;
-        margin-top: 12px;
-        border-radius: 10px;
-        cursor: pointer;
-        font-size: 0.95em;
-        transition: 0.15s ease;
-    }
+        button:hover {
+            background-color: #006be0;
+        }
 
-    button:hover {
-        background-color: #0a84ff;
-    }
+        .btn-danger { background-color: #d9534f; }
+        .btn-danger:hover { background-color: #c64540; }
 
-    .danger {
-        background-color: #ff453a;
-    }
-    .danger:hover {
-        background-color: #ff5e57;
-    }
+        .btn-gray { background-color: #444; }
+        .btn-gray:hover { background-color: #555; }
 
-    .download-row {
-        margin-top: 15px;
-        display: flex;
-        gap: 12px;
-        align-items: center;
-    }
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
 
-    .download-row select {
-        width: 260px;
-    }
+        .status-box {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 13px;
+            text-transform: uppercase;
+        }
 
-    /* STATUS COLORS */
-    .status-blue {
-        color: #4da3ff !important;
-        font-weight: 600;
-    }
-    .status-red {
-        color: #ff453a !important;
-        font-weight: 600;
-    }
-    .status-green {
-        color: #30d158 !important;
-        font-weight: 600;
-    }
+        .status-ready { background-color: #074f2c; color: #7bffa7; }
+        .status-processing { background-color: #5c0000; color: #ff8c8c; }
+        .status-complete { background-color: #004f1e; color: #7bffb0; }
 
-    /* LOG PANEL */
-    .log-card {
-        margin-top: 25px;
-        grid-column: span 2;
-        background: #1a1b1e;
-        padding: 20px;
-        border-radius: 12px;
-    }
-
-    #logBox {
-        height: 260px;
-        background: #0c0c0d;
-        border: 1px solid #2a2b2f;
-        padding: 12px;
-        border-radius: 8px;
-        font-family: monospace;
-        font-size: 0.9em;
-        overflow-y: scroll;
-        white-space: pre-line;
-    }
-
-    footer {
-        text-align: center;
-        margin-top: 20px;
-        opacity: 0.6;
-        font-size: 0.85em;
-    }
-</style>
-
+        /* Log box */
+        .log-box {
+            width: 100%;
+            height: 350px;
+            background-color: #0e1013;
+            border: 1px solid #2a2f36;
+            border-radius: 8px;
+            padding: 10px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-size: 12px;
+        }
+    </style>
 </head>
 <body>
 
@@ -141,120 +117,104 @@
 
 <div class="container">
 
-    <!-- LEFT: TORIS SHEETS -->
-    <div class="card">
-        <h2>TORIS Sheets (PDF)</h2>
-        <label>Select PDF Files:</label>
-        <input type="file" id="files" name="files" multiple accept="application/pdf">
-    </div>
+    <div class="left-col">
 
-    <!-- RIGHT: PROCESS CONTROL -->
-    <div class="card">
-        <h2>Process Control</h2>
+        <!-- TORIS Sheets -->
+        <div class="card">
+            <h2>INPUT PDFS (SEA DUTY CERTIFICATION SHEETS)</h2>
+            <input type="file" name="files" multiple>
+            <p style="font-size:12px;opacity:0.7;">Select one or more PDFs exported from TORIS.</p>
+        </div>
 
-        <label>Strikeout Color:</label>
-        <select id="strikeColor">
-            <option value="black">Black</option>
-            <option value="red">Red</option>
-            <option value="blue">Blue</option>
-        </select>
+        <!-- NAVPERS Template -->
+        <div class="card">
+            <h2>CUSTOM NAVPERS 1070/613 TEMPLATE (OPTIONAL)</h2>
+            <input type="file" name="template">
+            <p style="font-size:12px;opacity:0.7;">Current: {{ template_path }}</p>
+        </div>
 
-        <button id="runBtn">Run Processor</button>
+        <!-- N811 CSV -->
+        <div class="card">
+            <h2>N811 PERSONNEL ROSTER (CSV)</h2>
+            <input type="file" name="rate_file">
+            <p style="font-size:12px;opacity:0.7;">Current: {{ rate_path }}</p>
+        </div>
 
-        <div class="download-row">
-            <select id="downloadSelect">
-                <option value="">Select Output...</option>
-                <option value="/download_merged">Merged SEA PAY PG13</option>
-                <option value="/download_summary">Merged Summary</option>
-                <option value="/download_marked_sheets">TORIS Marked Sheets</option>
-                <option value="/download_tracking">Tracker File</option>
-                <option value="/download_all">Export ZIP</option>
+        <!-- PROCESS CONTROL -->
+        <div class="card">
+            <h2>PROCESS CONTROL</h2>
+
+            <label>Strikeout Color:</label>
+            <select id="strike_color">
+                <option value="black">Black</option>
+                <option value="red">Red</option>
             </select>
 
-            <button id="downloadBtn" style="display:none;">Download</button>
+            <div class="button-row">
+                <button onclick="runProcessor()">RUN PROCESSOR</button>
+                <button onclick="window.location='/download_pg13'" class="btn-gray">MERGED SEA PAY PG13</button>
+                <button onclick="window.location='/download_summary'" class="btn-gray">MERGED SUMMARY</button>
+                <button onclick="window.location='/download_zip'" class="btn-gray">EXPORT ZIP</button>
+                <button onclick="window.location='/download_marked_sheets'" class="btn-gray">TORIS Sea Pay Cert Sheets</button>
+                <button onclick="window.location='/download_tracker'" class="btn-gray">TRACKER FILE</button>
+                <button onclick="resetSystem()" class="btn-danger">RESET ALL</button>
+            </div>
+
+            <div id="statusBox" class="status-box status-ready">STATUS: READY</div>
         </div>
 
-        <button class="danger" id="resetBtn">Reset System</button>
+    </div>
 
-        <div id="statusText" class="status-blue" style="margin-top:12px;">
-            STATUS: READY
+    <div class="right-col">
+
+        <!-- HOW IT WORKS -->
+        <div class="card">
+            <h2>HOW IT WORKS</h2>
+            <p style="opacity:0.8;font-size:13px;">
+                1. Upload TORIS Sea Duty Certification Sheet PDFs.<br>
+                2. Optionally upload a NAVPERS 1070/613 template.<br>
+                3. Upload an N811 CSV roster.<br>
+                4. Click RUN PROCESSOR to generate outputs:<br><br>
+                • SEA PAY PG13 PDFs<br>
+                • TORIS Cert Sheets (with strikeouts)<br>
+                • Summary Files<br>
+                • Export-ready ZIP package<br>
+            </p>
         </div>
+
+        <!-- LIVE LOG -->
+        <div class="card">
+            <h2>LIVE OPERATION LOG</h2>
+            <div id="logBox" class="log-box"></div>
+        </div>
+
     </div>
 
 </div>
 
-<!-- LOG PANEL -->
-<div class="log-card">
-    <h2>Live Operation Log</h2>
-    <div id="logBox">Waiting...</div>
-</div>
-
-<footer>
-    STG1(SW) Nivera, Ryan | ATGSD
-</footer>
-
 <script>
-/* -------------------------
-   DOWNLOAD SELECTOR LOGIC
---------------------------*/
-document.getElementById("downloadSelect").addEventListener("change", function () {
-    const btn = document.getElementById("downloadBtn");
-    btn.style.display = this.value ? "inline-block" : "none";
-});
-
-document.getElementById("downloadBtn").onclick = () => {
-    const val = document.getElementById("downloadSelect").value;
-    if (val) window.location.href = val;
-};
-
-
-/* -------------------------
-   STATUS CONTROL
---------------------------*/
-const statusBox = document.getElementById("statusText");
-
-function setStatusReady() {
-    statusBox.className = "status-blue";
-    statusBox.innerText = "STATUS: READY";
+function runProcessor() {
+    document.getElementById("statusBox").className = "status-box status-processing";
+    document.getElementById("statusBox").textContent = "STATUS: PROCESSING...";
+    fetch("/", { method: "POST" });
 }
 
-function setStatusProcessing() {
-    statusBox.className = "status-red";
-    statusBox.innerText = "STATUS: PROCESSING...";
+function resetSystem() {
+    fetch("/reset");
 }
 
-function setStatusComplete() {
-    statusBox.className = "status-green";
-    statusBox.innerText = "STATUS: COMPLETE";
-}
-
-
-/* RUN PROCESSOR */
-document.getElementById("runBtn").onclick = () => {
-    setStatusProcessing();
-    window.location.href = "/";
-};
-
-/* RESET SYSTEM */
-document.getElementById("resetBtn").onclick = () => {
-    fetch("/reset")
-        .then(() => setStatusReady());
-};
-
-
-/* -------------------------
-   LIVE LOG UPDATES
---------------------------*/
-function updateLogs() {
-    fetch("/logs")
-        .then(r => r.text())
-        .then(text => {
-            document.getElementById("logBox").textContent = text;
-            const box = document.getElementById("logBox");
-            box.scrollTop = box.scrollHeight;
-        });
-}
-setInterval(updateLogs, 1000);
+setInterval(() => {
+    fetch("/logs").then(r => r.text()).then(t => {
+        let box = document.getElementById("logBox");
+        box.textContent = t;
+        box.scrollTop = box.scrollHeight;
+        if (t.includes("PROCESS COMPLETE")) {
+            let sb = document.getElementById("statusBox");
+            sb.className = "status-box status-complete";
+            sb.textContent = "STATUS: COMPLETE";
+        }
+    });
+}, 1000);
 </script>
 
 </body>
