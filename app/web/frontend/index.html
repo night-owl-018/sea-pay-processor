@@ -132,16 +132,56 @@ button.danger:hover {
     color:#8b949e;
 }
 
-/* STATUS + LOGS */
+/* PATCH — STATUS BAR REPLACEMENT */
 .status {
     margin-top:10px;
     padding:6px 10px;
-    background:#0e4429;
-    border-left:4px solid #238636;
+    background: transparent !important;
+    border-left:4px solid transparent;
     border-radius:4px;
     font-size:13px;
+    position:relative;
+    overflow:hidden;
 }
 
+/* PROCESSING — RED + PULSE + RIPPLE */
+.status.processing {
+    background:#7f1d1d !important;
+    border-left:4px solid #dc2626;
+    animation:pulse 1.2s infinite ease-in-out;
+}
+
+@keyframes pulse {
+    0% { background:#7f1d1d; }
+    50% { background:#9a2828; }
+    100% { background:#7f1d1d; }
+}
+
+/* RIPPLE EFFECT */
+.status.processing::after {
+    content:"";
+    position:absolute;
+    top:0; left:0; right:0; bottom:0;
+    border-radius:4px;
+    background:rgba(220,38,38,0.25);
+    opacity:0;
+    animation:ripple 1.6s infinite ease-out;
+    pointer-events:none;
+}
+
+@keyframes ripple {
+    0% { opacity:0.5; transform:scale(1); }
+    70% { opacity:0; transform:scale(1.15); }
+    100% { opacity:0; transform:scale(1.2); }
+}
+
+/* COMPLETE — BLUE */
+.status.complete {
+    background:#1e3a8a !important;
+    border-left:4px solid #3b82f6;
+}
+
+/* LOGS */
 .logs {
     background:#161b22;
     border:1px solid #30363d;
@@ -332,11 +372,19 @@ document.getElementById("uploadForm").addEventListener("submit",function(e){
     btn.disabled=true;
     statusText.innerText="STATUS: PROCESSING...";
 
+    /* PATCH — enable red processing state */
+    statusText.classList.remove("complete");
+    statusText.classList.add("processing");
+
     fetch("/process",{method:"POST",body:formData})
     .then(()=>{
         btn.disabled=false;
         btn.innerText="RUN PROCESSOR";
         statusText.innerText="STATUS: COMPLETE";
+
+        /* PATCH — switch to blue complete state */
+        statusText.classList.remove("processing");
+        statusText.classList.add("complete");
     })
     .catch(()=>{
         btn.disabled=false;
@@ -359,10 +407,11 @@ function resetAll(){
 
         statusText.innerText = "STATUS: READY";
 
-        // Reset strike color to default
+        statusText.classList.remove("processing");
+        statusText.classList.remove("complete");
+
         document.getElementById("strike_color").value = "black";
 
-        // Clear log window immediately
         document.getElementById("logBox").textContent = "";
         lastText = "";
     });
