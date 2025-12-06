@@ -1,184 +1,226 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ATGSD SEA PAY PROCESSOR</title>
+
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #1e1e1e;
-            color: #dcdcdc;
             margin: 0;
-            padding: 0;
+            background: #f4f4f6;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            color: #333;
         }
+
         header {
-            background-color: #007acc;
-            padding: 15px;
-            text-align: center;
-            font-size: 1.5em;
-            font-weight: bold;
-            color: white;
-        }
-        .container {
+            background: #ffffff;
             padding: 20px;
+            font-size: 1.7em;
+            font-weight: 600;
+            text-align: center;
+            border-bottom: 1px solid #e0e0e0;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
-        .box {
-            background-color: #252526;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            border: 1px solid #3c3c3c;
+
+        .container {
+            max-width: 1100px;
+            margin: 30px auto;
+            padding: 0 20px;
         }
+
+        .card {
+            background: #ffffff;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 14px;
+            box-shadow: 0px 2px 12px rgba(0, 0, 0, 0.07);
+        }
+
         h2 {
-            color: #9cdcfe;
             margin-top: 0;
+            font-weight: 600;
+            font-size: 1.2em;
+            color: #444;
         }
-        input, select, button {
-            margin: 5px 0;
-            padding: 8px;
-            font-size: 1em;
+
+        input[type="file"] {
+            background: #fafafa;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            width: 100%;
+            margin-top: 10px;
         }
-        button {
-            cursor: pointer;
-            background-color: #0e639c;
-            color: white;
-            border: none;
-            border-radius: 4px;
-        }
-        button:hover {
-            background-color: #1177bb;
-        }
-        #logBox {
-            background-color: #1a1a1a;
-            border: 1px solid #333;
+
+        select {
             padding: 10px;
-            height: 280px;
-            overflow-y: auto;
-            white-space: pre-line;
-            font-size: 0.9em;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 1em;
+            width: 150px;
+            background: #fff;
         }
+
+        button {
+            background: #007aff;
+            border: none;
+            padding: 12px 20px;
+            color: white;
+            border-radius: 10px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: 0.2s;
+            margin-top: 12px;
+        }
+
+        button:hover {
+            background: #005ecb;
+        }
+
+        button:disabled {
+            background: #aacbff;
+            cursor: default;
+        }
+
+        .danger {
+            background: #ff3b30;
+        }
+
+        .danger:hover {
+            background: #d82c23;
+        }
+
+        #statusText {
+            margin-top: 12px;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #007aff;
+        }
+
         .download-buttons button {
             width: 100%;
-            margin-top: 5px;
-        }
-        .status {
-            font-size: 1.1em;
-            font-weight: bold;
             margin-top: 10px;
-            color: #4ec9b0;
         }
+
+        #logBox {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 15px;
+            height: 300px;
+            font-family: Menlo, Monaco, "Courier New", monospace;
+            font-size: 0.85em;
+            overflow-y: auto;
+            white-space: pre-line;
+            border: 1px solid #ddd;
+            box-shadow: inset 0px 1px 6px rgba(0,0,0,0.08);
+        }
+
     </style>
 </head>
 
 <body>
+
 <header>ATGSD SEA PAY PROCESSOR</header>
 
 <div class="container">
 
-    <!-- Upload Section -->
-    <div class="box">
-        <h2>1. Upload TORIS Sheets</h2>
+    <!-- Upload -->
+    <div class="card">
+        <h2>Upload TORIS Sheets</h2>
 
         <form id="uploadForm" enctype="multipart/form-data">
-            <input type="file" name="files" id="files" multiple accept="application/pdf" /><br>
+            <input type="file" name="files" id="files" multiple accept="application/pdf">
 
-            <label for="strikeColor">Strikeout Color:</label>
+            <br><br>
+            <label>Strikeout Color:</label>
             <select name="strikeColor" id="strikeColor">
                 <option value="black">Black</option>
                 <option value="red">Red</option>
                 <option value="blue">Blue</option>
-            </select><br><br>
+            </select>
 
-            <button id="submitBtn" type="submit">RUN PROCESSOR</button>
+            <br><br>
+            <button id="submitBtn" type="submit">Run Processor</button>
         </form>
 
-        <div id="statusText" class="status">STATUS: READY</div>
+        <div id="statusText">STATUS: READY</div>
     </div>
 
-    <!-- Log Viewer -->
-    <div class="box">
-        <h2>System Logs</h2>
-        <div id="logBox"></div>
-    </div>
+    <!-- Downloads -->
+    <div class="card download-buttons">
+        <h2>Download Output Files</h2>
 
-    <!-- Download Buttons -->
-    <div class="box download-buttons">
-        <h2>2. Download Outputs</h2>
-        <button onclick="window.location.href='/download_merged'">MERGED SEA PAY PG13</button>
-        <button onclick="window.location.href='/download_summary'">MERGED SUMMARY</button>
+        <button onclick="window.location.href='/download_merged'">Merged SEA PAY PG13</button>
+        <button onclick="window.location.href='/download_summary'">Merged Summary</button>
         <button onclick="window.location.href='/download_marked_sheets'">TORIS Sea Pay Cert Sheets</button>
-        <button onclick="window.location.href='/download_tracking'">TRACKER FILE</button>
-        <button onclick="window.location.href='/download_all'">EXPORT ZIP</button>
+        <button onclick="window.location.href='/download_tracking'">Tracker File</button>
+        <button onclick="window.location.href='/download_all'">Export ZIP</button>
     </div>
 
-    <!-- Reset Button -->
-    <div class="box">
-        <button style="background-color:#b30000;" onclick="resetAll()">RESET SYSTEM</button>
+    <!-- Reset -->
+    <div class="card">
+        <button class="danger" onclick="resetAll()">RESET SYSTEM</button>
+    </div>
+
+    <!-- Logs -->
+    <div class="card">
+        <h2>Live System Logs</h2>
+        <div id="logBox"></div>
     </div>
 
 </div>
 
-<script>
-//
-// FIXED PROCESSOR POST
-// ---------------------
-// Your old JS posted to "/" which NEVER triggered backend processing.
-// Now it posts to "/process" which calls process_all() correctly.
-//
 
-document.getElementById("uploadForm").addEventListener("submit", function (e) {
+<script>
+/* PROCESSOR POST */
+document.getElementById("uploadForm").addEventListener("submit", function(e) {
     e.preventDefault();
 
     const formData = new FormData(this);
     const btn = document.getElementById("submitBtn");
+    const status = document.getElementById("statusText");
 
     btn.disabled = true;
-    btn.innerText = "PROCESSING...";
-    statusText.innerText = "STATUS: PROCESSING...";
+    btn.innerText = "Processing...";
+    status.innerText = "STATUS: PROCESSING...";
 
     fetch("/process", { method: "POST", body: formData })
         .then(() => {
             btn.disabled = false;
-            btn.innerText = "RUN PROCESSOR";
-            statusText.innerText = "STATUS: COMPLETE";
+            btn.innerText = "Run Processor";
+            status.innerText = "STATUS: COMPLETE";
         })
         .catch(() => {
             btn.disabled = false;
-            btn.innerText = "RUN PROCESSOR";
-            statusText.innerText = "STATUS: ERROR";
+            btn.innerText = "Run Processor";
+            status.innerText = "STATUS: ERROR";
         });
 });
 
-
-//
-// FIXED RESET BUTTON
-// ---------------------
-// The old JS tried to send a POST to /reset, but routes.py only had GET.
-// Now it uses GET correctly.
-//
-
+/* RESET */
 function resetAll() {
     if (!confirm("Delete ALL input/output files and logs?")) return;
 
     fetch("/reset")
         .then(() => {
             alert("System reset complete.");
-            statusText.innerText = "STATUS: READY";
+            document.getElementById("statusText").innerText = "STATUS: READY";
         });
 }
 
-//
-// Live log updater (unchanged)
-//
+/* LOG UPDATER */
 function updateLogs() {
     fetch("/logs")
         .then(r => r.text())
         .then(text => {
-            document.getElementById("logBox").innerText = text;
+            const box = document.getElementById("logBox");
+            box.innerText = text;
+            box.scrollTop = box.scrollHeight;
         });
 }
-
 setInterval(updateLogs, 1000);
 </script>
 
