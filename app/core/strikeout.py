@@ -224,7 +224,7 @@ def mark_sheet_with_strikeouts(
             correct_x_pdf = old_end_x_pdf + three_spaces_width
             strike_end_x = correct_x_pdf - three_spaces_width
 
-            # PATCH — strike only when numbers do NOT match
+            # PATCH — strike only when mismatch
             c.setLineWidth(0.8)
             c.setStrokeColorRGB(*rgb)
 
@@ -234,9 +234,9 @@ def mark_sheet_with_strikeouts(
                 or extracted_total_days != computed_total_days
             ):
                 c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
+                c.drawString(correct_x_pdf, target_y_pdf, str(computed_total_days))
+            # ELSE: do not draw corrected number, do not strike through
 
-            # Always write the computed total
-            c.drawString(correct_x_pdf, target_y_pdf, str(computed_total_days))
 
             c.save()
             buf.seek(0)
