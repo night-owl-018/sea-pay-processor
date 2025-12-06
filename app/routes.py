@@ -76,7 +76,6 @@ def index():
         status_message=status_message,
     )
 
-
 # ---------------------------------------------------------
 # LIVE LOG STREAM
 # ---------------------------------------------------------
@@ -84,9 +83,14 @@ def index():
 def logs():
     """
     Return last N log lines for the frontend log window.
+    This version handles both list and deque safely.
     """
-    return "\n".join(LIVE_LOGS[-500:])
-
+    try:
+        # Convert LIVE_LOGS into a list so slicing always works
+        safe_logs = list(LIVE_LOGS)
+        return "\n".join(safe_logs[-500:])
+    except Exception as e:
+        return f"LOG ERROR: {e}", 500
 
 # ---------------------------------------------------------
 # PROCESS BUTTON
@@ -282,3 +286,4 @@ def reset():
     log("SYSTEM RESET COMPLETE")
 
     return redirect(url_for("main.index"))
+
