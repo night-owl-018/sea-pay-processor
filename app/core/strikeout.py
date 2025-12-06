@@ -301,7 +301,7 @@ def mark_sheet_with_strikeouts(
                 page.merge_page(overlays[i].pages[0])
 
             try:
-                page.compress_content_streams():
+                page.compress_content_streams()
                 pass
             except Exception:
                 pass
@@ -321,3 +321,4 @@ def mark_sheet_with_strikeouts(
             log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+
