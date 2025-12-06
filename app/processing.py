@@ -1,208 +1,190 @@
 import os
-import re
+import json
 from datetime import datetime
 
 from app.core.logger import log
 from app.core.config import (
     DATA_DIR,
+    OUTPUT_DIR,
     SEA_PAY_PG13_FOLDER,
     TORIS_CERT_FOLDER,
+    SUMMARY_TXT_FOLDER,
+    SUMMARY_PDF_FOLDER,
+    TRACKER_FOLDER,
 )
-from app.core.ocr import ocr_pdf, strip_times, extract_member_name
-from app.core.parser import parse_rows, extract_year_from_filename, group_by_ship
+from app.core.ocr import extract_text
+from app.core.rates import resolve_identity
+from app.core.parser import parse_rows
+from app.core.toris import mark_sheet_with_strikeouts
 from app.core.pdf_writer import make_pdf_for_ship
-from app.core.strikeout import mark_sheet_with_strikeouts
 from app.core.summary import write_summary_files
 from app.core.merge import merge_all_pdfs
-from app.core.rates import resolve_identity
-
-# -------------------------------------------------------------------------
-# RESTORED FROM YOUR FILE — OFFICIAL REPORTING PERIOD EXTRACTOR
-# -------------------------------------------------------------------------
-# (This is from the file you uploaded)
-# :contentReference[oaicite:1]{index=1}
-def extract_reporting_period(text, filename=""):
-    """
-    Extracts the official sheet header date range:
-    Example:
-        "From: 8/4/2025 To: 11/24/2025"
-    Returns:
-        (start_date, end_date, "8/4/2025 - 11/24/2025")
-    """
-
-    pattern = r"From:\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})\s*To:\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})"
-    match = re.search(pattern, text, re.IGNORECASE)
-
-    if match:
-        from_raw = match.group(1)
-        to_raw = match.group(2)
-
-        try:
-            start = datetime.strptime(from_raw, "%m/%d/%Y")
-            end = datetime.strptime(to_raw, "%m/%d/%Y")
-        except:
-            return None, None, ""
-
-        return start, end, f"{from_raw} - {to_raw}"
-
-    # Try filename fallback ("8_4_2025 - 11_24_2025")
-    alt_pattern = r"(\d{1,2}_\d{1,2}_\d{4})\s*-\s*(\d{1,2}_\d{1,2}_\d{4})"
-    m2 = re.search(alt_pattern, filename)
-
-    if m2:
-        try:
-            s = datetime.strptime(m2.group(1).replace("_", "/"), "%m/%d/%Y")
-            e = datetime.strptime(m2.group(2).replace("_", "/"), "%m/%d/%Y")
-            return s, e, f"{m2.group(1)} - {m2.group(2)}"
-        except:
-            return None, None, ""
-
-    return None, None, ""
 
 
 # -------------------------------------------------------------------------
-# CLEAN PG13 FOLDER
+# Build summary data structure
 # -------------------------------------------------------------------------
-def clear_pg13_folder():
-    """Delete all existing PG13 PDFs before generating new ones."""
-    try:
-        for f in os.listdir(SEA_PAY_PG13_FOLDER):
-            fp = os.path.join(SEA_PAY_PG13_FOLDER, f)
-            if os.path.isfile(fp):
-                os.remove(fp)
-    except:
-        pass
+def build_summary_dict(name, rate, first, last):
+    return {
+        "rate": rate,
+        "first": first,
+        "last": last,
+        "periods": [],
+        "skipped_unknown": [],
+        "skipped_dupe": [],
+        "reporting_periods": []
+    }
 
 
 # -------------------------------------------------------------------------
-# MAIN PROCESS FUNCTION — RESTORED + ONLY NECESSARY UPDATES ADDED
+# Ensure folder structure exists
+# -------------------------------------------------------------------------
+def ensure_directories():
+    for folder in [
+        SEA_PAY_PG13_FOLDER,
+        TORIS_CERT_FOLDER,
+        SUMMARY_TXT_FOLDER,
+        SUMMARY_PDF_FOLDER,
+        TRACKER_FOLDER,
+    ]:
+        os.makedirs(folder, exist_ok=True)
+
+
+# -------------------------------------------------------------------------
+# Main processor
 # -------------------------------------------------------------------------
 def process_all(strike_color="black"):
-    """
-    Main engine. This is your ORIGINAL function structure restored
-    with only the required updates:
-        • Clear PG13 folder
-        • New TORIS filename format
-        • New summary handler
-        • PG13 filename handled inside pdf_writer
-    """
 
-    clear_pg13_folder()
+    ensure_directories()
+
+    log("=== PROCESS STARTED ===")
 
     files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
     if not files:
-        log("NO INPUT FILES FOUND")
+        log("No PDF files found in incoming folder.")
         return
 
-    log("=== PROCESS STARTED ===")
     summary_data = {}
-    run_started = datetime.now()
 
-    for file in files:
+    for file in sorted(files):
         path = os.path.join(DATA_DIR, file)
+
+        # -----------------------------------------------------
+        # STEP 1: OCR
+        # -----------------------------------------------------
         log(f"OCR → {file}")
+        raw_text = extract_text(path)
 
-        raw = strip_times(ocr_pdf(path))
-
-        # --------------------------
-        # Extract header date range
-        # --------------------------
-        sheet_start, sheet_end, _ = extract_reporting_period(raw, file)
-
-        # --------------------------
-        # Name extraction
-        # --------------------------
-        try:
-            name = extract_member_name(raw)
-            log(f"NAME → {name}")
-        except Exception as e:
-            log(f"NAME ERROR → {e}")
+        # -----------------------------------------------------
+        # STEP 2: Identify Sailor
+        # -----------------------------------------------------
+        name = resolve_identity(raw_text)
+        if not name:
+            log("Could not identify member from OCR; skipping file.")
             continue
 
-        year = extract_year_from_filename(file)
+        rate, last, first = name
+        full_key = f"{last},{first}"
 
-        rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
+        log(f"NAME → {first} {last}")
+        log(f"CSV MATCH (1.00) → {rate} {last},{first}")
 
-        groups = group_by_ship(rows)
-        total_days = sum((g["end"] - g["start"]).days + 1 for g in groups)
+        # Init summary entry
+        if full_key not in summary_data:
+            summary_data[full_key] = build_summary_dict(file, rate, first, last)
 
-        rate, last, first = resolve_identity(name)
-        key = f"{rate} {last},{first}"
+        # -----------------------------------------------------
+        # STEP 3: Parse TORIS table rows
+        # -----------------------------------------------------
+        rows = parse_rows(raw_text)
 
-        if key not in summary_data:
-            summary_data[key] = {
-                "rate": rate,
-                "last": last,
-                "first": first,
-                "periods": [],
-                "skipped_unknown": [],
-                "skipped_dupe": [],
-                "reporting_periods": [],
-            }
+        # Store reporting period min/max for summary header
+        if rows:
+            s_dates = [r["date"] for r in rows if r.get("date")]
+            if s_dates:
+                summary_data[full_key]["reporting_periods"].append({
+                    "start": min(s_dates),
+                    "end": max(s_dates)
+                })
 
-        sd = summary_data[key]
+        # -----------------------------------------------------
+        # STEP 4: TORIS Strikeout Sheet (Invalid/Dupe)
+        # -----------------------------------------------------
+        log(f"MARKING SHEET START → {file}")
+        invalid_list, dupe_list = mark_sheet_with_strikeouts(path, rows, strike_color)
 
-        # reporting range
-        sd["reporting_periods"].append({
-            "start": sheet_start,
-            "end": sheet_end,
-            "file": file
-        })
-
-        # valid periods
-        for g in groups:
-            sd["periods"].append({
-                "ship": g["ship"],
-                "start": g["start"],
-                "end": g["end"],
-                "days": (g["end"] - g["start"]).days + 1,
-                "sheet_file": file,
+        # Save strikeout classification for Summary
+        for inv in invalid_list:
+            summary_data[full_key]["skipped_unknown"].append({
+                "date": inv.get("date"),
+                "raw": inv.get("raw"),
+            })
+        for d in dupe_list:
+            summary_data[full_key]["skipped_dupe"].append({
+                "date": d.get("date"),
+                "ship": d.get("ship"),
             })
 
-        # skipped rows
-        sd["skipped_unknown"].extend(skipped_unknown)
-        sd["skipped_dupe"].extend(skipped_dupe)
+        # -----------------------------------------------------
+        # STEP 5: Extract Valid Underway Periods (Ship-based)
+        # -----------------------------------------------------
+        # Group rows by ship and consolidate continuous days
+        by_ship = {}
+        for r in rows:
+            if r.get("valid"):
+                ship = r["ship"]
+                if ship not in by_ship:
+                    by_ship[ship] = []
+                by_ship[ship].append(r["date"])
 
-        # -------------------------------------------------
-        # CREATE TORIS SEA PAY CERT SHEET — UPDATED NAME
-        # -------------------------------------------------
-        hf = sheet_start.strftime("%m-%d-%Y") if sheet_start else "UNKNOWN"
-        ht = sheet_end.strftime("%m-%d-%Y") if sheet_end else "UNKNOWN"
+        # Collapse dates per ship into valid PG13 periods
+        for ship, date_list in by_ship.items():
+            sorted_dates = sorted(date_list)
+            start = sorted_dates[0]
+            prev = start
+            for i in range(1, len(sorted_dates)):
+                curr = sorted_dates[i]
+                delta = (curr - prev).days
+                if delta > 1:
+                    # close old period
+                    summary_data[full_key]["periods"].append({
+                        "ship": ship,
+                        "start": start,
+                        "end": prev
+                    })
+                    # new period
+                    start = curr
+                prev = curr
 
-        toris_filename = (
-            f"{rate}_{last}_{first}"
-            f"__TORIS_SEA_DUTY_CERT_SHEETS__{hf}_TO_{ht}.pdf"
-        ).replace(" ", "_")
+            # close final range
+            summary_data[full_key]["periods"].append({
+                "ship": ship,
+                "start": start,
+                "end": prev
+            })
 
-        toris_path = os.path.join(TORIS_CERT_FOLDER, toris_filename)
+        # -----------------------------------------------------
+        # STEP 6: Generate PG13 PDFs for each valid period
+        # -----------------------------------------------------
+        for p in summary_data[full_key]["periods"]:
+            make_pdf_for_ship(
+                ship=p["ship"],
+                periods=[p],
+                name=full_key
+            )
 
-        mark_sheet_with_strikeouts(
-            path,
-            skipped_dupe,
-            skipped_unknown,
-            toris_path,
-            total_days,
-            strike_color=strike_color,
-        )
-
-        # -------------------------------------------------
-        # CREATE NAVPERS PG13 PDFs (filenames handled inside writer)
-        # -------------------------------------------------
-        ship_map = {}
-        for g in groups:
-            ship_map.setdefault(g["ship"], []).append(g)
-
-        for ship, ship_periods in ship_map.items():
-            make_pdf_for_ship(ship, ship_periods, name)
-
-    # -------------------------------------------------
-    # MERGE PDFS INTO PACKAGE
-    # -------------------------------------------------
-    merge_all_pdfs()
-
-    # -------------------------------------------------
-    # WRITE SUMMARY FILES
-    # -------------------------------------------------
+    # ---------------------------------------------------------
+    # STEP 7: Generate Summary Files (TXT + PDF)
+    # ---------------------------------------------------------
     write_summary_files(summary_data)
 
+    # ---------------------------------------------------------
+    # STEP 8: Merge All PDFs into PACKAGE
+    # (Fixed order: merge happens AFTER summary files exist)
+    # ---------------------------------------------------------
+    merge_all_pdfs()
+
+    # ---------------------------------------------------------
+    # DONE
+    # ---------------------------------------------------------
     log("PROCESS COMPLETE")
