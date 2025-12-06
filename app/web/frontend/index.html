@@ -1,220 +1,355 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>ATGSD SEA PAY PROCESSOR</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #121417;
-            color: #e3e3e3;
-            margin: 0;
-            padding: 0;
-        }
+<title>ATGSD Sea Pay Processor</title>
 
-        h1 {
-            padding: 20px;
-            margin: 0;
-            background-color: #0d1115;
-            border-bottom: 1px solid #222;
-            font-size: 20px;
-        }
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 
-        .container {
-            max-width: 1500px;
-            margin: auto;
-            display: flex;
-            gap: 20px;
-            padding: 20px;
-        }
+<style>
+body {
+    background: #0e1117;
+    font-family: Inter, Consolas, monospace;
+    margin: 0;
+    color:#c9d1d9;
+}
 
-        .left-col, .right-col {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
-        }
+/* HEADER */
+header {
+    background:#161b22;
+    padding:16px;
+    border-bottom:1px solid #30363d;
+}
+header h1 {
+    margin:0;
+    color:#58a6ff;
+    font-size:20px;
+}
 
-        .card {
-            background-color: #1b1e23;
-            padding: 18px;
-            border-radius: 8px;
-            border: 1px solid #2a2f36;
-        }
+/* LAYOUT */
+.container {
+    max-width:1200px;
+    margin:20px auto;
+    padding:10px;
+}
+.grid {
+    display:flex;
+    gap:16px;
+    flex-wrap:wrap;
+}
+.left,
+.right {
+    flex:1;
+    min-width:320px;
+}
+.card {
+    background:#161b22;
+    border:1px solid #30363d;
+    border-radius:8px;
+    padding:16px;
+    margin-bottom:16px;
+}
+.card h3 {
+    margin-top:0;
+    font-size:16px;
+    margin-bottom:8px;
+    color:#c9d1d9;
+}
 
-        .card h2 {
-            font-size: 15px;
-            margin-bottom: 10px;
-            color: #80bfff;
-        }
+.card p {
+    margin:4px 0;
+    font-size:13px;
+    color:#8b949e;
+}
 
-        input[type="file"], select {
-            width: 100%;
-            padding: 8px;
-            background-color: #262a30;
-            border: 1px solid #3a3f47;
-            color: white;
-            border-radius: 6px;
-        }
+/* FILE INPUTS */
+input[type="file"] {
+    width:100%;
+    padding:8px;
+    background:#0e1117;
+    border:1px solid #30363d;
+    border-radius:6px;
+    color:#c9d1d9;
+    box-sizing:border-box;
+}
 
-        button {
-            background-color: #0078ff;
-            border: none;
-            padding: 9px 16px;
-            color: white;
-            cursor: pointer;
-            border-radius: 6px;
-            font-size: 13px;
-        }
+input[type="file"]::file-selector-button {
+    background:#21262d;
+    color:#c9d1d9;
+    border:1px solid #30363d;
+    padding:6px 12px;
+    margin-right:10px;
+    border-radius:6px;
+    cursor:pointer;
+    max-width:100%;
+}
 
-        button:hover {
-            background-color: #006be0;
-        }
+/* BUTTONS */
+.toolbar {
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:10px;
+}
+button {
+    background:#21262d;
+    color:#c9d1d9;
+    border:1px solid #30363d;
+    padding:8px 12px;
+    border-radius:6px;
+    font-size:13px;
+    cursor:pointer;
+}
+button:hover {
+    background:#272727;
+    border-color:#3a3a3a;
+    color:white;
+}
 
-        .btn-danger { background-color: #d9534f; }
-        .btn-danger:hover { background-color: #c64540; }
+button.primary {
+    background:#0d6efd;
+    border-color:#0d6efd;
+    color:#fff;
+}
 
-        .btn-gray { background-color: #444; }
-        .btn-gray:hover { background-color: #555; }
+button.primary:hover {
+    background:#0b5ed7;
+}
 
-        .button-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 10px;
-        }
+button.danger {
+    background:#d9534f;
+    border-color:#d9534f;
+    color:#fff;
+}
 
-        .status-box {
-            margin-top: 10px;
-            padding: 8px;
-            border-radius: 6px;
-            font-weight: bold;
-            font-size: 13px;
-            text-transform: uppercase;
-        }
+button.danger:hover {
+    background:#c9443f;
+}
 
-        .status-ready { background-color: #074f2c; color: #7bffa7; }
-        .status-processing { background-color: #5c0000; color: #ff8c8c; }
-        .status-complete { background-color: #004f1e; color: #7bffb0; }
+/* PATHS */
+.paths {
+    margin-top:6px;
+    font-size:12px;
+    color:#8b949e;
+}
 
-        /* Log box */
-        .log-box {
-            width: 100%;
-            height: 350px;
-            background-color: #0e1013;
-            border: 1px solid #2a2f36;
-            border-radius: 8px;
-            padding: 10px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            font-size: 12px;
-        }
-    </style>
+/* STATUS + LOGS */
+.status {
+    margin-top:10px;
+    padding:6px 10px;
+    background:#0e4429;
+    border-left:4px solid #238636;
+    border-radius:4px;
+    font-size:13px;
+}
+
+.logs {
+    background:#161b22;
+    border:1px solid #30363d;
+    border-radius:8px;
+    padding:16px;
+    margin-top:16px;
+}
+.logs h3 {
+    margin-top:0;
+    margin-bottom:8px;
+}
+#logBox {
+    background:#0d1117;
+    border:1px solid #30363d;
+    border-radius:6px;
+    padding:8px;
+    height:260px;
+    overflow-y:auto;
+    font-size:12px;
+    white-space:pre-wrap;
+}
+
+/* FOOTER */
+footer {
+    margin-top:16px;
+    font-size:12px;
+    color:#6e7681;
+    text-align:center;
+}
+</style>
 </head>
 <body>
 
-<h1>ATGSD SEA PAY PROCESSOR</h1>
+<header>
+    <h1>ATGSD SEA PAY PROCESSOR</h1>
+</header>
 
 <div class="container">
 
-    <div class="left-col">
+<div class="grid">
+    <div class="left">
 
-        <!-- TORIS Sheets -->
+        <form id="uploadForm" enctype="multipart/form-data">
+
         <div class="card">
-            <h2>INPUT PDFS (SEA DUTY CERTIFICATION SHEETS)</h2>
-            <input type="file" name="files" multiple>
-            <p style="font-size:12px;opacity:0.7;">Select one or more PDFs exported from TORIS.</p>
-        </div>
-
-        <!-- NAVPERS Template -->
-        <div class="card">
-            <h2>CUSTOM NAVPERS 1070/613 TEMPLATE (OPTIONAL)</h2>
-            <input type="file" name="template">
-            <p style="font-size:12px;opacity:0.7;">Current: {{ template_path }}</p>
-        </div>
-
-        <!-- N811 CSV -->
-        <div class="card">
-            <h2>N811 PERSONNEL ROSTER (CSV)</h2>
-            <input type="file" name="rate_file">
-            <p style="font-size:12px;opacity:0.7;">Current: {{ rate_path }}</p>
-        </div>
-
-        <!-- PROCESS CONTROL -->
-        <div class="card">
-            <h2>PROCESS CONTROL</h2>
-
-            <label>Strikeout Color:</label>
-            <select id="strike_color">
-                <option value="black">Black</option>
-                <option value="red">Red</option>
-            </select>
-
-            <div class="button-row">
-                <button onclick="runProcessor()">RUN PROCESSOR</button>
-                <button onclick="window.location='/download_pg13'" class="btn-gray">MERGED SEA PAY PG13</button>
-                <button onclick="window.location='/download_summary'" class="btn-gray">MERGED SUMMARY</button>
-                <button onclick="window.location='/download_zip'" class="btn-gray">EXPORT ZIP</button>
-                <button onclick="window.location='/download_marked_sheets'" class="btn-gray">TORIS Sea Pay Cert Sheets</button>
-                <button onclick="window.location='/download_tracker'" class="btn-gray">TRACKER FILE</button>
-                <button onclick="resetSystem()" class="btn-danger">RESET ALL</button>
-            </div>
-
-            <div id="statusBox" class="status-box status-ready">STATUS: READY</div>
-        </div>
-
-    </div>
-
-    <div class="right-col">
-
-        <!-- HOW IT WORKS -->
-        <div class="card">
-            <h2>HOW IT WORKS</h2>
-            <p style="opacity:0.8;font-size:13px;">
-                1. Upload TORIS Sea Duty Certification Sheet PDFs.<br>
-                2. Optionally upload a NAVPERS 1070/613 template.<br>
-                3. Upload an N811 CSV roster.<br>
-                4. Click RUN PROCESSOR to generate outputs:<br><br>
-                • SEA PAY PG13 PDFs<br>
-                • TORIS Cert Sheets (with strikeouts)<br>
-                • Summary Files<br>
-                • Export-ready ZIP package<br>
+            <h3>INPUT PDFS (SEA DUTY CERTIFICATION SHEETS)</h3>
+            <p>Select one or more PDFs exported from TORIS "Sea Duty Certification Sheet".</p>
+            <input type="file" name="files" multiple required>
+            <p style="font-size:12px;color:#8b949e;margin-top:6px;">
+                All PDFs will be saved to the container's /data directory, then processed.
             </p>
         </div>
 
-        <!-- LIVE LOG -->
         <div class="card">
-            <h2>LIVE OPERATION LOG</h2>
-            <div id="logBox" class="log-box"></div>
+            <h3>CUSTOM NAVPERS 1070/613 TEMPLATE (OPTIONAL)</h3>
+            <p>If you have a custom command 613 PDF, upload it here. Otherwise, the default template is used.</p>
+            <input type="file" name="template_file">
+            <div class="paths">Current: {{ template_path }}</div>
+        </div>
+
+        <div class="card">
+            <h3>N811 PERSONNEL ROSTER (CSV)</h3>
+            <input type="file" name="rate_file">
+            <div class="paths">Current: {{ rate_path }}</div>
+        </div>
+
+        <div class="card">
+            <h3>PROCESS CONTROL</h3>
+
+            <div style="margin-bottom:12px;">
+                <label for="strike_color" style="font-size:12px;color:#8b949e;">Strikeout Color:</label>
+                <select name="strike_color" id="strike_color" style="padding:4px 8px;border-radius:4px;background:#0e1117;border:1px solid #30363d;color:#c9d1d9;">
+                    <option value="black" selected>Black (Default)</option>
+                    <option value="red">Red</option>
+                </select>
+            </div>
+
+            <div class="toolbar">
+                <button type="submit" id="submitBtn" class="primary">RUN PROCESSOR</button>
+                <button type="button" onclick="downloadMerged()">MERGED SEA PAY PG13</button>
+                <button type="button" onclick="downloadSummary()">MERGED SUMMARY</button>
+                <button type="button" onclick="downloadAll()">EXPORT ZIP</button>
+                
+                <button type="button" onclick="location.href='/download_marked_sheets'">TORIS Sea Pay Cert Sheets</button>
+                <button type="button" onclick="location.href='/download_tracking'">TRACKER FILE</button>
+
+                <button type="button" onclick="resetAll()" class="danger">RESET ALL</button>
+            </div>
+
+            <div class="status" id="statusText">STATUS: READY</div>
         </div>
 
     </div>
+
+    <div class="right">
+        <div class="card">
+            <h3>HOW IT WORKS</h3>
+            <p>1. Upload TORIS Sea Duty Certification Sheet PDFs.</p>
+            <p>2. Optionally upload a custom NAVPERS 1070/613 template (otherwise the default template is used).</p>
+            <p>3. Upload your N811 CSV to map names to rates.</p>
+            <p>4. Click "RUN PROCESSOR" to generate:</p>
+            <ul style="font-size:13px;color:#8b949e;margin-left:18px;">
+                <li>SEA PAY PG13s by ship and continuous date range.</li>
+                <li>TORIS Sea Pay Cert Sheets (with invalid lines struck out).</li>
+                <li>PSD-style summary files.</li>
+                <li>Merged files for printing/export.</li>
+            </ul>
+        </div>
+
+        <div class="logs">
+            <h3>LIVE OPERATION LOG</h3>
+            <div id="logBox"></div>
+        </div>
+
+        <footer>
+            ATGSD SEA PAY PROCESSOR – For internal training / admin use only.
+        </footer>
+    </div>
+</div>
+
+</form>
 
 </div>
 
 <script>
-function runProcessor() {
-    document.getElementById("statusBox").className = "status-box status-processing";
-    document.getElementById("statusBox").textContent = "STATUS: PROCESSING...";
-    fetch("/", { method: "POST" });
-}
+let isPolling=false;
+let autoScroll=true;
+let lastText="";
 
-function resetSystem() {
-    fetch("/reset");
-}
+const logBox=document.getElementById("logBox");
+const statusText=document.getElementById("statusText");
 
-setInterval(() => {
-    fetch("/logs").then(r => r.text()).then(t => {
-        let box = document.getElementById("logBox");
-        box.textContent = t;
-        box.scrollTop = box.scrollHeight;
-        if (t.includes("PROCESS COMPLETE")) {
-            let sb = document.getElementById("statusBox");
-            sb.className = "status-box status-complete";
-            sb.textContent = "STATUS: COMPLETE";
+logBox.addEventListener("scroll",()=>{
+    autoScroll=(logBox.scrollHeight-logBox.scrollTop-logBox.clientHeight)<30;
+});
+
+pollLogs();
+
+function pollLogs(){
+    if(isPolling) return;
+    isPolling=true;
+
+    fetch("/logs")
+    .then(r=>r.text())
+    .then(txt=>{
+        if(txt===lastText){
+            isPolling=false;
+            setTimeout(pollLogs,1000);
+            return;
         }
+
+        const prevHeight=logBox.scrollHeight;
+        const prevTop=logBox.scrollTop;
+
+        logBox.textContent=txt;
+        lastText=txt;
+
+        if(autoScroll){
+            logBox.scrollTop=logBox.scrollHeight;
+        } else {
+            logBox.scrollTop=prevTop+(logBox.scrollHeight-prevHeight);
+        }
+
+        isPolling=false;
+        setTimeout(pollLogs,1000);
+    })
+    .catch(()=>{
+        isPolling=false;
+        setTimeout(pollLogs,2000);
     });
-}, 1000);
+}
+
+document.getElementById("uploadForm").addEventListener("submit",function(e){
+    e.preventDefault();
+
+    const formData=new FormData(this);
+    const btn=document.getElementById("submitBtn");
+
+    btn.innerText="PROCESSING...";
+    btn.disabled=true;
+    statusText.innerText="STATUS: PROCESSING...";
+
+    fetch("/",{method:"POST",body:formData})
+    .then(()=>{
+        btn.disabled=false;
+        btn.innerText="RUN PROCESSOR";
+        statusText.innerText="STATUS: COMPLETE";
+    })
+    .catch(()=>{
+        btn.disabled=false;
+        btn.innerText="RUN PROCESSOR";
+        statusText.innerText="STATUS: ERROR";
+    });
+});
+
+function downloadMerged(){location.href="/download_merged";}
+function downloadSummary(){location.href="/download_summary";}
+function downloadAll(){location.href="/download_all";}
+
+function resetAll(){
+    if(!confirm("Delete ALL input/output files and logs?")) return;
+    fetch("/reset",{method:"POST"})
+    .then(r=>r.json())
+    .then(data=>{
+        alert(data.message||"Reset complete");
+        statusText.innerText="STATUS: READY";
+    });
+}
 </script>
 
 </body>
