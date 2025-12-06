@@ -27,7 +27,7 @@ def _build_date_variants(date_str):
 
     variants.add(date_str)
     variants.add(f"{dt.month}/{dt.day}/{dt.year}")
-    variants.add(f"{dt.month}/{dt.day}/{dt.year % 100:02d}")
+    variants.add(f"{dt.month}/{dt/day}/{dt.year % 100:02d}")
     variants.add(f"{dt.month:02d}/{dt.day:02d}/{dt.year % 100:02d}")
 
     return variants
@@ -65,7 +65,6 @@ def mark_sheet_with_strikeouts(
     try:
         log(f"MARKING SHEET START → {os.path.basename(original_pdf)}")
 
-        # Build target sets from parser results
         targets_invalid = {(u["date"], u["occ_idx"]) for u in skipped_unknown}
         targets_dup = {(d["date"], d["occ_idx"]) for d in skipped_duplicates}
         all_targets = targets_invalid.union(targets_dup)
@@ -79,7 +78,7 @@ def mark_sheet_with_strikeouts(
         all_dates = {d for (d, _) in all_targets}
         date_variants_map = {d: _build_date_variants(d) for d in all_dates}
 
-        ocr_tokens = {}  # page_index -> list of (txt, left, top, w, h)
+        ocr_tokens = {}
 
         for page_index, img in enumerate(pages):
             log(f"  BUILDING ROWS FROM PAGE {page_index+1}/{len(pages)}")
@@ -111,10 +110,9 @@ def mark_sheet_with_strikeouts(
 
             ocr_tokens[page_index] = page_token_list
 
-            # Sort downward (top row has largest y)
+            # Sort downward
             tokens.sort(key=lambda t: -t["y"])
 
-            # Group into visual rows by y-closeness
             visual_rows = []
             current_row = []
             last_y = None
@@ -137,7 +135,6 @@ def mark_sheet_with_strikeouts(
             if current_row:
                 visual_rows.append(current_row)
 
-            # Build row objects
             tmp_rows = []
             for row in visual_rows:
                 y_avg = sum(t["y"] for t in row) / len(row)
@@ -150,10 +147,8 @@ def mark_sheet_with_strikeouts(
                     "occ_idx": None,
                 })
 
-            # Top-first
             tmp_rows.sort(key=lambda r: -r["y"])
 
-            # Attach date/occ_idx ONLY for dates we already know from parser
             date_counters = {d: 0 for d in all_dates}
             for row in tmp_rows:
                 for d in all_dates:
@@ -167,65 +162,56 @@ def mark_sheet_with_strikeouts(
             row_list.extend(tmp_rows)
 
         # ------------------------------------------------
-        # PATCH: ENSURE SBTT ROWS HAVE DATE/OCC_IDX
-        # (SBTT always invalid, regardless of parser)
+        # SBTT ALWAYS INVALID
         # ------------------------------------------------
-        sbtt_counters = {}  # date -> count
-
+        sbtt_counters = {}
         date_regex = re.compile(r"(\d{1,2}/\d{1,2}/\d{4})")
 
         for row in row_list:
             if "SBTT" not in row["text"]:
                 continue
 
-            # If date not already known, parse it from the text
             if not row.get("date"):
                 m = date_regex.search(row["text"])
                 if m:
                     row["date"] = m.group(1)
 
             if not row.get("date"):
-                # If still no date, we cannot anchor it; log and skip
                 log(f"    SBTT ROW WITHOUT DATE → '{row['text']}'")
                 continue
 
-            # Ensure occ_idx is unique for this date
             if not row.get("occ_idx"):
                 sbtt_counters[row["date"]] = sbtt_counters.get(row["date"], 0) + 1
                 row["occ_idx"] = sbtt_counters[row["date"]]
 
-            # Mark this (date, occ_idx) as a target to strike
             all_targets.add((row["date"], row["occ_idx"]))
 
         # ------------------------------------------------
-        # MAP INVALID / SBTT / DUPLICATE EVENTS TO DATE-Y
+        # STRIKE TARGETS (use DATE y only)
         # ------------------------------------------------
-        # Group all rows by (date, occ_idx)
         rows_by_key = {}
         for r in row_list:
             k = (r.get("date"), r.get("occ_idx"))
             rows_by_key.setdefault(k, []).append(r)
 
-        strike_targets = {}  # page -> list of y-values
+        strike_targets = {}
 
         for key in all_targets:
             if not key[0] or not key[1]:
-                continue  # missing date or occ_idx
+                continue
 
             group = rows_by_key.get(key)
             if not group:
                 continue
 
-            # Use highest y (top-most) row for this date/occurrence
             date_row = max(group, key=lambda r: r["y"])
             y_anchor = date_row["y"]
             page_idx = date_row["page"]
 
             strike_targets.setdefault(page_idx, []).append(y_anchor)
-            log(f"    STRIKE EVENT {key[0]} OCC#{key[1]} PAGE {page_idx+1} Y={y_anchor:.1f}")
 
         # ------------------------------------------------
-        # TOTAL SEA PAY DAYS CORRECTION
+        # TOTAL SEA PAY DAYS FIX — PATCHED HERE
         # ------------------------------------------------
         total_row = None
         for row in row_list:
@@ -253,7 +239,6 @@ def mark_sheet_with_strikeouts(
             old_start_x_pdf = None
             old_end_x_pdf = None
 
-            # Find where the original total-number sits
             for (txt, left, top, w, h) in tokens_page:
                 if re.fullmatch(r"\d+", txt):
                     center_y_img = top + h / 2.0
@@ -280,22 +265,22 @@ def mark_sheet_with_strikeouts(
             c.setLineWidth(0.8)
             c.setStrokeColorRGB(*rgb)
 
-            # Only strike/overwrite if the numbers differ or if we have no extracted value
-            if (
-                extracted_total_days is None
-                or computed_total_days is None
-                or extracted_total_days != computed_total_days
-            ):
+            # ----------------------------
+            # PATCH APPLIED HERE
+            # ----------------------------
+            clean_extracted = re.sub(r"\D", "", str(extracted_total_days)).strip()
+            computed_str = str(computed_total_days)
+
+            if clean_extracted != computed_str:
                 c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
-                if computed_total_days is not None:
-                    c.drawString(correct_x_pdf, target_y_pdf, str(computed_total_days))
+                c.drawString(correct_x_pdf, target_y_pdf, computed_str)
 
             c.save()
             buf.seek(0)
             total_overlay = PdfReader(buf)
 
         # ------------------------------------------------
-        # NORMAL STRIKEOUT LINES (FULL WIDTH, DATE-Y ONLY)
+        # NORMAL STRIKEOUT LINES
         # ------------------------------------------------
         overlays = []
         for p in range(len(pages)):
@@ -304,7 +289,6 @@ def mark_sheet_with_strikeouts(
                 overlays.append(None)
                 continue
 
-            # Deduplicate near-identical y-values to avoid double lines
             cleaned = []
             for y in ys:
                 if not any(abs(y - c) < 0.5 for c in cleaned):
@@ -315,7 +299,6 @@ def mark_sheet_with_strikeouts(
             c.setLineWidth(0.8)
             c.setStrokeColorRGB(*rgb)
 
-            # Full-width strike across the row
             for y in cleaned:
                 c.line(40, y, 550, y)
 
