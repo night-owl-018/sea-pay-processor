@@ -117,6 +117,13 @@ def process_all(strike_color="black"):
         # 1. OCR + basic cleanup
         raw = strip_times(ocr_pdf(path))
 
+        # -----------------------------------------------------------------
+        # PATCH — Extract "Total Sea Pay Days" printed on sheet
+        # -----------------------------------------------------------------
+        match_total = re.search(r"Total Sea Pay Days.*?(\d+)", raw, re.IGNORECASE)
+        extracted_total_days = int(match_total.group(1)) if match_total else None
+        # -----------------------------------------------------------------
+
         # 2. Reporting period (TORIS header)
         sheet_start, sheet_end, _ = extract_reporting_period(raw, file)
 
@@ -135,7 +142,12 @@ def process_all(strike_color="black"):
 
         # 5. Group valid periods by ship
         groups = group_by_ship(rows)
-        total_days = sum((g["end"] - g["start"]).days + 1 for g in groups)
+
+        # -------------------------------------------------------------
+        # PATCH — rename for clarity: computed valid sea-pay days
+        # -------------------------------------------------------------
+        computed_total_days = sum((g["end"] - g["start"]).days + 1 for g in groups)
+        # -------------------------------------------------------------
 
         # 6. Identity resolution from CSV
         rate, last, first = resolve_identity(name)
@@ -186,15 +198,19 @@ def process_all(strike_color="black"):
 
         toris_path = os.path.join(TORIS_CERT_FOLDER, toris_filename)
 
-        # 11. Create strikeout TORIS sheet
+        # -----------------------------------------------------------------
+        # PATCH — pass BOTH extracted and computed totals to strikeout
+        # -----------------------------------------------------------------
         mark_sheet_with_strikeouts(
             path,
             skipped_dupe,
             skipped_unknown,
             toris_path,
-            total_days,
+            extracted_total_days,     # FROM PDF TEXT
+            computed_total_days,      # VALID COMPUTED DAYS
             strike_color=strike_color,
         )
+        # -----------------------------------------------------------------
 
         # 12. Create NAVPERS 1070/613 PG13 PDFs (1 sheet per ship/period)
         ship_map = {}
