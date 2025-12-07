@@ -14,7 +14,8 @@ def fmt(d):
 
 def write_summary_files(summary_data):
     """
-    Writes PSD-style text summaries.
+    Writes PSD-style text summaries, now with:
+    - EVENTS FOLLOWED (chronological log)
     """
 
     for member_key, info in summary_data.items():
@@ -23,29 +24,30 @@ def write_summary_files(summary_data):
         last = info.get("last", "UNK")
         first = info.get("first", "")
 
-        # Determine documented period (min start, max end)
-        rp = info.get("reporting_periods", [])
-        if rp:
-            min_s = min(r["start"] for r in rp if r["start"])
-            max_e = max(r["end"] for r in rp if r["end"])
-        else:
-            min_s = None
-            max_e = None
-
-        # Valid periods
+        reporting_periods = info.get("reporting_periods", [])
         valid_periods = info.get("periods", [])
-
-        # Invalid entries
         invalid_unknown = info.get("skipped_unknown", [])
         invalid_dupe = info.get("skipped_dupe", [])
 
+        # Determine documented period
+        if reporting_periods:
+            min_s = min(r["start"] for r in reporting_periods if r["start"])
+            max_e = max(r["end"] for r in reporting_periods if r["end"])
+        else:
+            min_s, max_e = None, None
+
         out = []
 
+        # ------------------------------------------------------------
+        # HEADER
+        # ------------------------------------------------------------
         out.append("PSD SEA PAY SUMMARY\n")
         out.append(f"Member: {rate} {last}\n")
         out.append(f"Documented Period: {fmt(min_s)} to {fmt(max_e)}\n")
 
+        # ------------------------------------------------------------
         # VALID SEA PAY PERIODS
+        # ------------------------------------------------------------
         out.append("\nVALID SEA PAY PERIODS (PAY AUTHORIZED):")
 
         total_valid_days = 0
@@ -64,12 +66,14 @@ def write_summary_files(summary_data):
 
         out.append(f"\n\nTotal Valid Days: {total_valid_days}\n")
 
-        # INVALID ENTRIES
+        # ------------------------------------------------------------
+        # INVALID ENTRIES (existing section)
+        # ------------------------------------------------------------
         out.append("\nINVALID / NON-PAYABLE ENTRIES:")
 
         invalid_items = []
 
-        # Unknown or suppressed rows (from SBTT/MITE logic)
+        # Unknown / suppressed rows
         for u in invalid_unknown:
             invalid_items.append((
                 u.get("date", ""),
@@ -85,31 +89,77 @@ def write_summary_files(summary_data):
                 d.get("reason", "Duplicate entry for date")
             ))
 
-        # NEW SORT: date first, then ship/event-type
+        # Sort by date, then ship (Q1 A)
         invalid_items.sort(key=lambda x: (x[0], x[1]))
 
-        unique_invalid_days = set()
+        invalid_days_set = set()
 
         for date, ship, reason in invalid_items:
             out.append(f"\n- {ship} | {date} | {reason}")
-            unique_invalid_days.add(date)
+            invalid_days_set.add(date)
 
-        out.append(f"\n\nTotal Invalid Days: {len(unique_invalid_days)}\n")
+        out.append(f"\n\nTotal Invalid Days: {len(invalid_days_set)}\n")
 
+        # ============================================================
+        # PATCH A — EVENTS FOLLOWED (NEW SECTION)
+        # Appears directly after INVALID ENTRIES (Q2 A)
+        # ============================================================
+        out.append("\nEVENTS FOLLOWED (CHRONOLOGICAL LOG):")
+
+        # Build chronological list:
+        event_log = []
+
+        # Add valid events
+        for p in valid_periods:
+            # Expand each period into raw dates
+            s = p["start"]
+            e = p["end"]
+            delta = (e - s).days
+            for i in range(delta + 1):
+                d = s + timedelta(days=i)
+                event_log.append((
+                    d.strftime("%m/%d/%Y"),
+                    p["ship"],
+                    "Pay Authorized"  # Q3 C
+                ))
+
+        # Add invalid events
+        for date, ship, reason in invalid_items:
+            event_log.append((date, ship, reason))
+
+        # Sort chronologically (Q1 A)
+        def _datekey(row):
+            try:
+                return datetime.strptime(row[0], "%m/%d/%Y")
+            except Exception:
+                return datetime.min
+
+        event_log.sort(key=_datekey)
+
+        # Output log
+        for date, ship, reason in event_log:
+            out.append(f"\n{date} | {ship} | {reason}")
+
+        out.append("\n")
+
+        # ------------------------------------------------------------
         # DOCUMENTS PROVIDED
+        # ------------------------------------------------------------
         out.append("\nDOCUMENTS PROVIDED:")
         out.append("\n- Generated Sea Pay PG13")
         out.append("\n- TORIS Sea Pay Cert Sheet")
         out.append("\n- Summary PDF\n")
 
-        # NOTES FOR PSD
+        # ------------------------------------------------------------
+        # NOTES
+        # ------------------------------------------------------------
         notes = []
 
         if len(valid_periods) > 1:
             notes.append("Valid events confirmed using continuous-date logic.")
 
-        if len(unique_invalid_days) > 0:
-            notes.append("Non-platform, SBTT/MITE, and invalid rows removed per policy.")
+        if len(invalid_days_set) > 0:
+            notes.append("SBTT/MITE and invalid events suppressed per policy.")
             notes.append("TORIS sheet corrected and annotated.")
 
         if notes:
@@ -120,7 +170,9 @@ def write_summary_files(summary_data):
 
         out.append("\nGenerated by STG1 NIVERA – ATGSD SEA PAY PROCESSOR\n")
 
-        # Save Summary TXT
+        # ------------------------------------------------------------
+        # SAVE SUMMARY FILE
+        # ------------------------------------------------------------
         filename = f"{rate}_{last}_{first}_SUMMARY.txt".replace(" ", "_")
         summary_path = os.path.join(SUMMARY_TXT_FOLDER, filename)
 
