@@ -172,7 +172,6 @@ def mark_sheet_with_strikeouts(
                     strike_targets.setdefault(row["page"], []).append(row["y"])
                     log(f"    STRIKEOUT DUP {row['date']} OCC#{row['occ_idx']}")
 
-
         # ------------------------------------------------
         # FIND TOTAL ROW
         # ------------------------------------------------
@@ -231,7 +230,7 @@ def mark_sheet_with_strikeouts(
             # ------------------------------------------------
             # PATCH PART 1 — CLEAN OCR EXTRACTED VALUE
             # ------------------------------------------------
-            clean_extracted = re.sub(r"\D", "", str(extracted_total_days)).strip()
+            clean_extracted = "".join(re.findall(r"\d+", str(extracted_total_days)))
             computed_str = str(computed_total_days)
 
             # ------------------------------------------------
@@ -306,7 +305,7 @@ def mark_sheet_with_strikeouts(
         with open(output_path, "wb") as f:
             writer.write(f)
 
-        log(f"MARKED SHEET CREATED → {os.path.basename(original_pdf)}")
+        log(f"MARKED SHEET CREATED → {os.path.basename(output_path)}")
 
     except Exception as e:
         log(f"⚠️ MARKING FAILED → {e}")
