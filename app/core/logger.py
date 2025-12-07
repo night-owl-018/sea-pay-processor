@@ -34,9 +34,14 @@ PROGRESS = {
 
 
 def reset_progress():
+    """
+    PATCH APPLIED:
+    Do NOT reset status back to 'idle'.
+    This prevents UI progress loop from stopping early.
+    """
     PROGRESS.update(
         {
-            "status": "idle",
+            # "status" removed from reset
             "total_files": 0,
             "current_file": 0,
             "current_step": "",
@@ -57,5 +62,3 @@ def add_progress_detail(name: str, delta: int = 1):
 
 def get_progress():
     return PROGRESS
-
-
