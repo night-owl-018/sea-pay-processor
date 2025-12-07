@@ -1,163 +1,152 @@
-import os
 import io
+from pathlib import Path
 from datetime import datetime
+from typing import List, Dict
 
-from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+from PyPDF2 import PdfReader, PdfWriter
 
+from app.core.config import PG13_TEMPLATE, SEA_PAY_PG13_FOLDER
 from app.core.logger import log
-from app.core.config import TEMPLATE, FONT_NAME, FONT_SIZE, SEA_PAY_PG13_FOLDER
 from app.core.rates import resolve_identity
 
-
-# ------------------------------------------------
-# FLATTEN PDF  (UNCHANGED)
-# ------------------------------------------------
-def flatten_pdf(path):
-    try:
-        reader = PdfReader(path)
-        writer = PdfWriter()
-
-        for page in reader.pages:
-            if "/Annots" in page:
-                del page["/Annots"]
-
-            contents = page.get("/Contents")
-            if isinstance(contents, list):
-                merged = b""
-                for obj in contents:
-                    merged += obj.get_data()
-                page["/Contents"] = writer._add_object(merged)
-
-            if "/Rotate" in page:
-                del page["/Rotate"]
-
-            writer.add_page(page)
-
-        if "/AcroForm" in writer._root_object:
-            del writer._root_object["/AcroForm"]
-
-        tmp = path + ".flat"
-        with open(tmp, "wb") as f:
-            writer.write(f)
-
-        os.replace(tmp, path)
-        log(f"FLATTENED → {os.path.basename(path)}")
-
-    except Exception as e:
-        log(f"⚠️ FLATTEN FAILED → {e}")
+FONT_NAME = "Times-Roman"
+FONT_SIZE = 12
 
 
-# ------------------------------------------------
-# MAKE PG13 — ONE PDF PER SHIP, MULTIPLE PERIODS
-# ------------------------------------------------
-def make_pdf_for_ship(ship, periods, name):
+def _fmt_line_date(d: datetime) -> str:
+    """MM/DD/YYYY for the sentence line."""
+    return d.strftime("%m/%d/%Y")
+
+
+def _fmt_file_date(d: datetime) -> str:
+    """MM-DD-YYYY for filenames."""
+    return d.strftime("%m-%d-%Y")
+
+
+def flatten_pdf(overlay_buffer: io.BytesIO, output_path: Path) -> None:
     """
-    Generate ONE PG13 per ship containing ALL valid continuous sea pay periods.
-
-    - periods: list of dicts with keys "start", "end"
-    - Single-day events display as DATE TO DATE.
+    Take an in-memory ReportLab page and flatten it onto the PG13 template.
     """
+    overlay_buffer.seek(0)
 
+    base_reader = PdfReader(str(PG13_TEMPLATE))
+    overlay_reader = PdfReader(overlay_buffer)
+
+    if not base_reader.pages or not overlay_reader.pages:
+        raise ValueError("Template or overlay PDF has no pages")
+
+    base_page = base_reader.pages[0]
+    overlay_page = overlay_reader.pages[0]
+
+    # Draw our overlay on top of the template
+    base_page.merge_page(overlay_page)
+
+    writer = PdfWriter()
+    writer.add_page(base_page)
+
+    SEA_PAY_PG13_FOLDER.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "wb") as f:
+        writer.write(f)
+
+
+def make_pdf_for_ship(ship: str,
+                      periods: List[Dict[str, datetime]],
+                      member_name: str) -> None:
+    """
+    Create one NAVPERS 1070/613 for each contiguous valid sea-pay period
+    on the given ship, using the original single-period sentence format:
+
+      "____. REPORT CAREER SEA PAY FROM {START} TO {END}."
+      "Member performed eight continuous hours per day on-board:
+       {SHIP} Category A vessel."
+    """
     if not periods:
         return
 
-    rate, last, first = resolve_identity(name)
-    ship_upper = ship.upper()
+    SEA_PAY_PG13_FOLDER.mkdir(parents=True, exist_ok=True)
 
-    # Sort periods by start date
-    periods_sorted = sorted(periods, key=lambda g: g["start"])
+    rate, last, first = resolve_identity(member_name)
 
-    # Overall span for filename (min start, max end)
-    first_start = periods_sorted[0]["start"]
-    last_end = periods_sorted[-1]["end"]
+    # Clean up identity strings
+    last = (last or "").strip()
+    first = (first or "").strip()
 
-    s_overall = first_start.strftime("%m/%d/%Y")
-    e_overall = last_end.strftime("%m/%d/%Y")
-    s_overall_fn = s_overall.replace("/", "-")
-    e_overall_fn = e_overall.replace("/", "-")
+    if rate:
+        identity = f"{rate} {last}, {first}".strip().replace("  ", " ")
+    else:
+        identity = f"{last}, {first}".strip(", ").strip()
 
-    # Filename: one per ship per run
-    filename = (
-        f"{rate}_{last}_{first}"
-        f"__SEA_PAY_PG13__{ship_upper}__{s_overall_fn}_TO_{e_overall_fn}.pdf"
-    )
-    filename = filename.replace(" ", "_")
+    ship_label = ship.strip()
+    ship_for_filename = ship_label.upper().replace(" ", "_").replace(".", "")
 
-    outpath = os.path.join(SEA_PAY_PG13_FOLDER, filename)
+    # Sort periods by start date so PDFs come out in time order
+    sorted_periods = sorted(periods, key=lambda p: p["start"])
 
-    # Build overlay
-    buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=letter)
-    c.setFont(FONT_NAME, FONT_SIZE)
+    for period in sorted_periods:
+        start = period["start"]
+        end = period["end"]
 
-    # HEADER BLOCK (as before)
-    c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
-    c.drawString(373, 671, "X")
-    c.setFont(FONT_NAME, 8)
-    c.drawString(39, 650, "ENTITLEMENT")
-    c.drawString(345, 641, "OPNAVINST 7220.14")
+        start_line = _fmt_line_date(start)
+        end_line = _fmt_line_date(end)
 
-    # Member identity
-    c.setFont(FONT_NAME, FONT_SIZE)
-    identity = f"{rate} {last}, {first}" if rate else f"{last}, {first}"
-    c.drawString(39, 41, identity)
+        start_file = _fmt_file_date(start)
+        end_file = _fmt_file_date(end)
 
-    # DESCRIPTION TEXT BLOCK
-    y = 595
-    c.drawString(
-        38.8,
-        y,
-        "____. REPORT CAREER SEA PAY FOR THE FOLLOWING PERIODS:"
-    )
+        filename = (
+            f"{rate}_{last}_{first}"
+            f"__SEA_PAY_PG13__{ship_for_filename}"
+            f"__{start_file}_TO_{end_file}.pdf"
+        ).replace("__", "_").strip("_")
 
-    # List each valid period, including single-day events
-    y -= 16
-    c.setFont(FONT_NAME, 10)
+        output_path = SEA_PAY_PG13_FOLDER / filename
 
-    for g in periods_sorted:
-        s = g["start"].strftime("%m/%d/%Y")
-        e = g["end"].strftime("%m/%d/%Y")
-        line = f"{s} TO {e}"
-        c.drawString(64, y, line)
-        y -= 12
+        # Build the overlay page
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pagesize=letter)
 
-    # Member performed 8 hours per day onboard line
-    y -= 8
-    c.setFont(FONT_NAME, FONT_SIZE)
-    c.drawString(
-        64,
-        y,
-        f"Member performed eight continuous hours per day on-board: "
-        f"{ship_upper} Category A vessel."
-    )
+        # Station / header bits that actually change
+        c.setFont(FONT_NAME, 10)
+        # Ship / station line
+        c.drawString(64, 705, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
 
-    # SIGNATURE AREA (unchanged)
-    c.drawString(356.26, 499.5, "_________________________")
-    c.drawString(363.8, 487.5, "Certifying Official & Date")
-    c.drawString(356.26, 427.5, "_________________________")
-    c.drawString(384.1, 415.2, "FI MI Last Name")
+        # Permanent box "X"
+        c.drawString(373, 671, "X")
 
-    c.drawString(38.8, 83, "SEA PAY CERTIFIER")
-    c.drawString(503.5, 40, "USN AD")
+        # Entitlement + authority
+        c.drawString(64, 650, "ENTITLEMENT")
+        c.setFont(FONT_NAME, 8)
+        c.drawString(345, 641, "OPNAVINST 7220.14")
 
-    # Finish overlay
-    c.save()
-    buf.seek(0)
+        # Main narrative text
+        c.setFont(FONT_NAME, FONT_SIZE)
+        y = 595
 
-    # Merge overlay with template
-    template = PdfReader(TEMPLATE)
-    overlay = PdfReader(buf)
-    base = template.pages[0]
-    base.merge_page(overlay.pages[0])
+        # This is the line you showed in the screenshot
+        line_1 = f"____. REPORT CAREER SEA PAY FROM {start_line} TO {end_line}."
+        c.drawString(64, y, line_1)
 
-    writer = PdfWriter()
-    writer.add_page(base)
+        y -= 20
+        line_2 = (
+            f"Member performed eight continuous hours per day on-board: "
+            f"{ship_label} Category A vessel."
+        )
+        c.drawString(90, y, line_2)
 
-    # Save final PG13
-    with open(outpath, "wb") as f:
-        writer.write(f)
+        # Signature captions (lines themselves are on the template)
+        c.setFont(FONT_NAME, 10)
+        c.drawString(330, 160, "Certifying Official & Date")
+        c.drawString(330, 110, "FI MI Last Name")
 
-    flatten_pdf(outpath)
-    log(f"CREATED → {filename}")
+        # Member identity in lower left
+        c.setFont(FONT_NAME, FONT_SIZE)
+        c.drawString(64, 110, identity)
+
+        c.showPage()
+        c.save()
+
+        # Flatten overlay onto the NAVPERS template and write out
+        flatten_pdf(buf, output_path)
+
+        log(f"CREATED → {output_path.name}")
