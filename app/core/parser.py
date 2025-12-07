@@ -4,41 +4,31 @@ from datetime import datetime, timedelta
 from app.core.ships import match_ship
 
 
-# ------------------------------------------------
-# DATE HANDLING
-# ------------------------------------------------
-
 def extract_year_from_filename(fn):
+    """Extract 4-digit year from filename or fallback to current year."""
     m = re.search(r"(20\d{2})", fn)
     return m.group(1) if m else str(datetime.now().year)
 
 
-# ********** SMART PARSER (MISSION-FIRST, ONE SHIP PER DATE) **********
-
 def parse_rows(text, year):
     """
-    Parse all dated rows from the OCR text.
-
-    Rules:
-    - We assign an occ_idx PER DATE in the order the OCR text is read.
-    - SBTT and unknown/invalid ships go to skipped_unknown (and will be struck out).
-    - For valid ships on the same date:
-        * If there is only ONE ship that day -> keep the first valid, rest are duplicates.
-        * If there are MULTIPLE different ships -> prefer entries that look like mission
-          rides (contain 'M-1', 'M1', 'M-2', 'M2'). Among those, keep the earliest one;
-          all others become duplicates.
-    - Exactly ONE valid ship per date is kept in rows.
+    Smart TORIS parser.
+    PATCHES ADDED:
+    - Added 'reason' fields for all invalid events
+    - Added 'ship' field where appropriate
+    - No change to mission / duplicate logic
     """
+
     rows = []
     skipped_duplicates = []
     skipped_unknown = []
 
     lines = text.splitlines()
 
-    # First pass: collect candidate entries per date
-    per_date_entries = {}   # date -> [entries]
-    date_order = []         # preserve order of first appearance
+    per_date_entries = {}
+    date_order = []
 
+    # PASS 1 — Collect entries by date
     for i, line in enumerate(lines):
         m = re.match(r"\s*(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?", line)
         if not m:
@@ -52,16 +42,16 @@ def parse_rows(text, year):
         if i + 1 < len(lines):
             raw += " " + lines[i + 1]
 
-        cleaned_raw = raw.strip()
-        upper_raw = cleaned_raw.upper()
+        cleaned = raw.strip()
+        upper = cleaned.upper()
 
         entry = {
-            "raw": cleaned_raw,
-            "upper": upper_raw,
+            "raw": cleaned,
+            "upper": upper,
             "line_index": i,
             "date": date,
             "ship": None,
-            "kind": None,      # "valid", "unknown", "sbtt"
+            "kind": None,
             "occ_idx": None,
         }
 
@@ -71,68 +61,76 @@ def parse_rows(text, year):
 
         per_date_entries[date].append(entry)
 
-    # Second pass: classify, choose winner per date
-    def is_mission_entry(e):
+    # Helper for mission preference
+    def is_mission(e):
         up = e["upper"]
-        return ("M-1" in up) or ("M1" in up) or ("M-2" in up) or ("M2" in up)
+        return any(tag in up for tag in ("M-1", "M1", "M-2", "M2"))
 
+    # PASS 2 — Classify and select a single valid row per date
     for date in date_order:
         entries = per_date_entries[date]
 
-        # assign occ_idx in order and classify
         occ = 0
         for e in entries:
             occ += 1
             e["occ_idx"] = occ
-            upper = e["upper"]
 
-            if "SBTT" in upper:
+            up = e["upper"]
+
+            # SBTT event
+            if "SBTT" in up:
                 e["kind"] = "sbtt"
                 skipped_unknown.append({
                     "date": date,
                     "raw": "SBTT",
                     "occ_idx": occ,
+                    "reason": "SBTT In-Port Event",
+                    "ship": None,
                 })
                 continue
 
             ship = match_ship(e["raw"])
             e["ship"] = ship
 
+            # Unknown or non-platform
             if not ship:
                 e["kind"] = "unknown"
                 skipped_unknown.append({
                     "date": date,
                     "raw": e["raw"],
                     "occ_idx": occ,
+                    "reason": "Unknown or Non-Platform Event",
+                    "ship": None,
                 })
             else:
                 e["kind"] = "valid"
 
+        # Filter valid
         valids = [e for e in entries if e["kind"] == "valid"]
+
         if not valids:
-            continue  # no valid ships for this date
+            continue
 
         ships_set = set(e["ship"] for e in valids)
 
+        # Only one ship → keep first valid
         if len(ships_set) == 1:
-            # Only one ship for that date; keep the first valid entry
             kept = valids[0]
         else:
-            # Multiple ships same date: prefer mission entries
-            mission_valids = [e for e in valids if is_mission_entry(e)]
+            mission_valids = [e for e in valids if is_mission(e)]
             if mission_valids:
                 kept = sorted(mission_valids, key=lambda e: e["occ_idx"])[0]
             else:
                 kept = sorted(valids, key=lambda e: e["occ_idx"])[0]
 
-        # Add the kept row as valid
+        # Store valid row
         rows.append({
             "date": date,
             "ship": kept["ship"],
             "occ_idx": kept["occ_idx"],
         })
 
-        # All other valid entries become duplicates
+        # Duplicates
         for e in valids:
             if e is kept:
                 continue
@@ -140,22 +138,22 @@ def parse_rows(text, year):
                 "date": date,
                 "ship": e["ship"],
                 "occ_idx": e["occ_idx"],
+                "reason": "Duplicate entry for date",
             })
 
     return rows, skipped_duplicates, skipped_unknown
 
 
-# ------------------------------------------------
-# GROUPING BY SHIP
-# ------------------------------------------------
-
 def group_by_ship(rows):
+    """Group continuous dates for each ship into start-end periods."""
     grouped = {}
+
     for r in rows:
         dt = datetime.strptime(r["date"], "%m/%d/%Y")
         grouped.setdefault(r["ship"], []).append(dt)
 
     output = []
+
     for ship, dates in grouped.items():
         dates = sorted(set(dates))
         start = prev = dates[0]
