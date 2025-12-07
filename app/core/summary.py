@@ -1,28 +1,24 @@
 import os
 from datetime import datetime
-from app.core.logger import log
 
-# ---------------------------------------------------------
-# FORMAT DATE MM-DD-YYYY
-# ---------------------------------------------------------
+from app.core.logger import log
+from app.core.config import SUMMARY_TXT_FOLDER
+
+
 def fmt(d):
+    """Format date as MM-DD-YYYY or 'UNKNOWN'."""
     if not d:
         return "UNKNOWN"
     return datetime.strftime(d, "%m-%d-%Y")
 
 
-# ---------------------------------------------------------
-# WRITE SUMMARY FILES
-# ---------------------------------------------------------
 def write_summary_files(summary_data):
     """
     Writes PSD-style text summaries.
 
     PATCHES APPLIED:
-    - Add day counts to valid periods
-    - Add Total Valid Days
-    - Add Total Invalid Days
-    - Add conditional NOTES FOR PSD
+    - Corrected file output path (SUMMARY_TXT_FOLDER)
+    - Existing structure preserved exactly
     """
 
     for member_key, info in summary_data.items():
@@ -40,99 +36,83 @@ def write_summary_files(summary_data):
             min_s = None
             max_e = None
 
-        # VALID periods (already aggregated in processing.py)
+        # Valid periods
         valid_periods = info.get("periods", [])
 
-        # INVALID items
+        # Invalid entries
         invalid_unknown = info.get("skipped_unknown", [])
         invalid_dupe = info.get("skipped_dupe", [])
 
-        # Build summary text
         out = []
+
         out.append("PSD SEA PAY SUMMARY\n")
         out.append(f"Member: {rate} {last}\n")
         out.append(f"Documented Period: {fmt(min_s)} to {fmt(max_e)}\n")
 
-        # ----------------------------
         # VALID SEA PAY PERIODS
-        # ----------------------------
         out.append("\nVALID SEA PAY PERIODS (PAY AUTHORIZED):")
 
-        total_valid_days = 0  # PATCH
+        total_valid_days = 0
 
         for p in valid_periods:
             ship = p["ship"]
             s = p["start"]
             e = p["end"]
             days = (e - s).days + 1
-
             total_valid_days += days
 
+            suffix = "s" if days != 1 else ""
             out.append(
-                f"\n- {ship} | {fmt(s)} TO {fmt(e)} | {days} Day" +
-                ("s" if days != 1 else "")
+                f"\n- {ship} | {fmt(s)} TO {fmt(e)} | {days} Day{suffix}"
             )
 
         out.append(f"\n\nTotal Valid Days: {total_valid_days}\n")
 
-        # ----------------------------
-        # INVALID / NON-PAYABLE
-        # ----------------------------
+        # INVALID ENTRIES
         out.append("\nINVALID / NON-PAYABLE ENTRIES:")
 
         invalid_items = []
 
         # Unknown rows
         for u in invalid_unknown:
-            reason = u.get("reason", "Invalid event")
-            ship = u.get("ship", "UNK")
-            d = u.get("date", "")
-            invalid_items.append((ship, d, reason))
+            invalid_items.append((
+                u.get("ship", "UNK"),
+                u.get("date", ""),
+                u.get("reason", "Invalid event")
+            ))
 
         # Duplicate rows
         for d in invalid_dupe:
-            ship = d.get("ship", "UNK")
-            day = d.get("date", "")
-            invalid_items.append((ship, day, "Duplicate entry for date"))
+            invalid_items.append((
+                d.get("ship", "UNK"),
+                d.get("date", ""),
+                d.get("reason", "Duplicate entry for date")
+            ))
 
-        # Sort invalids by ship then date
+        # Sort invalids for readability
         invalid_items.sort(key=lambda x: (x[0], x[1]))
 
         unique_invalid_days = set()
-
-        for ship, d, reason in invalid_items:
-            out.append(f"\n- {ship} | {d} | {reason}")
-            # PATCH: track unique invalid days
-            unique_invalid_days.add(d)
+        for ship, day, reason in invalid_items:
+            out.append(f"\n- {ship} | {day} | {reason}")
+            unique_invalid_days.add(day)
 
         out.append(f"\n\nTotal Invalid Days: {len(unique_invalid_days)}\n")
 
-        # ----------------------------
         # DOCUMENTS PROVIDED
-        # ----------------------------
         out.append("\nDOCUMENTS PROVIDED:")
         out.append("\n- Generated Sea Pay PG13")
         out.append("\n- TORIS Sea Pay Cert Sheet")
         out.append("\n- Summary PDF\n")
 
-        # ----------------------------
-        # CONDITIONAL NOTES FOR PSD
-        # ----------------------------
+        # NOTES FOR PSD
         notes = []
 
-        # Note 1 — continuous date logic used?
         if len(valid_periods) > 1:
             notes.append("Valid events confirmed using continuous-date logic.")
 
-        # Note 2 — invalid items removed?
         if len(unique_invalid_days) > 0:
-            notes.append(
-                "Non-platform, SBTT, and invalid rows removed per policy."
-            )
-
-        # Note 3 — sheet corrected?
-        # If there were ANY invalids, duplicates, SBTT, MITE, or corrections
-        if len(unique_invalid_days) > 0:
+            notes.append("Non-platform, SBTT, and invalid rows removed per policy.")
             notes.append("TORIS sheet corrected and annotated.")
 
         if notes:
@@ -141,16 +121,12 @@ def write_summary_files(summary_data):
                 out.append(f"\n- {n}")
             out.append("\n")
 
-        # ----------------------------
-        # SIGNATURE LINE
-        # ----------------------------
+        # Signature
         out.append("\nGenerated by STG1 NIVERA – ATGSD SEA PAY PROCESSOR\n")
 
-        # Save file
-        summary_path = os.path.join(
-            "/output",
-            f"{rate}_{last}_{first}_SUMMARY.txt".replace(" ", "_")
-        )
+        # Save Summary TXT
+        filename = f"{rate}_{last}_{first}_SUMMARY.txt".replace(" ", "_")
+        summary_path = os.path.join(SUMMARY_TXT_FOLDER, filename)
 
         with open(summary_path, "w", encoding="utf-8") as f:
             f.write("".join(out))
