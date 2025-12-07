@@ -151,10 +151,8 @@ def process_all(strike_color="black"):
         ).replace(" ", "_")
         toris_path = os.path.join(TORIS_CERT_FOLDER, toris_filename)
 
-        # -------------------------------------------------------------
-        # PATCH: PASS BOTH extracted & computed totals into strikeout.py
-        # -------------------------------------------------------------
-        extracted_total_days = None  # parser extracts later; patch expects this param
+        # Totals for strikeout
+        extracted_total_days = None
         computed_total_days = total_days
 
         mark_sheet_with_strikeouts(
@@ -162,12 +160,12 @@ def process_all(strike_color="black"):
             skipped_dupe,
             skipped_unknown,
             toris_path,
-            extracted_total_days,     # PATCH added param
-            computed_total_days,       # PATCH added param
+            extracted_total_days,
+            computed_total_days,
             strike_color=strike_color,
         )
 
-        # Create PG13 PDFs
+        # Create PG13 PDFs — now ONE PER SHIP (all periods passed in)
         ship_map = {}
         for g in groups:
             ship_map.setdefault(g["ship"], []).append(g)
