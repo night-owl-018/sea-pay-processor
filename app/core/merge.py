@@ -11,45 +11,51 @@ from app.core.config import (
 
 
 def _merge_folder_pdfs(source_folder, out_path, description):
+    """
+    Merge all PDFs in source_folder into out_path.
+
+    - If folder does not exist → log and skip (no error)
+    - If no PDFs found       → log and skip (no error)
+    """
+    if not os.path.exists(source_folder):
+        log(f"{description} merge skipped → folder missing: {source_folder}")
+        return
+
     files = [
-        f for f in sorted(os.listdir(source_folder))
+        f
+        for f in sorted(os.listdir(source_folder))
         if f.lower().endswith(".pdf")
     ]
-    if not files:
-        log(f"No PDFs found to merge for {description}.")
-        return False
 
-    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    if not files:
+        log(f"{description} merge skipped → no PDF files found")
+        return
 
     merger = PdfMerger()
-    for fn in files:
-        full_path = os.path.join(source_folder, fn)
-        try:
-            merger.append(full_path)
-            log(f"ADDED TO {description} → {fn}")
-        except Exception as e:
-            log(f"⚠️ SKIPPED {fn} IN {description} → {e}")
-
     try:
+        for f in files:
+            full_path = os.path.join(source_folder, f)
+            merger.append(full_path)
+            log(f"ADDED TO {description} → {f}")
+
         merger.write(out_path)
-        merger.close()
         log(f"MERGED PDF CREATED → {os.path.basename(out_path)}")
-        return True
-    except Exception as e:
-        log(f"❌ MERGE FAILED FOR {description} → {e}")
-        return False
+    finally:
+        merger.close()
 
 
 def merge_all_pdfs():
     """
-    Build the final PACKAGE set:
-
-    /output/PACKAGE/
+    Build merged packages for:
         MERGED_SEA_PAY_PG13.pdf
         MERGED_TORIS_SEA_PAY_CERT_SHEETS.pdf
         MERGED_SUMMARY.pdf
     """
+    # Always ensure package folder exists
     os.makedirs(PACKAGE_FOLDER, exist_ok=True)
+
+    # Also ensure SUMMARY_PDF folder exists so we never crash on listdir
+    os.makedirs(SUMMARY_PDF_FOLDER, exist_ok=True)
 
     merged_pg13 = os.path.join(PACKAGE_FOLDER, "MERGED_SEA_PAY_PG13.pdf")
     merged_toris = os.path.join(PACKAGE_FOLDER, "MERGED_TORIS_SEA_PAY_CERT_SHEETS.pdf")
