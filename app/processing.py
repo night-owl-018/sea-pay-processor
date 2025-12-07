@@ -2,7 +2,7 @@ import os
 import re
 from datetime import datetime
 
-from app.core.logger import log
+from app.core.logger import log, reset_progress, set_progress, add_progress_detail
 from app.core.config import (
     DATA_DIR,
     SEA_PAY_PG13_FOLDER,
@@ -70,17 +70,46 @@ def process_all(strike_color="black"):
     os.makedirs(TORIS_CERT_FOLDER, exist_ok=True)
 
     clear_pg13_folder()
+    reset_progress()
 
     files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith(".pdf")]
     if not files:
         log("NO INPUT FILES FOUND")
+        set_progress(
+            status="complete",
+            total_files=0,
+            current_file=0,
+            current_step="No input files",
+            percentage=100,
+        )
         return
+
+    total_files = len(files)
+    set_progress(
+        status="processing",
+        total_files=total_files,
+        current_file=0,
+        current_step="Initializing",
+        percentage=0,
+        details={
+            "files_processed": 0,
+            "valid_days": 0,
+            "invalid_events": 0,
+            "pg13_created": 0,
+            "toris_marked": 0,
+        },
+    )
 
     log("=== PROCESS STARTED ===")
     summary_data = {}
 
-    for file in sorted(files):
+    for idx, file in enumerate(sorted(files), start=1):
         path = os.path.join(DATA_DIR, file)
+        set_progress(
+            current_file=idx,
+            current_step=f"OCR and parse: {file}",
+            percentage=int(((idx - 1) / max(total_files, 1)) * 100),
+        )
         log(f"OCR → {file}")
 
         raw = strip_times(ocr_pdf(path))
@@ -104,6 +133,8 @@ def process_all(strike_color="black"):
         # Group valid periods
         groups = group_by_ship(rows)
         total_days = sum((g["end"] - g["start"]).days + 1 for g in groups)
+        add_progress_detail("valid_days", total_days)
+        add_progress_detail("invalid_events", len(skipped_dupe) + len(skipped_unknown))
 
         # Resolve CSV identity
         rate, last, first = resolve_identity(name)
@@ -123,21 +154,25 @@ def process_all(strike_color="black"):
         sd = summary_data[key]
 
         # Save reporting period
-        sd["reporting_periods"].append({
-            "start": sheet_start,
-            "end": sheet_end,
-            "file": file,
-        })
+        sd["reporting_periods"].append(
+            {
+                "start": sheet_start,
+                "end": sheet_end,
+                "file": file,
+            }
+        )
 
         # Store valid sea pay periods
         for g in groups:
-            sd["periods"].append({
-                "ship": g["ship"],
-                "start": g["start"],
-                "end": g["end"],
-                "days": (g["end"] - g["start"]).days + 1,
-                "sheet_file": file,
-            })
+            sd["periods"].append(
+                {
+                    "ship": g["ship"],
+                    "start": g["start"],
+                    "end": g["end"],
+                    "days": (g["end"] - g["start"]).days + 1,
+                    "sheet_file": file,
+                }
+            )
 
         # Store skipped
         sd["skipped_unknown"].extend(skipped_unknown)
@@ -155,6 +190,7 @@ def process_all(strike_color="black"):
         extracted_total_days = None
         computed_total_days = total_days
 
+        set_progress(current_step=f"Marking TORIS sheet: {file}")
         mark_sheet_with_strikeouts(
             path,
             skipped_dupe,
@@ -164,19 +200,31 @@ def process_all(strike_color="black"):
             computed_total_days,
             strike_color=strike_color,
         )
+        add_progress_detail("toris_marked", 1)
 
-        # Create PG13 PDFs — now ONE PER SHIP (all periods passed in)
+        # Create PG13 PDFs (one per ship, multiple periods)
         ship_map = {}
         for g in groups:
             ship_map.setdefault(g["ship"], []).append(g)
 
         for ship, ship_periods in ship_map.items():
+            set_progress(current_step=f"Generating PG13 for {ship}")
             make_pdf_for_ship(ship, ship_periods, name)
+            add_progress_detail("pg13_created", 1)
+
+        add_progress_detail("files_processed", 1)
+        set_progress(
+            current_step=f"Completed file: {file}",
+            percentage=int((idx / max(total_files, 1)) * 100),
+        )
 
     # Write summary
+    set_progress(current_step="Writing summary files")
     write_summary_files(summary_data)
 
     # Merge package
+    set_progress(current_step="Merging output package", percentage=100)
     merge_all_pdfs()
 
     log("PROCESS COMPLETE")
+    set_progress(status="complete", current_step="Processing complete", percentage=100)
