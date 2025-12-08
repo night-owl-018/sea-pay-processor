@@ -55,7 +55,7 @@ def process_route():
     reset_progress()
     log("=== PROCESS STARTED ===")
 
-    # PATCH: initialize progress so the UI sees 'processing'
+    # Initialize progress so the UI sees 'processing'
     set_progress(
         status="processing",
         total_files=0,
@@ -91,7 +91,7 @@ def process_route():
         rate_file.save(RATE_FILE)
         log(f"UPDATED CSV FILE → {RATE_FILE}")
 
-        # Reload CSV (patched)
+        # Reload CSV
         try:
             rates.load_rates(RATE_FILE)
             log("RATES RELOADED FROM CSV")
@@ -103,6 +103,12 @@ def process_route():
     def _run():
         try:
             process_all(strike_color=strike_color)
+            # PATCH: mark progress COMPLETE when processing finishes cleanly
+            set_progress(
+                status="complete",
+                current_step="Processing complete",
+                percentage=100,
+            )
         except Exception as e:
             log(f"PROCESS ERROR → {e}")
             set_progress(status="error", current_step="Processing error")
@@ -139,7 +145,7 @@ def stream_logs():
 
 @bp.route("/download_merged")
 def download_merged():
-    # PATCH: prevent crash if PACKAGE_FOLDER does not exist
+    # Prevent crash if PACKAGE_FOLDER does not exist
     if not os.path.exists(PACKAGE_FOLDER):
         return "No merged package found. Run processor first.", 404
 
@@ -273,7 +279,6 @@ def reset_all():
 
     clear_logs()
 
-    # PATCH: UI expects "message"
     return jsonify(
         {
             "message": "Reset complete",
