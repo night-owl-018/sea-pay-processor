@@ -147,16 +147,29 @@ def progress_route():
 
 @bp.route("/stream")
 def stream_logs():
+    """
+    SSE stream: send only NEW log lines. This avoids large payloads that can
+    cause browsers to silently stop displaying logs.
+    """
     def event_stream():
-        last_len = 0
+        last_index = 0
         while True:
-            current = "\n".join(LIVE_LOGS)
-            if len(current) != last_len:
-                last_len = len(current)
-                yield f"data: {current}\n\n"
-            time.sleep(1)
+            if last_index < len(LIVE_LOGS):
+                new_lines = LIVE_LOGS[last_index:]
+                last_index = len(LIVE_LOGS)
+                for line in new_lines:
+                    # Each SSE event must be prefixed with "data:"
+                    yield f"data: {line}\n\n"
+            time.sleep(0.5)
 
-    return Response(event_stream(), mimetype="text/event-stream")
+    return Response(
+        event_stream(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # helps if behind nginx/proxy
+        },
+    )
 
 
 @bp.route("/download_merged")
@@ -433,16 +446,6 @@ def api_override_save():
     if target not in ("row", "invalid"):
         return jsonify({"error": "target must be 'row' or 'invalid'"}), 400
 
-    # IMPORTANT: Our overrides engine uses a single event_index; to avoid ambiguity
-    # we encode the target in the sheet_file string OR keep target separate.
-    # We keep it separate in payload, but overrides.py (Phase 4) currently only keys
-    # off sheet_file + event_index. So we map target into an adjusted index space:
-    #
-    # - For "row": event_index is row index
-    # - For "invalid": event_index is invalid_events index BUT needs uniqueness
-    #
-    # SAFE approach: store invalid overrides as negative indexes.
-    # This avoids collisions with rows.
     store_index = event_index if target == "row" else -(event_index + 1)
 
     try:
@@ -458,7 +461,6 @@ def api_override_save():
         log(f"OVERRIDE SAVE ERROR → {e}")
         return jsonify({"error": "failed to save override"}), 500
 
-    # Re-apply overrides into JSON (Option A behavior)
     state = _load_review_state()
     if member_key in state:
         try:
@@ -489,11 +491,9 @@ def api_override_clear():
         log(f"OVERRIDE CLEAR ERROR → {e}")
         return jsonify({"error": "failed to clear overrides"}), 500
 
-    # Reload + re-apply overrides for everyone (member cleared, so base stays)
     state = _load_review_state()
     if member_key in state:
         try:
-            # apply_overrides will now do nothing for that member since file is gone
             state[member_key] = apply_overrides(member_key, state[member_key])
             _write_review_state(state)
         except Exception:
