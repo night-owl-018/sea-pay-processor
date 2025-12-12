@@ -35,13 +35,8 @@ PROGRESS = {
 
 
 def reset_progress():
-    """
-    Do NOT reset status back to 'idle'.
-    This prevents the UI progress loop from stopping early.
-    """
     PROGRESS.update(
         {
-            # leave "status" alone
             "total_files": 0,
             "current_file": 0,
             "current_step": "",
@@ -53,11 +48,6 @@ def reset_progress():
 
 def set_progress(**kwargs):
     PROGRESS.update(kwargs)
-
-
-def add_progress_detail(name: str, delta: int = 1):
-    details = PROGRESS.setdefault("details", {})
-    details[name] = details.get(name, 0) + delta
 
 
 def get_progress():
