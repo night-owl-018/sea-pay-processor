@@ -13,7 +13,7 @@ from app.core.config import (
     DATA_DIR,
     SEA_PAY_PG13_FOLDER,
     TORIS_CERT_FOLDER,
-    REVIEW_JSON_PATH,     # NEW
+    REVIEW_JSON_PATH,  # JSON output path from config
 )
 from app.core.ocr import (
     ocr_pdf,
@@ -33,6 +33,10 @@ from app.core.rates import resolve_identity
 
 
 def extract_reporting_period(text, filename=""):
+    """
+    Try to pull the “From: ... To: ...” reporting period from the OCR text.
+    Fall back to date range in filename if needed.
+    """
     pattern = r"From:\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})\s*To:\s*([0-9]{1,2}/[0-9]{1,2}/[0-9]{4})"
     match = re.search(pattern, text, re.IGNORECASE)
 
@@ -59,6 +63,7 @@ def extract_reporting_period(text, filename=""):
 
 
 def clear_pg13_folder():
+    """Clear existing PG-13 outputs at the start of a run."""
     try:
         if not os.path.isdir(SEA_PAY_PG13_FOLDER):
             os.makedirs(SEA_PAY_PG13_FOLDER, exist_ok=True)
@@ -71,9 +76,22 @@ def clear_pg13_folder():
 
 
 # ---------------------------------------------------------
-# MAIN PROCESSOR (Phase-2 JSON output added)
+# MAIN PROCESSOR (Phase-3: classification metadata added)
 # ---------------------------------------------------------
 def process_all(strike_color="black"):
+    """
+    Top-level processor:
+
+    - OCR each SEA DUTY CERTIFICATION SHEET
+    - Parse rows (same behavior as before: SBTT/MITE suppression, mission priority)
+    - Group into sea pay periods, compute totals
+    - Generate PG-13 PDFs (unchanged)
+    - Mark TORIS sheets with strikeouts (unchanged)
+    - Write summary TXT/PDF (unchanged)
+    - Merge package (unchanged)
+    - NEW: Build a rich JSON "review_state" with classification metadata
+    """
+
     os.makedirs(SEA_PAY_PG13_FOLDER, exist_ok=True)
     os.makedirs(TORIS_CERT_FOLDER, exist_ok=True)
 
@@ -111,16 +129,19 @@ def process_all(strike_color="black"):
     log("=== PROCESS STARTED ===")
     summary_data = {}
 
-    # NEW: REVIEW JSON STRUCTURE
+    # Phase-3: REVIEW JSON STRUCTURE (per member → sheets → rows)
     review_state = {}
 
-    # Totals
+    # Totals for dashboard/progress
     files_processed_total = 0
     valid_days_total = 0
     invalid_events_total = 0
     pg13_total = 0
     toris_total = 0
 
+    # --------------------------------------------------
+    # FILE LOOP
+    # --------------------------------------------------
     for idx, file in enumerate(sorted(files), start=1):
         path = os.path.join(DATA_DIR, file)
         set_progress(
@@ -130,9 +151,11 @@ def process_all(strike_color="black"):
         )
         log(f"OCR → {file}")
 
+        # 1. OCR and basic text cleanup
         raw = strip_times(ocr_pdf(path))
         sheet_start, sheet_end, _ = extract_reporting_period(raw, file)
 
+        # 2. Member name detection
         try:
             name = extract_member_name(raw)
             log(f"NAME → {name}")
@@ -140,22 +163,27 @@ def process_all(strike_color="black"):
             log(f"NAME ERROR → {e}")
             continue
 
+        # 3. Parse rows (TORIS logic), including SBTT/MITE suppression
         year = extract_year_from_filename(file)
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
 
+        # 4. Group by ship and compute sea pay days (behavior unchanged)
         groups = group_by_ship(rows)
         total_days = sum((g["end"] - g["start"]).days + 1 for g in groups)
 
-        # Totals
+        # Update running totals
         valid_days_total += total_days
         invalid_events_total += len(skipped_dupe) + len(skipped_unknown)
         add_progress_detail("valid_days", total_days)
         add_progress_detail("invalid_events", len(skipped_dupe) + len(skipped_unknown))
 
-        # Identity
+        # 5. Resolve rate/last/first as before
         rate, last, first = resolve_identity(name)
         member_key = f"{rate} {last},{first}"
 
+        # ------------------------------------------
+        # BUILD / UPDATE REVIEW STATE (Phase 3)
+        # ------------------------------------------
         if member_key not in review_state:
             review_state[member_key] = {
                 "rate": rate,
@@ -164,7 +192,7 @@ def process_all(strike_color="black"):
                 "sheets": [],
             }
 
-        # Build sheet review block
+        # Base metadata for this sheet
         sheet_block = {
             "source_file": file,
             "reporting_period": {
@@ -178,14 +206,41 @@ def process_all(strike_color="black"):
                 "skipped_dupe_count": len(skipped_dupe),
                 "skipped_unknown_count": len(skipped_unknown),
             },
+            # Row and invalid-event detail
             "rows": [],
             "invalid_events": [],
+            # Parser quality assessment
             "parsing_warnings": [],
             "parse_confidence": 1.0,
         }
 
-        # Valid rows
+        # -------------------------
+        # CLASSIFY VALID ROWS
+        # -------------------------
         for r in rows:
+            # System classification (from parser)
+            system_classification = {
+                "is_valid": True,
+                "reason": None,
+                "explanation": "Valid sea pay day after TORIS parser filtering (non-training, non-duplicate, known ship).",
+                "confidence": 1.0,
+            }
+
+            # Manual override placeholder (Phase 4+ will use this)
+            override = {
+                "status": None,        # "valid" | "invalid" | None
+                "reason": None,
+                "source": None,        # "manual" | "admin" | None
+                "history": [],         # future use: time-stamped override history
+            }
+
+            # Final classification starts equal to system classification
+            final_classification = {
+                "is_valid": system_classification["is_valid"],
+                "reason": system_classification["reason"],
+                "source": "system",
+            }
+
             sheet_block["rows"].append(
                 {
                     "date": r.get("date"),
@@ -196,17 +251,42 @@ def process_all(strike_color="black"):
                     "inport_label": r.get("inport_label"),
                     "is_mission": r.get("is_mission"),
                     "label": r.get("label"),
-                    # default classification
+                    # Backward-compatible simple flags
                     "status": "valid",
                     "status_reason": None,
                     "confidence": 1.0,
+                    # New structured classification
+                    "system_classification": system_classification,
+                    "override": override,
+                    "final_classification": final_classification,
                 }
             )
 
-        # Invalid rows
+        # -------------------------
+        # CLASSIFY INVALID EVENTS
+        # -------------------------
         invalid_events = []
 
+        # Duplicate entries
         for e in skipped_dupe:
+            system_classification = {
+                "is_valid": False,
+                "reason": "duplicate",
+                "explanation": "Duplicate event for this date; another entry kept as primary sea pay event.",
+                "confidence": 1.0,
+            }
+            override = {
+                "status": None,
+                "reason": None,
+                "source": None,
+                "history": [],
+            }
+            final_classification = {
+                "is_valid": False,
+                "reason": "duplicate",
+                "source": "system",
+            }
+
             invalid_events.append(
                 {
                     "date": e.get("date"),
@@ -215,15 +295,39 @@ def process_all(strike_color="black"):
                     "reason": e.get("reason", "Duplicate"),
                     "category": "duplicate",
                     "source": "parser",
+                    "system_classification": system_classification,
+                    "override": override,
+                    "final_classification": final_classification,
                 }
             )
 
+        # Unknown / suppressed events
         for e in skipped_unknown:
-            reason = (e.get("reason") or "").lower()
-            if "in-port" in reason or "shore" in reason:
+            raw_reason = (e.get("reason") or "").lower()
+            if "in-port" in raw_reason or "shore" in raw_reason:
                 category = "shore_side_event"
+                explanation = "In-port shore-side training or non-sea-pay event."
             else:
                 category = "unknown"
+                explanation = "Unknown or non-platform event; no valid ship identified for sea pay."
+
+            system_classification = {
+                "is_valid": False,
+                "reason": category,
+                "explanation": explanation,
+                "confidence": 1.0,
+            }
+            override = {
+                "status": None,
+                "reason": None,
+                "source": None,
+                "history": [],
+            }
+            final_classification = {
+                "is_valid": False,
+                "reason": category,
+                "source": "system",
+            }
 
             invalid_events.append(
                 {
@@ -233,12 +337,17 @@ def process_all(strike_color="black"):
                     "reason": e.get("reason", "Unknown"),
                     "category": category,
                     "source": "parser",
+                    "system_classification": system_classification,
+                    "override": override,
+                    "final_classification": final_classification,
                 }
             )
 
         sheet_block["invalid_events"] = invalid_events
 
-        # Parse confidence heuristic
+        # -------------------------
+        # PARSE CONFIDENCE HEURISTICS
+        # -------------------------
         if len(skipped_unknown) > 0:
             sheet_block["parse_confidence"] = 0.7
             sheet_block["parsing_warnings"].append(
@@ -253,7 +362,7 @@ def process_all(strike_color="black"):
         review_state[member_key]["sheets"].append(sheet_block)
 
         # ----------------------------------
-        # Existing PG13 / strikeout / summary logic—unchanged
+        # EXISTING SUMMARY / PG-13 / TORIS LOGIC (UNCHANGED)
         # ----------------------------------
         if member_key not in summary_data:
             summary_data[member_key] = {
@@ -285,6 +394,7 @@ def process_all(strike_color="black"):
         sd["skipped_unknown"].extend(skipped_unknown)
         sd["skipped_dupe"].extend(skipped_dupe)
 
+        # TORIS file naming
         hf = sheet_start.strftime("%m-%d-%Y") if sheet_start else "UNKNOWN"
         ht = sheet_end.strftime("%m-%d-%Y") if sheet_end else "UNKNOWN"
         toris_filename = (
@@ -292,6 +402,7 @@ def process_all(strike_color="black"):
         ).replace(" ", "_")
         toris_path = os.path.join(TORIS_CERT_FOLDER, toris_filename)
 
+        # Current approach: let mark_sheet_with_strikeouts handle totals
         extracted_total_days = None
         computed_total_days = total_days
 
@@ -309,6 +420,7 @@ def process_all(strike_color="black"):
         add_progress_detail("toris_marked", 1)
         toris_total += 1
 
+        # PG-13 per ship
         ship_map = {}
         for g in groups:
             ship_map.setdefault(g["ship"], []).append(g)
@@ -327,7 +439,9 @@ def process_all(strike_color="black"):
             percentage=int((idx / max(total_files, 1)) * 100),
         )
 
-    # Final totals
+    # -------------------------------
+    # FINAL TOTALS AND SUMMARY FILES
+    # -------------------------------
     final_details = {
         "files_processed": files_processed_total,
         "valid_days": valid_days_total,
@@ -337,16 +451,14 @@ def process_all(strike_color="black"):
     }
     set_progress(details=final_details)
 
-    # Summary
     set_progress(current_step="Writing summary files")
     write_summary_files(summary_data)
 
-    # Package
     set_progress(current_step="Merging output package", percentage=100)
     merge_all_pdfs()
 
     # ----------------------------------------------------
-    # WRITE JSON REVIEW STATE (Phase-2 Final Output)
+    # WRITE JSON REVIEW STATE (Phase-3 Output)
     # ----------------------------------------------------
     try:
         with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
