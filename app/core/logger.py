@@ -52,3 +52,16 @@ def set_progress(**kwargs):
 
 def get_progress():
     return PROGRESS
+
+
+# ------------------------------------------------
+# ✅ REQUIRED FOR processing.py
+# ------------------------------------------------
+
+def add_progress_detail(key: str, value):
+    """
+    Safely update PROGRESS['details']
+    """
+    if "details" not in PROGRESS:
+        PROGRESS["details"] = {}
+    PROGRESS["details"][key] = value
