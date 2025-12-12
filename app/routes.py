@@ -4,6 +4,7 @@ import os
 import io
 import zipfile
 import shutil
+import json
 
 from flask import (
     Blueprint,
@@ -32,13 +33,24 @@ from .core.config import (
     SUMMARY_TXT_FOLDER,
     SUMMARY_PDF_FOLDER,
     TORIS_CERT_FOLDER,
+    REVIEW_JSON_PATH,   # <-- Phase 5 needs this
 )
 from .processing import process_all
 import app.core.rates as rates
 
+# Phase 5 (Option A): overrides are UI-only, no reprocess
+from app.core.overrides import (
+    save_override,
+    clear_overrides,
+    apply_overrides,
+)
 
 bp = Blueprint("routes", __name__)
 
+
+# ---------------------------------------------------------
+# EXISTING UI ROUTES (UNCHANGED)
+# ---------------------------------------------------------
 
 @bp.route("/", methods=["GET"])
 def home():
@@ -74,7 +86,7 @@ def process_route():
     # Save uploaded TORIS PDFs
     files = request.files.getlist("files")
     for f in files:
-        if f.filename:
+        if f and f.filename:
             save_path = os.path.join(DATA_DIR, f.filename)
             f.save(save_path)
             log(f"SAVED INPUT FILE → {save_path}")
@@ -82,12 +94,16 @@ def process_route():
     # Save template
     template_file = request.files.get("template_file")
     if template_file and template_file.filename:
+        # TEMPLATE is a full file path
+        os.makedirs(os.path.dirname(TEMPLATE), exist_ok=True)
         template_file.save(TEMPLATE)
         log(f"UPDATED TEMPLATE → {TEMPLATE}")
 
     # Save CSV
     rate_file = request.files.get("rate_file")
     if rate_file and rate_file.filename:
+        # RATE_FILE is a full file path
+        os.makedirs(os.path.dirname(RATE_FILE), exist_ok=True)
         rate_file.save(RATE_FILE)
         log(f"UPDATED CSV FILE → {RATE_FILE}")
 
@@ -96,14 +112,14 @@ def process_route():
             rates.load_rates(RATE_FILE)
             log("RATES RELOADED FROM CSV")
         except Exception as e:
-            log(f"CSV RELOAD ERROR → {e}")
+            log(f"CSV RELOA D ERROR → {e}")
 
     strike_color = request.form.get("strike_color", "black")
 
     def _run():
         try:
             process_all(strike_color=strike_color)
-            # PATCH: mark progress COMPLETE when processing finishes cleanly
+            # Keep your existing "mark progress COMPLETE" behavior
             set_progress(
                 status="complete",
                 current_step="Processing complete",
@@ -285,3 +301,202 @@ def reset_all():
             "status": "reset",
         }
     )
+
+
+# ---------------------------------------------------------
+# PHASE 5 — API (Option A: UI-only overrides, no reprocess)
+# ---------------------------------------------------------
+
+def _load_review_state():
+    """
+    Load SEA_PAY_REVIEW.json safely. Returns {} if missing or unreadable.
+    """
+    if not os.path.exists(REVIEW_JSON_PATH):
+        return {}
+    try:
+        with open(REVIEW_JSON_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        log(f"REVIEW JSON READ ERROR → {e}")
+        return {}
+
+
+def _write_review_state(state: dict):
+    """
+    Write SEA_PAY_REVIEW.json safely.
+    """
+    try:
+        os.makedirs(os.path.dirname(REVIEW_JSON_PATH), exist_ok=True)
+        with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2, default=str)
+    except Exception as e:
+        log(f"REVIEW JSON WRITE ERROR → {e}")
+        raise
+
+
+@bp.route("/api/members", methods=["GET"])
+def api_members():
+    """
+    Returns list of member keys (e.g., 'STGC MYSLINSKI,SARAH').
+    """
+    state = _load_review_state()
+    return jsonify(sorted(state.keys()))
+
+
+@bp.route("/api/member/<path:member_key>/sheets", methods=["GET"])
+def api_member_sheets(member_key):
+    """
+    Returns list of sheets for the member.
+    """
+    state = _load_review_state()
+    member = state.get(member_key)
+    if not member:
+        return jsonify([])
+
+    out = []
+    for s in member.get("sheets", []):
+        out.append(
+            {
+                "source_file": s.get("source_file"),
+                "reporting_period": s.get("reporting_period", {}),
+                "parse_confidence": s.get("parse_confidence"),
+                "parsing_warnings": s.get("parsing_warnings", []),
+                "stats": s.get("stats", {}),
+                "total_valid_days": s.get("total_valid_days"),
+            }
+        )
+    return jsonify(out)
+
+
+@bp.route("/api/member/<path:member_key>/sheet/<path:sheet_file>", methods=["GET"])
+def api_member_sheet(member_key, sheet_file):
+    """
+    Returns rows + invalid_events for a specific sheet.
+    Adds stable indexes so UI can refer back when saving overrides.
+    """
+    state = _load_review_state()
+    member = state.get(member_key)
+    if not member:
+        return jsonify({"error": "member not found"}), 404
+
+    for s in member.get("sheets", []):
+        if s.get("source_file") == sheet_file:
+            rows = []
+            for i, r in enumerate(s.get("rows", [])):
+                rc = dict(r)
+                rc["index"] = i
+                rows.append(rc)
+
+            invalids = []
+            for i, e in enumerate(s.get("invalid_events", [])):
+                ec = dict(e)
+                ec["index"] = i
+                invalids.append(ec)
+
+            return jsonify(
+                {
+                    "member_key": member_key,
+                    "sheet_file": sheet_file,
+                    "reporting_period": s.get("reporting_period", {}),
+                    "parse_confidence": s.get("parse_confidence"),
+                    "parsing_warnings": s.get("parsing_warnings", []),
+                    "stats": s.get("stats", {}),
+                    "rows": rows,
+                    "invalid_events": invalids,
+                }
+            )
+
+    return jsonify({"error": "sheet not found"}), 404
+
+
+@bp.route("/api/override", methods=["POST"])
+def api_override_save():
+    """
+    Save an override (Option A: store in /app/data/overrides/*.json),
+    then re-apply overrides into SEA_PAY_REVIEW.json WITHOUT reprocessing PDFs.
+    """
+    payload = request.get_json(silent=True) or {}
+
+    member_key = payload.get("member_key")
+    sheet_file = payload.get("sheet_file")
+    event_index = payload.get("event_index")
+    status = payload.get("status")  # "valid" or "invalid"
+    reason = payload.get("reason", "")
+    target = payload.get("target", "row")  # "row" or "invalid"
+
+    if not member_key or not sheet_file:
+        return jsonify({"error": "member_key and sheet_file required"}), 400
+    if not isinstance(event_index, int):
+        return jsonify({"error": "event_index must be an integer"}), 400
+    if status not in ("valid", "invalid"):
+        return jsonify({"error": "status must be 'valid' or 'invalid'"}), 400
+    if target not in ("row", "invalid"):
+        return jsonify({"error": "target must be 'row' or 'invalid'"}), 400
+
+    # IMPORTANT: Our overrides engine uses a single event_index; to avoid ambiguity
+    # we encode the target in the sheet_file string OR keep target separate.
+    # We keep it separate in payload, but overrides.py (Phase 4) currently only keys
+    # off sheet_file + event_index. So we map target into an adjusted index space:
+    #
+    # - For "row": event_index is row index
+    # - For "invalid": event_index is invalid_events index BUT needs uniqueness
+    #
+    # SAFE approach: store invalid overrides as negative indexes.
+    # This avoids collisions with rows.
+    store_index = event_index if target == "row" else -(event_index + 1)
+
+    try:
+        save_override(
+            member_key=member_key,
+            sheet_file=sheet_file,
+            event_index=store_index,
+            status=status,
+            reason=reason,
+            source="manual",
+        )
+    except Exception as e:
+        log(f"OVERRIDE SAVE ERROR → {e}")
+        return jsonify({"error": "failed to save override"}), 500
+
+    # Re-apply overrides into JSON (Option A behavior)
+    state = _load_review_state()
+    if member_key in state:
+        try:
+            state[member_key] = apply_overrides(member_key, state[member_key])
+            _write_review_state(state)
+        except Exception:
+            return jsonify({"error": "failed to apply override"}), 500
+
+    return jsonify({"status": "override_saved"})
+
+
+@bp.route("/api/override", methods=["DELETE"])
+def api_override_clear():
+    """
+    Clear all overrides for a member (delete their override file),
+    then rewrite SEA_PAY_REVIEW.json back to base (still stored output).
+    NOTE: This does NOT re-run processing; it only removes override overlay.
+    """
+    payload = request.get_json(silent=True) or {}
+    member_key = payload.get("member_key")
+
+    if not member_key:
+        return jsonify({"error": "member_key required"}), 400
+
+    try:
+        clear_overrides(member_key)
+    except Exception as e:
+        log(f"OVERRIDE CLEAR ERROR → {e}")
+        return jsonify({"error": "failed to clear overrides"}), 500
+
+    # Reload + re-apply overrides for everyone (member cleared, so base stays)
+    state = _load_review_state()
+    if member_key in state:
+        try:
+            # apply_overrides will now do nothing for that member since file is gone
+            state[member_key] = apply_overrides(member_key, state[member_key])
+            _write_review_state(state)
+        except Exception:
+            return jsonify({"error": "failed to refresh json"}), 500
+
+    return jsonify({"status": "overrides_cleared"})
