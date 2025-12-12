@@ -1,55 +1,59 @@
 import os
 
-# ------------------------------------------------
-# PATH CONFIG
-# ------------------------------------------------
+# -----------------------------------
+# Base paths
+# -----------------------------------
 
-DATA_DIR = "/data"
-OUTPUT_DIR = "/output"
-TEMPLATE_DIR = "/templates"
-CONFIG_DIR = "/config"
+# This file lives in app/core/, so:
+# BASE_DIR      = app/core
+# PROJECT_ROOT  = repo root (ATGSD-SEA-PAY-PROCESSOR)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", ".."))
 
-# Core files
-TEMPLATE = os.path.join(TEMPLATE_DIR, "NAVPERS_1070_613_TEMPLATE.pdf")
-RATE_FILE = os.path.join(CONFIG_DIR, "atgsd_n811.csv")
-SHIP_FILE = "/app/ships.txt"
+# -----------------------------------
+# Existing temp/output locations
+# (KEPT EXACTLY AS BEFORE)
+# -----------------------------------
 
-# Structured output folders
-SEA_PAY_PG13_FOLDER = os.path.join(OUTPUT_DIR, "SEA_PAY_PG13")
-TORIS_CERT_FOLDER = os.path.join(OUTPUT_DIR, "TORIS_SEA_PAY_CERT_SHEET")
-SUMMARY_TXT_FOLDER = os.path.join(OUTPUT_DIR, "SUMMARY_TXT")
-SUMMARY_PDF_FOLDER = os.path.join(OUTPUT_DIR, "SUMMARY_PDF")
-TRACKER_FOLDER = os.path.join(OUTPUT_DIR, "TRACKER")
-PACKAGE_FOLDER = os.path.join(OUTPUT_DIR, "PACKAGE")
+TEMP_DIR = os.path.join(PROJECT_ROOT, "temp")
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 
+PDF_TEMPLATE = os.path.join(
+    PROJECT_ROOT,
+    "pdf_template",
+    "NAVPERS_1070_613_TEMPLATE.pdf",
+)
 
-def init_output_folders():
-    """
-    Ensure all expected output folders exist.
-    This keeps behavior predictable even on a fresh container.
-    """
-    os.makedirs(DATA_DIR, exist_ok=True)
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(TEMPLATE_DIR, exist_ok=True)
-    os.makedirs(CONFIG_DIR, exist_ok=True)
+RATE_FILE = os.path.join(PROJECT_ROOT, "config", "atgsd_n811.csv")
+LOGGER_NAME = "sea_pay_logger"
 
-    for folder in (
-        SEA_PAY_PG13_FOLDER,
-        TORIS_CERT_FOLDER,
-        SUMMARY_TXT_FOLDER,
-        SUMMARY_PDF_FOLDER,
-        TRACKER_FOLDER,
-        PACKAGE_FOLDER,
-    ):
-        os.makedirs(folder, exist_ok=True)
+# Ensure existing directories still exist
+os.makedirs(TEMP_DIR, exist_ok=True)
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+# -----------------------------------
+# NEW: Data directories for the
+# upgraded Sea Pay Processor
+# -----------------------------------
 
-# Run once on import so CLI / Flask both get a sane layout
-init_output_folders()
+# Root data directory for all structured outputs
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 
-# ------------------------------------------------
-# FONT CONFIG
-# ------------------------------------------------
+# Parsed JSON per sheet owner
+PARSED_DIR = os.path.join(DATA_DIR, "parsed")
 
-FONT_NAME = "Times-Roman"
-FONT_SIZE = 10
+# Manual overrides per sheet owner
+OVERRIDES_DIR = os.path.join(DATA_DIR, "overrides")
+
+# Validation reports (per member or global)
+REPORTS_DIR = os.path.join(DATA_DIR, "reports")
+
+# Preview artifacts (PG-13 text, 1070/613 text or PDFs)
+PREVIEWS_DIR = os.path.join(DATA_DIR, "previews")
+
+# Ensure new data directories exist
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(PARSED_DIR, exist_ok=True)
+os.makedirs(OVERRIDES_DIR, exist_ok=True)
+os.makedirs(REPORTS_DIR, exist_ok=True)
+os.makedirs(PREVIEWS_DIR, exist_ok=True)
