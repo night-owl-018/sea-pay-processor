@@ -1,15 +1,30 @@
 import os
 import re
+import json
 from datetime import datetime
 
-from app.core.logger import log, reset_progress, set_progress, add_progress_detail
+from app.core.logger import (
+    log,
+    reset_progress,
+    set_progress,
+    add_progress_detail,
+)
 from app.core.config import (
     DATA_DIR,
     SEA_PAY_PG13_FOLDER,
     TORIS_CERT_FOLDER,
+    REVIEW_JSON_PATH,     # NEW
 )
-from app.core.ocr import ocr_pdf, strip_times, extract_member_name
-from app.core.parser import parse_rows, extract_year_from_filename, group_by_ship
+from app.core.ocr import (
+    ocr_pdf,
+    strip_times,
+    extract_member_name,
+)
+from app.core.parser import (
+    parse_rows,
+    extract_year_from_filename,
+    group_by_ship,
+)
 from app.core.pdf_writer import make_pdf_for_ship
 from app.core.strikeout import mark_sheet_with_strikeouts
 from app.core.summary import write_summary_files
@@ -55,6 +70,9 @@ def clear_pg13_folder():
         log(f"PG13 CLEAR ERROR → {e}")
 
 
+# ---------------------------------------------------------
+# MAIN PROCESSOR (Phase-2 JSON output added)
+# ---------------------------------------------------------
 def process_all(strike_color="black"):
     os.makedirs(SEA_PAY_PG13_FOLDER, exist_ok=True)
     os.makedirs(TORIS_CERT_FOLDER, exist_ok=True)
@@ -93,15 +111,15 @@ def process_all(strike_color="black"):
     log("=== PROCESS STARTED ===")
     summary_data = {}
 
-    # --------------------------
-    # NEW TOTAL COUNTERS
-    # --------------------------
+    # NEW: REVIEW JSON STRUCTURE
+    review_state = {}
+
+    # Totals
     files_processed_total = 0
     valid_days_total = 0
     invalid_events_total = 0
     pg13_total = 0
     toris_total = 0
-    # --------------------------
 
     for idx, file in enumerate(sorted(files), start=1):
         path = os.path.join(DATA_DIR, file)
@@ -113,7 +131,6 @@ def process_all(strike_color="black"):
         log(f"OCR → {file}")
 
         raw = strip_times(ocr_pdf(path))
-
         sheet_start, sheet_end, _ = extract_reporting_period(raw, file)
 
         try:
@@ -124,27 +141,122 @@ def process_all(strike_color="black"):
             continue
 
         year = extract_year_from_filename(file)
-
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
 
         groups = group_by_ship(rows)
         total_days = sum((g["end"] - g["start"]).days + 1 for g in groups)
 
-        # --------------------------
-        # UPDATE TOTALS
-        # --------------------------
+        # Totals
         valid_days_total += total_days
         invalid_events_total += len(skipped_dupe) + len(skipped_unknown)
-        # --------------------------
-
         add_progress_detail("valid_days", total_days)
         add_progress_detail("invalid_events", len(skipped_dupe) + len(skipped_unknown))
 
+        # Identity
         rate, last, first = resolve_identity(name)
-        key = f"{rate} {last},{first}"
+        member_key = f"{rate} {last},{first}"
 
-        if key not in summary_data:
-            summary_data[key] = {
+        if member_key not in review_state:
+            review_state[member_key] = {
+                "rate": rate,
+                "last": last,
+                "first": first,
+                "sheets": [],
+            }
+
+        # Build sheet review block
+        sheet_block = {
+            "source_file": file,
+            "reporting_period": {
+                "from": sheet_start.strftime("%m/%d/%Y") if sheet_start else None,
+                "to": sheet_end.strftime("%m/%d/%Y") if sheet_end else None,
+            },
+            "member_name_raw": name,
+            "total_valid_days": total_days,
+            "stats": {
+                "total_rows": len(rows),
+                "skipped_dupe_count": len(skipped_dupe),
+                "skipped_unknown_count": len(skipped_unknown),
+            },
+            "rows": [],
+            "invalid_events": [],
+            "parsing_warnings": [],
+            "parse_confidence": 1.0,
+        }
+
+        # Valid rows
+        for r in rows:
+            sheet_block["rows"].append(
+                {
+                    "date": r.get("date"),
+                    "ship": r.get("ship"),
+                    "occ_idx": r.get("occ_idx"),
+                    "raw": r.get("raw", ""),
+                    "is_inport": bool(r.get("is_inport", False)),
+                    "inport_label": r.get("inport_label"),
+                    "is_mission": r.get("is_mission"),
+                    "label": r.get("label"),
+                    # default classification
+                    "status": "valid",
+                    "status_reason": None,
+                    "confidence": 1.0,
+                }
+            )
+
+        # Invalid rows
+        invalid_events = []
+
+        for e in skipped_dupe:
+            invalid_events.append(
+                {
+                    "date": e.get("date"),
+                    "ship": e.get("ship"),
+                    "raw": e.get("raw", ""),
+                    "reason": e.get("reason", "Duplicate"),
+                    "category": "duplicate",
+                    "source": "parser",
+                }
+            )
+
+        for e in skipped_unknown:
+            reason = (e.get("reason") or "").lower()
+            if "in-port" in reason or "shore" in reason:
+                category = "shore_side_event"
+            else:
+                category = "unknown"
+
+            invalid_events.append(
+                {
+                    "date": e.get("date"),
+                    "ship": e.get("ship"),
+                    "raw": e.get("raw", ""),
+                    "reason": e.get("reason", "Unknown"),
+                    "category": category,
+                    "source": "parser",
+                }
+            )
+
+        sheet_block["invalid_events"] = invalid_events
+
+        # Parse confidence heuristic
+        if len(skipped_unknown) > 0:
+            sheet_block["parse_confidence"] = 0.7
+            sheet_block["parsing_warnings"].append(
+                f"{len(skipped_unknown)} unknown/suppressed entries detected."
+            )
+        if len(rows) == 0 and invalid_events:
+            sheet_block["parse_confidence"] = 0.4
+            sheet_block["parsing_warnings"].append(
+                "Sheet had no valid rows after parser filtering."
+            )
+
+        review_state[member_key]["sheets"].append(sheet_block)
+
+        # ----------------------------------
+        # Existing PG13 / strikeout / summary logic—unchanged
+        # ----------------------------------
+        if member_key not in summary_data:
+            summary_data[member_key] = {
                 "rate": rate,
                 "last": last,
                 "first": first,
@@ -154,8 +266,7 @@ def process_all(strike_color="black"):
                 "reporting_periods": [],
             }
 
-        sd = summary_data[key]
-
+        sd = summary_data[member_key]
         sd["reporting_periods"].append(
             {"start": sheet_start, "end": sheet_end, "file": file}
         )
@@ -216,9 +327,7 @@ def process_all(strike_color="black"):
             percentage=int((idx / max(total_files, 1)) * 100),
         )
 
-    # -----------------------------------
-    # WRITE FINAL TOTALS INTO PROGRESS
-    # -----------------------------------
+    # Final totals
     final_details = {
         "files_processed": files_processed_total,
         "valid_days": valid_days_total,
@@ -227,13 +336,24 @@ def process_all(strike_color="black"):
         "toris_marked": toris_total,
     }
     set_progress(details=final_details)
-    # -----------------------------------
 
+    # Summary
     set_progress(current_step="Writing summary files")
     write_summary_files(summary_data)
 
+    # Package
     set_progress(current_step="Merging output package", percentage=100)
     merge_all_pdfs()
+
+    # ----------------------------------------------------
+    # WRITE JSON REVIEW STATE (Phase-2 Final Output)
+    # ----------------------------------------------------
+    try:
+        with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
+            json.dump(review_state, f, indent=2, default=str)
+        log(f"REVIEW JSON WRITTEN → {REVIEW_JSON_PATH}")
+    except Exception as e:
+        log(f"REVIEW JSON ERROR → {e}")
 
     log("PROCESS COMPLETE")
     set_progress(status="complete", current_step="Processing complete", percentage=100)
