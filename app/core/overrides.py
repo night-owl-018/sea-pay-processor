@@ -44,6 +44,7 @@ def save_override(member_key, sheet_file, event_index, status, reason, source):
         }
     )
 
+    os.makedirs(OVERRIDES_DIR, exist_ok=True)
     with open(_override_path(member_key), "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
@@ -58,16 +59,19 @@ def clear_overrides(member_key):
 
 
 # -----------------------------------------------------------
-# APPLY OVERRIDES DURING PROCESSING
+# APPLY OVERRIDES DURING REVIEW MERGE
 # -----------------------------------------------------------
 def apply_overrides(member_key, review_state_member):
     """
     Mutates review_state_member in-place,
-    applying all overrides to rows + invalid_events.
+    applying all overrides to rows OR invalid_events.
+
+    Convention:
+    - event_index >= 0  → rows[event_index]
+    - event_index < 0   → invalid_events[-event_index - 1]
     """
 
     overrides = load_overrides(member_key).get("overrides", [])
-
     if not overrides:
         return review_state_member
 
@@ -76,31 +80,46 @@ def apply_overrides(member_key, review_state_member):
         idx = ov["event_index"]
         status = ov["override_status"]
         reason = ov["override_reason"]
+        source = ov.get("source")
 
-        for sheet in review_state_member["sheets"]:
-            if sheet["source_file"] != sheet_file:
+        for sheet in review_state_member.get("sheets", []):
+            if sheet.get("source_file") != sheet_file:
                 continue
 
-            # ROW override
-            if idx < len(sheet["rows"]):
+            # -------------------------
+            # ROW OVERRIDE
+            # -------------------------
+            if idx >= 0:
+                if idx >= len(sheet.get("rows", [])):
+                    continue
+
                 r = sheet["rows"][idx]
 
                 r["override"]["status"] = status
                 r["override"]["reason"] = reason
-                r["override"]["source"] = ov["source"]
+                r["override"]["source"] = source
+
                 r["final_classification"]["is_valid"] = (status == "valid")
                 r["final_classification"]["reason"] = reason
                 r["final_classification"]["source"] = "override"
+
                 r["status"] = status
                 r["status_reason"] = reason
 
-            # INVALID_EVENT override (if event_index points into invalid list)
-            if idx < len(sheet["invalid_events"]):
-                e = sheet["invalid_events"][idx]
+            # -------------------------
+            # INVALID EVENT OVERRIDE
+            # -------------------------
+            else:
+                invalid_index = -idx - 1
+                if invalid_index >= len(sheet.get("invalid_events", [])):
+                    continue
+
+                e = sheet["invalid_events"][invalid_index]
 
                 e["override"]["status"] = status
                 e["override"]["reason"] = reason
-                e["override"]["source"] = ov["source"]
+                e["override"]["source"] = source
+
                 e["final_classification"]["is_valid"] = (status == "valid")
                 e["final_classification"]["reason"] = reason
                 e["final_classification"]["source"] = "override"
