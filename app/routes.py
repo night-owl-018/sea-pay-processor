@@ -128,16 +128,10 @@ def progress_route():
     return jsonify(get_progress())
 
 
-# ---------------------------------------------------------
-# ✅ FIXED LIVE LOG STREAM (ONLY PATCH)
-# ---------------------------------------------------------
-
 @bp.route("/stream")
 def stream_logs():
     def event_stream():
-        # Force initial render
         yield "data: [CONNECTED]\n\n"
-
         last_len = 0
         while True:
             current_len = len(LIVE_LOGS)
@@ -158,60 +152,84 @@ def stream_logs():
 
 
 # ---------------------------------------------------------
-# DOWNLOAD ROUTES
+# REVIEW / OVERRIDE API (PATCHED – ADAPTER ONLY)
+# ---------------------------------------------------------
+
+def _load_review_state():
+    if not os.path.exists(REVIEW_JSON_PATH):
+        return {}
+    try:
+        with open(REVIEW_JSON_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        log(f"REVIEW JSON READ ERROR → {e}")
+        return {}
+
+
+@bp.route("/api/members")
+def api_members():
+    return jsonify(sorted(_load_review_state().keys()))
+
+
+@bp.route("/api/member/<path:member_key>/sheets")
+def api_member_sheets(member_key):
+    state = _load_review_state()
+    member = state.get(member_key)
+    if not member:
+        return jsonify([])
+
+    sheets_out = []
+    for s in member.get("sheets", []):
+        sheets_out.append({
+            "sheet_id": s.get("source_file"),
+            "valid_rows": s.get("rows", []),
+            "invalid_rows": s.get("invalid_events", []),
+        })
+
+    return jsonify(sheets_out)
+
+
+@bp.route("/api/override", methods=["POST"])
+def api_override_save():
+    payload = request.get_json(silent=True) or {}
+    save_override(**payload)
+    state = _load_review_state()
+    state[payload["member_key"]] = apply_overrides(
+        payload["member_key"],
+        state[payload["member_key"]],
+    )
+    os.makedirs(os.path.dirname(REVIEW_JSON_PATH), exist_ok=True)
+    with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2, default=str)
+    return jsonify({"status": "override_saved"})
+
+
+@bp.route("/api/override", methods=["DELETE"])
+def api_override_clear():
+    payload = request.get_json(silent=True) or {}
+    clear_overrides(payload["member_key"])
+    return jsonify({"status": "overrides_cleared"})
+
+
+# ---------------------------------------------------------
+# DOWNLOAD & RESET ROUTES (UNCHANGED)
 # ---------------------------------------------------------
 
 @bp.route("/download_merged")
 def download_merged():
     if not os.path.exists(PACKAGE_FOLDER):
         return "No merged package found.", 404
-
     merged_files = [
         f for f in os.listdir(PACKAGE_FOLDER)
         if f.startswith("MERGED_") and f.endswith(".pdf")
     ]
     if not merged_files:
         return "No merged files found.", 404
-
     latest = max(
         merged_files,
         key=lambda f: os.path.getmtime(os.path.join(PACKAGE_FOLDER, f)),
     )
     return send_from_directory(PACKAGE_FOLDER, latest, as_attachment=True)
-
-
-@bp.route("/download_summary")
-def download_summary():
-    mem_zip = io.BytesIO()
-    with zipfile.ZipFile(mem_zip, "w", zipfile.ZIP_DEFLATED) as z:
-        if os.path.exists(SUMMARY_TXT_FOLDER):
-            for root, _, files in os.walk(SUMMARY_TXT_FOLDER):
-                for f in files:
-                    full = os.path.join(root, f)
-                    z.write(full, f"SUMMARY_TXT/{os.path.basename(full)}")
-
-        if os.path.exists(SUMMARY_PDF_FOLDER):
-            for root, _, files in os.walk(SUMMARY_PDF_FOLDER):
-                for f in files:
-                    full = os.path.join(root, f)
-                    z.write(full, f"SUMMARY_PDF/{os.path.basename(full)}")
-
-    mem_zip.seek(0)
-    return send_file(mem_zip, as_attachment=True, download_name="SUMMARY_BUNDLE.zip")
-
-
-@bp.route("/download_marked_sheets")
-def download_marked_sheets():
-    mem_zip = io.BytesIO()
-    with zipfile.ZipFile(mem_zip, "w", zipfile.ZIP_DEFLATED) as z:
-        if os.path.exists(TORIS_CERT_FOLDER):
-            for root, _, files in os.walk(TORIS_CERT_FOLDER):
-                for f in files:
-                    full = os.path.join(root, f)
-                    z.write(full, f"TORIS_MARKED/{os.path.basename(full)}")
-
-    mem_zip.seek(0)
-    return send_file(mem_zip, as_attachment=True, download_name="TORIS_MARKED_SHEETS.zip")
 
 
 @bp.route("/download_all")
@@ -222,7 +240,6 @@ def download_all():
             for f in files:
                 full = os.path.join(root, f)
                 z.write(full, os.path.relpath(full, OUTPUT_DIR))
-
     mem_zip.seek(0)
     return send_file(mem_zip, as_attachment=True, download_name="ALL_OUTPUT.zip")
 
@@ -249,56 +266,3 @@ def reset_all():
 
     clear_logs()
     return jsonify({"status": "reset"})
-
-
-# ---------------------------------------------------------
-# PHASE 5 — REVIEW / OVERRIDES API (UNCHANGED)
-# ---------------------------------------------------------
-
-def _load_review_state():
-    if not os.path.exists(REVIEW_JSON_PATH):
-        return {}
-    try:
-        with open(REVIEW_JSON_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        log(f"REVIEW JSON READ ERROR → {e}")
-        return {}
-
-
-def _write_review_state(state: dict):
-    os.makedirs(os.path.dirname(REVIEW_JSON_PATH), exist_ok=True)
-    with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2, default=str)
-
-
-@bp.route("/api/members")
-def api_members():
-    return jsonify(sorted(_load_review_state().keys()))
-
-
-@bp.route("/api/member/<path:member_key>/sheets")
-def api_member_sheets(member_key):
-    state = _load_review_state()
-    member = state.get(member_key)
-    return jsonify(member.get("sheets", []) if member else [])
-
-
-@bp.route("/api/override", methods=["POST"])
-def api_override_save():
-    payload = request.get_json(silent=True) or {}
-    save_override(**payload)
-    state = _load_review_state()
-    state[payload["member_key"]] = apply_overrides(
-        payload["member_key"],
-        state[payload["member_key"]],
-    )
-    _write_review_state(state)
-    return jsonify({"status": "override_saved"})
-
-
-@bp.route("/api/override", methods=["DELETE"])
-def api_override_clear():
-    payload = request.get_json(silent=True) or {}
-    clear_overrides(payload["member_key"])
-    return jsonify({"status": "overrides_cleared"})
