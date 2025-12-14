@@ -67,8 +67,6 @@ def process_route():
     set_progress(status="PROCESSING", percent=1)
 
     files = request.files.getlist("files") or request.files.getlist("pdfs")
-    # for basic % updates while processing (without touching processing.py)
-    set_progress(total=len([f for f in files if f and f.filename]))
 
     for f in files:
         if f and f.filename:
@@ -98,7 +96,6 @@ def process_route():
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"status": "STARTED"})
-
 
 # =========================================================
 # PROGRESS (UI-CONTRACT SAFE)
@@ -201,3 +198,4 @@ def reset():
     clear_logs()
     reset_progress()
     return jsonify({"status": "reset"})
+
