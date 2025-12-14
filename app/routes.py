@@ -16,7 +16,7 @@ from flask import (
     Response,
 )
 
-from .core.logger import (
+from app.core.logger import (
     LIVE_LOGS,
     log,
     clear_logs,
@@ -24,18 +24,17 @@ from .core.logger import (
     reset_progress,
     set_progress,
 )
-from .core.config import (
+
+from app.core.config import (
     DATA_DIR,
     OUTPUT_DIR,
     TEMPLATE,
     RATE_FILE,
     PACKAGE_FOLDER,
-    SUMMARY_TXT_FOLDER,
-    SUMMARY_PDF_FOLDER,
-    TORIS_CERT_FOLDER,
     REVIEW_JSON_PATH,
 )
-from .processing import process_all
+
+from app.processing import process_all
 import app.core.rates as rates
 
 from app.core.overrides import (
@@ -46,9 +45,9 @@ from app.core.overrides import (
 
 bp = Blueprint("routes", __name__)
 
-# ---------------------------------------------------------
+# =========================================================
 # UI ROUTES
-# ---------------------------------------------------------
+# =========================================================
 
 @bp.route("/", methods=["GET"])
 def home():
@@ -58,6 +57,10 @@ def home():
         rate_path=RATE_FILE,
     )
 
+
+# =========================================================
+# PROCESS ROUTE
+# =========================================================
 
 @bp.route("/process", methods=["POST"])
 def process_route():
@@ -81,7 +84,7 @@ def process_route():
     )
 
     # -------------------------------------------------
-    # PATCH 1 — ACCEPT BOTH UI + BACKEND FIELD NAMES
+    # PATCH 1 — ACCEPT UI + BACKEND FIELD NAMES
     # -------------------------------------------------
 
     files = (
@@ -137,11 +140,18 @@ def process_route():
             )
         except Exception as e:
             log(f"PROCESS ERROR → {e}")
-            set_progress(status="error", current_step="Processing error")
+            set_progress(
+                status="error",
+                current_step="Processing error",
+            )
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"status": "STARTED"})
 
+
+# =========================================================
+# PROGRESS & LOG STREAM
+# =========================================================
 
 @bp.route("/progress")
 def progress_route():
@@ -171,9 +181,9 @@ def stream_logs():
     )
 
 
-# ---------------------------------------------------------
+# =========================================================
 # REVIEW / OVERRIDE API
-# ---------------------------------------------------------
+# =========================================================
 
 def _load_review_state():
     if not os.path.exists(REVIEW_JSON_PATH):
@@ -198,20 +208,47 @@ def api_member_sheets(member_key):
     if not member:
         return jsonify([])
 
-    sheets_out = []
+    out = []
     for s in member.get("sheets", []):
-        sheets_out.append({
+        out.append({
             "sheet_id": s.get("source_file"),
             "valid_rows": s.get("rows", []),
             "invalid_rows": s.get("invalid_events", []),
         })
 
-    return jsonify(sheets_out)
+    return jsonify(out)
+
+
+# =========================================================
+# PATCH 2 — SINGLE SHEET REVIEW ENDPOINT
+# =========================================================
+
+@bp.route("/api/member/<path:member_key>/sheet/<path:sheet_id>")
+def api_member_single_sheet(member_key, sheet_id):
+    state = _load_review_state()
+    member = state.get(member_key)
+    if not member:
+        return jsonify({}), 404
+
+    for sheet in member.get("sheets", []):
+        if sheet.get("source_file") == sheet_id:
+            return jsonify({
+                "sheet_id": sheet_id,
+                "reporting_period": sheet.get("reporting_period"),
+                "stats": sheet.get("stats"),
+                "valid_rows": sheet.get("rows", []),
+                "invalid_rows": sheet.get("invalid_events", []),
+                "parsing_warnings": sheet.get("parsing_warnings", []),
+                "parse_confidence": sheet.get("parse_confidence"),
+            })
+
+    return jsonify({}), 404
 
 
 @bp.route("/api/override", methods=["POST"])
 def api_override_save():
     payload = request.get_json(silent=True) or {}
+
     save_override(**payload)
 
     state = _load_review_state()
@@ -234,26 +271,9 @@ def api_override_clear():
     return jsonify({"status": "overrides_cleared"})
 
 
-# ---------------------------------------------------------
-# DOWNLOAD & RESET ROUTES (UNCHANGED)
-# ---------------------------------------------------------
-
-@bp.route("/download_merged")
-def download_merged():
-    if not os.path.exists(PACKAGE_FOLDER):
-        return "No merged package found.", 404
-    merged_files = [
-        f for f in os.listdir(PACKAGE_FOLDER)
-        if f.startswith("MERGED_") and f.endswith(".pdf")
-    ]
-    if not merged_files:
-        return "No merged files found.", 404
-    latest = max(
-        merged_files,
-        key=lambda f: os.path.getmtime(os.path.join(PACKAGE_FOLDER, f)),
-    )
-    return send_from_directory(PACKAGE_FOLDER, latest, as_attachment=True)
-
+# =========================================================
+# DOWNLOAD & RESET ROUTES
+# =========================================================
 
 @bp.route("/download_all")
 def download_all():
