@@ -60,15 +60,33 @@ def reset_progress():
         PROGRESS["status"] = "IDLE"
         PROGRESS["percent"] = 0
 
-def set_progress(status=None, percent=None):
+def set_progress(status=None, percent=None, current_step=None, percentage=None, details=None):
+    """
+    Set progress state (UI-safe, accepts multiple param names for compatibility)
+    
+    Args:
+        status: Status message
+        percent/percentage: Progress percentage (0-100)
+        current_step: Current step description (alias for status)
+        details: Additional detail dict (merged into PROGRESS)
+    """
     with _LOG_LOCK:
         if status is not None:
             PROGRESS["status"] = status
+        if current_step is not None:
+            PROGRESS["status"] = current_step
         if percent is not None:
             try:
                 PROGRESS["percent"] = max(0, min(100, int(percent)))
             except Exception:
                 pass
+        if percentage is not None:
+            try:
+                PROGRESS["percent"] = max(0, min(100, int(percentage)))
+            except Exception:
+                pass
+        if details is not None:
+            PROGRESS.update(details)
 
 def get_progress():
     with _LOG_LOCK:
