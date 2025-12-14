@@ -28,6 +28,7 @@ from app.core.config import (
     TEMPLATE,
     RATE_FILE,
     REVIEW_JSON_PATH,
+    PACKAGE_FOLDER,
 )
 
 from app.processing import process_all
@@ -144,7 +145,16 @@ def api_single_sheet(member_key, sheet_id):
 
     for sheet in member.get("sheets", []):
         if sheet.get("source_file") == sheet_id:
-            return jsonify(sheet)
+            # Restructure response to match frontend expectations
+            return jsonify({
+                "source_file": sheet.get("source_file"),
+                "reporting_period": sheet.get("reporting_period"),
+                "stats": sheet.get("stats"),
+                "valid_rows": sheet.get("rows", []),
+                "invalid_events": sheet.get("invalid_events", []),
+                "parsing_warnings": sheet.get("parsing_warnings", []),
+                "parse_confidence": sheet.get("parse_confidence", 1.0)
+            })
 
     return jsonify({}), 404
 
@@ -179,6 +189,21 @@ def api_override_clear():
 # DOWNLOAD / RESET
 # =========================================================
 
+@bp.route("/download_merged")
+def download_merged():
+    if not os.path.exists(PACKAGE_FOLDER):
+        return jsonify({"error": "No merged package found"}), 404
+    
+    mem = io.BytesIO()
+    with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in os.listdir(PACKAGE_FOLDER):
+            full = os.path.join(PACKAGE_FOLDER, f)
+            if os.path.isfile(full):
+                z.write(full, f)
+    mem.seek(0)
+    return send_file(mem, as_attachment=True, download_name="MERGED_PACKAGE.zip")
+
+
 @bp.route("/download_all")
 def download_all():
     mem = io.BytesIO()
@@ -199,3 +224,18 @@ def reset():
     reset_progress()
     return jsonify({"status": "reset"})
 
+
+# =========================================================
+# HEALTH CHECK
+# =========================================================
+
+@bp.route("/health")
+def health():
+    """Health check for Docker/Unraid monitoring"""
+    return jsonify({
+        "status": "healthy",
+        "template_exists": os.path.exists(TEMPLATE),
+        "rates_exists": os.path.exists(RATE_FILE),
+        "data_dir_writable": os.access(DATA_DIR, os.W_OK),
+        "output_dir_writable": os.access(OUTPUT_DIR, os.W_OK)
+    })
