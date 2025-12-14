@@ -1,383 +1,198 @@
-# app/routes.py
-
-import os
-import json
 import threading
 import time
-import inspect
-from pathlib import Path
-from flask import Blueprint, jsonify, request, send_from_directory, Response, abort
+import os
+import io
+import zipfile
+import shutil
+import json
+
+from flask import (
+    Blueprint,
+    request,
+    jsonify,
+    send_file,
+    send_from_directory,
+    Response,
+)
+
+from app.core.logger import (
+    LIVE_LOGS,
+    log,
+    clear_logs,
+    get_progress,
+    reset_progress,
+    set_progress,
+)
+
+from app.core.config import (
+    DATA_DIR,
+    OUTPUT_DIR,
+    TEMPLATE,
+    RATE_FILE,
+    REVIEW_JSON_PATH,
+)
+
+from app.processing import process_all
+import app.core.rates as rates
+
+from app.core.overrides import (
+    save_override,
+    clear_overrides,
+    apply_overrides,
+)
 
 bp = Blueprint("routes", __name__)
 
-# ---- Paths (match your container layout) ----
-DATA_DIR = Path("/app/data")
-OUTPUT_DIR = Path("/app/output")
-REVIEW_JSON_PATH = OUTPUT_DIR / "SEA_PAY_REVIEW.json"
-
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-# ---- Log + Progress plumbing ----
-# Prefer your existing app.core.logger if present (so we don't break anything),
-# but provide a safe fallback if it doesn't exist.
-try:
-    from app.core.logger import log as _log  # type: ignore
-    from app.core.logger import clear_logs as _clear_logs  # type: ignore
-    from app.core.logger import get_logs as _get_logs  # type: ignore
-except Exception:
-    _LOGS = []
-    _LOG_LOCK = threading.Lock()
-
-    def _log(msg: str):
-        ts = time.strftime("%H:%M:%S")
-        line = f"[{ts}] {msg}"
-        print(line, flush=True)
-        with _LOG_LOCK:
-            _LOGS.append(line)
-            if len(_LOGS) > 5000:
-                _LOGS[:] = _LOGS[-4000:]
-
-    def _clear_logs():
-        with _LOG_LOCK:
-            _LOGS.clear()
-
-    def _get_logs(limit: int = 500):
-        with _LOG_LOCK:
-            return _LOGS[-limit:]
-
-
-_PROGRESS_LOCK = threading.Lock()
-_PROGRESS = {
-    "status": "idle",      # idle | processing | complete | error
-    "percent": 0,          # 0..100
-    "message": "",
-    "started_at": None,
-    "finished_at": None,
-    "total_files": 0,
-    "done_files": 0,
-    "error": None,
-}
-
-
-def _set_progress(**kwargs):
-    with _PROGRESS_LOCK:
-        for k, v in kwargs.items():
-            _PROGRESS[k] = v
-
-
-def _get_progress():
-    with _PROGRESS_LOCK:
-        return dict(_PROGRESS)
-
-
-# We compute percent reliably even if processing.py doesn't emit explicit percent:
-# - total_files set when upload starts
-# - done_files inferred from logs (OCR → ...) OR fallback to simple step logic
-def _recompute_percent_from_logs():
-    prog = _get_progress()
-    if prog["status"] not in ("processing", "complete"):
-        return prog
-
-    logs = _get_logs(limit=2000)
-    total = prog.get("total_files") or 0
-
-    # "OCR → filename" appears once per input pdf in your logs.
-    ocr_count = sum(1 for line in logs if "OCR →" in line)
-
-    # If you had multiple "=== PROCESS STARTED ===" lines, still fine; count OCR lines.
-    done_files = max(prog.get("done_files") or 0, ocr_count)
-
-    percent = prog.get("percent") or 0
-    if total > 0:
-        # Weight: OCR stage is the real "file progress"
-        percent = int(min(99, (done_files / total) * 100))
-    else:
-        # Unknown total, keep whatever we have
-        percent = percent or 0
-
-    # If complete appears in log, force 100
-    if any("PROCESS COMPLETE" in line for line in logs):
-        percent = 100
-
-    prog.update({"done_files": done_files, "percent": percent})
-    _set_progress(done_files=done_files, percent=percent)
-    return prog
-
-
-# ---- Processing runner (call your existing processing function safely) ----
-def _run_processing():
-    """
-    Runs processing using your existing app.processing module.
-    This function tries multiple possible entrypoints so we don't break your setup.
-    """
-    try:
-        _log("=== PROCESS STARTED ===")
-
-        # Import here so your app boot still works even if processing has heavy imports.
-        import app.processing as processing  # type: ignore
-
-        # Try to find a callable entry point without guessing too hard.
-        candidates = [
-            "process_all",
-            "process_documents",
-            "process_files",
-            "run",
-            "run_processing",
-            "main",
-        ]
-
-        fn = None
-        for name in candidates:
-            if hasattr(processing, name) and callable(getattr(processing, name)):
-                fn = getattr(processing, name)
-                break
-
-        if fn is None:
-            raise RuntimeError(
-                "No processing entrypoint found in app.processing. "
-                "Tried: " + ", ".join(candidates)
-            )
-
-        sig = inspect.signature(fn)
-        kwargs = {}
-
-        # Only pass args the function actually accepts.
-        if "data_dir" in sig.parameters:
-            kwargs["data_dir"] = str(DATA_DIR)
-        if "input_dir" in sig.parameters:
-            kwargs["input_dir"] = str(DATA_DIR)
-        if "output_dir" in sig.parameters:
-            kwargs["output_dir"] = str(OUTPUT_DIR)
-        if "out_dir" in sig.parameters:
-            kwargs["out_dir"] = str(OUTPUT_DIR)
-
-        # Some versions accept logger/progress callbacks
-        if "log_fn" in sig.parameters:
-            kwargs["log_fn"] = _log
-        if "logger" in sig.parameters:
-            kwargs["logger"] = _log
-        if "progress_fn" in sig.parameters:
-            kwargs["progress_fn"] = lambda p, m="": _set_progress(percent=int(p), message=m)
-
-        # Run
-        fn(**kwargs)
-
-        _set_progress(status="complete", percent=100, message="Complete", finished_at=time.time())
-        _log("PROCESS COMPLETE")
-
-    except Exception as e:
-        _set_progress(status="error", error=str(e), message="Error")
-        _log(f"[ERROR] {e}")
-
-
-# ---- Routes ----
+# =========================================================
+# UI ROUTE (PATCHED — STATIC FILE, NO TEMPLATE ENGINE)
+# =========================================================
 
 @bp.route("/", methods=["GET"])
-def index():
-    # Your frontend lives at /app/web/frontend/index.html in your structure
-    # but in the container it is mounted as /app/web/frontend.
-    # We serve it directly from disk to avoid template issues.
-    frontend_dir = Path("/app/web/frontend")
-    return send_from_directory(frontend_dir, "index.html")
-
-
-@bp.route("/web/frontend/<path:filename>", methods=["GET"])
-def frontend_static(filename):
-    frontend_dir = Path("/app/web/frontend")
-    return send_from_directory(frontend_dir, filename)
-
-
-@bp.route("/logs/clear", methods=["POST"])
-def clear_logs():
-    _clear_logs()
-    # keep progress intact
-    return jsonify({"ok": True})
-
-
-@bp.route("/logs", methods=["GET"])
-def logs():
-    limit = int(request.args.get("limit", "500"))
-    return jsonify({"lines": _get_logs(limit=limit)})
-
-
-@bp.route("/progress", methods=["GET"])
-def progress():
-    prog = _recompute_percent_from_logs()
-    # Include last log lines so UI can update "LIVE LOG" without extra calls
-    lines = _get_logs(limit=300)
-    return jsonify({
-        "status": prog["status"],
-        "percent": prog["percent"],
-        "message": prog.get("message", ""),
-        "total_files": prog.get("total_files", 0),
-        "done_files": prog.get("done_files", 0),
-        "error": prog.get("error"),
-        "lines": lines,
-    })
-
-
-@bp.route("/process", methods=["POST"])
-def process():
-    # Reset state but do not touch anything else.
-    _clear_logs()
-    _set_progress(
-        status="processing",
-        percent=0,
-        message="Processing",
-        started_at=time.time(),
-        finished_at=None,
-        done_files=0,
-        error=None,
+def home():
+    return send_from_directory(
+        os.path.join(os.path.dirname(__file__), "web", "frontend"),
+        "index.html"
     )
 
-    files = request.files.getlist("files")
-    if not files:
-        abort(400, "No files uploaded")
+# =========================================================
+# PROCESS ROUTE (UNCHANGED)
+# =========================================================
 
-    # Save uploaded PDFs
-    saved = 0
+@bp.route("/process", methods=["POST"])
+def process_route():
+    clear_logs()
+    reset_progress()
+    log("=== PROCESS STARTED ===")
+
+    set_progress(
+        status="processing",
+        percentage=0,
+    )
+
+    files = request.files.getlist("files") or request.files.getlist("pdfs")
     for f in files:
-        if not f.filename:
-            continue
-        out_path = DATA_DIR / f.filename
-        f.save(out_path)
-        _log(f"SAVED INPUT FILE → {out_path}")
-        saved += 1
+        if f and f.filename:
+            save_path = os.path.join(DATA_DIR, f.filename)
+            f.save(save_path)
+            log(f"SAVED INPUT FILE → {save_path}")
 
-    _set_progress(total_files=saved)
+    template_file = request.files.get("template_pdf")
+    if template_file and template_file.filename:
+        template_file.save(TEMPLATE)
+        log(f"UPDATED TEMPLATE → {TEMPLATE}")
 
-    # Start worker thread
-    t = threading.Thread(target=_run_processing, daemon=True)
-    t.start()
+    rate_file = request.files.get("rates_csv")
+    if rate_file and rate_file.filename:
+        rate_file.save(RATE_FILE)
+        rates.load_rates()
+        log("RATES RELOADED")
 
-    return jsonify({"ok": True, "saved": saved})
+    strike_color = request.form.get("strikeout_color", "Black")
 
+    def _run():
+        try:
+            process_all(strike_color=strike_color)
+            set_progress(status="complete", percentage=100)
+        except Exception as e:
+            log(f"PROCESS ERROR → {e}")
+            set_progress(status="error")
 
-# ---- Review & Override API ----
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"status": "STARTED"})
 
-def _safe_load_review():
-    if not REVIEW_JSON_PATH.exists():
-        return None
-    try:
-        return json.loads(REVIEW_JSON_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return None
+# =========================================================
+# PROGRESS
+# =========================================================
 
+@bp.route("/progress")
+def progress_route():
+    return jsonify(get_progress())
 
-def _extract_members(review_obj):
-    """
-    Supports multiple formats:
-    - {"members": [{"member": "...", "sheets": [...]}, ...]}
-    - {"STG1 LAST,FIRST": {...}}
-    - {"members": ["A", "B", ...]}
-    """
-    if not review_obj:
-        return []
+# =========================================================
+# REVIEW / OVERRIDE
+# =========================================================
 
-    if isinstance(review_obj, dict) and "members" in review_obj:
-        mem = review_obj["members"]
-        if isinstance(mem, list):
-            if mem and isinstance(mem[0], dict):
-                out = []
-                for m in mem:
-                    name = m.get("member") or m.get("name") or m.get("id")
-                    if name:
-                        out.append(name)
-                return sorted(set(out))
-            if mem and isinstance(mem[0], str):
-                return sorted(set(mem))
+def _load_review_state():
+    if not os.path.exists(REVIEW_JSON_PATH):
+        return {}
+    with open(REVIEW_JSON_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
 
-    # dict keyed by member name
-    if isinstance(review_obj, dict):
-        # filter out known non-member keys
-        skip = {"meta", "version", "generated_at", "members"}
-        keys = [k for k in review_obj.keys() if k not in skip and isinstance(k, str)]
-        return sorted(keys)
-
-    return []
-
-
-def _extract_sheets_for_member(review_obj, member_name: str):
-    if not review_obj:
-        return []
-
-    # Format 1: members list of dicts
-    if isinstance(review_obj, dict) and "members" in review_obj and isinstance(review_obj["members"], list):
-        for m in review_obj["members"]:
-            if not isinstance(m, dict):
-                continue
-            name = m.get("member") or m.get("name") or m.get("id")
-            if name == member_name:
-                return m.get("sheets") or m.get("data") or m.get("items") or []
-
-    # Format 2: dict keyed by member
-    if isinstance(review_obj, dict) and member_name in review_obj:
-        mobj = review_obj[member_name]
-        if isinstance(mobj, dict):
-            return mobj.get("sheets") or mobj.get("data") or mobj.get("items") or mobj.get("rows") or []
-        if isinstance(mobj, list):
-            return mobj
-
-    return []
-
-
-@bp.route("/api/members", methods=["GET"])
+@bp.route("/api/members")
 def api_members():
-    review = _safe_load_review()
-    members = _extract_members(review)
-    return jsonify({"members": members})
+    return jsonify(sorted(_load_review_state().keys()))
 
-
-@bp.route("/api/sheets", methods=["GET"])
-def api_sheets():
-    member = request.args.get("member", "").strip()
+# 🔧 PATCH: RETURN FILENAMES ONLY
+@bp.route("/api/member/<path:member_key>/sheets")
+def api_member_sheets(member_key):
+    state = _load_review_state()
+    member = state.get(member_key)
     if not member:
-        return jsonify({"sheets": []})
+        return jsonify([])
 
-    review = _safe_load_review()
-    sheets = _extract_sheets_for_member(review, member)
+    return jsonify([
+        s.get("source_file")
+        for s in member.get("sheets", [])
+        if s.get("source_file")
+    ])
 
-    return jsonify({"member": member, "sheets": sheets})
+# 🔧 PATCH 2: SINGLE SHEET ENDPOINT
+@bp.route("/api/member/<path:member_key>/sheet/<path:sheet_id>")
+def api_single_sheet(member_key, sheet_id):
+    state = _load_review_state()
+    member = state.get(member_key)
+    if not member:
+        return jsonify({}), 404
 
+    for sheet in member.get("sheets", []):
+        if sheet.get("source_file") == sheet_id:
+            return jsonify({
+                "valid_rows": sheet.get("rows", []),
+                "invalid_events": sheet.get("invalid_events", []),
+            })
 
-@bp.route("/api/sheets/save", methods=["POST"])
-def api_sheets_save():
+    return jsonify({}), 404
+
+@bp.route("/api/override", methods=["POST"])
+def api_override_save():
     payload = request.get_json(silent=True) or {}
-    member = (payload.get("member") or "").strip()
-    sheets = payload.get("sheets")
+    save_override(**payload)
 
-    if not member or sheets is None:
-        abort(400, "Missing member or sheets")
+    state = _load_review_state()
+    state[payload["member_key"]] = apply_overrides(
+        payload["member_key"],
+        state[payload["member_key"]],
+    )
 
-    review = _safe_load_review()
-    if review is None:
-        review = {}
+    with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
 
-    # Save back in the safest way depending on structure.
-    if isinstance(review, dict) and "members" in review and isinstance(review["members"], list):
-        updated = False
-        for m in review["members"]:
-            if isinstance(m, dict):
-                name = m.get("member") or m.get("name") or m.get("id")
-                if name == member:
-                    m["sheets"] = sheets
-                    updated = True
-                    break
-        if not updated:
-            review["members"].append({"member": member, "sheets": sheets})
-    elif isinstance(review, dict):
-        if member not in review or not isinstance(review[member], dict):
-            review[member] = {}
-        if isinstance(review[member], dict):
-            review[member]["sheets"] = sheets
-        else:
-            review[member] = {"sheets": sheets}
-    else:
-        # If it's some weird format, wrap it.
-        review = {"members": [{"member": member, "sheets": sheets}]}
+    return jsonify({"status": "override_saved"})
 
-    REVIEW_JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
-    REVIEW_JSON_PATH.write_text(json.dumps(review, indent=2), encoding="utf-8")
+@bp.route("/api/override", methods=["DELETE"])
+def api_override_clear():
+    payload = request.get_json(silent=True) or {}
+    clear_overrides(payload["member_key"])
+    return jsonify({"status": "cleared"})
 
-    return jsonify({"ok": True})
+# =========================================================
+# DOWNLOAD / RESET (UNCHANGED)
+# =========================================================
+
+@bp.route("/download_all")
+def download_all():
+    mem = io.BytesIO()
+    with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
+        for root, _, files in os.walk(OUTPUT_DIR):
+            for f in files:
+                full = os.path.join(root, f)
+                z.write(full, os.path.relpath(full, OUTPUT_DIR))
+    mem.seek(0)
+    return send_file(mem, as_attachment=True, download_name="ALL_OUTPUT.zip")
+
+@bp.route("/reset", methods=["POST"])
+def reset_all():
+    shutil.rmtree(DATA_DIR, ignore_errors=True)
+    shutil.rmtree(OUTPUT_DIR, ignore_errors=True)
+    clear_logs()
+    return jsonify({"status": "reset"})
