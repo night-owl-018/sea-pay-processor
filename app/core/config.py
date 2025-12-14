@@ -8,14 +8,41 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))                # /app/app/
 PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", ".."))  # repo root: ATGSD-SEA-PAY-PROCESSOR
 
 # -----------------------------------
+# DOCKER-AWARE PATHS (support volume mounts)
+# -----------------------------------
+
+# Check for Docker volume mounts first, fall back to bundled defaults
+if os.path.exists("/templates"):
+    TEMPLATE_DIR = "/templates"
+elif os.path.exists(os.path.join(PROJECT_ROOT, "templates")):
+    TEMPLATE_DIR = os.path.join(PROJECT_ROOT, "templates")
+else:
+    TEMPLATE_DIR = os.path.join(PROJECT_ROOT, "pdf_template")
+
+if os.path.exists("/config"):
+    CONFIG_DIR = "/config"
+else:
+    CONFIG_DIR = os.path.join(PROJECT_ROOT, "config")
+
+if os.path.exists("/data"):
+    DATA_DIR = "/data"
+else:
+    DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+
+if os.path.exists("/output"):
+    OUTPUT_DIR = "/output"
+else:
+    OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
+
+# -----------------------------------
 # TEMPLATE / CORE FILES
 # -----------------------------------
 
 # NAVPERS 1070/613 template PDF (used by PG-13 / 1070 generation)
-TEMPLATE = os.path.join(PROJECT_ROOT, "pdf_template", "NAVPERS_1070_613_TEMPLATE.pdf")
+TEMPLATE = os.path.join(TEMPLATE_DIR, "NAVPERS_1070_613_TEMPLATE.pdf")
 
 # CSV roster file (RATE, LAST NAME, FIRST NAME, MIDDLE INITIAL)
-RATE_FILE = os.path.join(PROJECT_ROOT, "config", "atgsd_n811.csv")
+RATE_FILE = os.path.join(CONFIG_DIR, "atgsd_n811.csv")
 
 # Ships list text file (used by ships.py for ship matching)
 SHIP_FILE = os.path.join(PROJECT_ROOT, "ships.txt")
@@ -24,8 +51,6 @@ SHIP_FILE = os.path.join(PROJECT_ROOT, "ships.txt")
 # OUTPUT ROOT & LEGACY SUBFOLDERS
 # (these keep existing behavior working)
 # -----------------------------------
-
-OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 
 # Final packaged ZIP / combined outputs
 PACKAGE_FOLDER = os.path.join(OUTPUT_DIR, "PACKAGE")
@@ -46,9 +71,6 @@ TRACKER_FOLDER = os.path.join(OUTPUT_DIR, "TRACKER")
 # -----------------------------------
 # NEW DATA MODEL / JSON OUTPUT FOLDERS
 # -----------------------------------
-
-# Root structured data directory
-DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 
 # Parsed sheets (future use if we split parsing into JSON files)
 PARSED_DIR = os.path.join(DATA_DIR, "parsed")
