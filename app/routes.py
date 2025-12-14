@@ -33,6 +33,9 @@ from app.core.overrides import (
     apply_overrides,
 )
 
+# 🔹 PATCH IMPORT (isolated, no refactor)
+from app.processing import rebuild_outputs_from_review
+
 bp = Blueprint("routes", __name__)
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "web", "frontend")
@@ -93,6 +96,22 @@ def process_route():
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"status": "STARTED"})
+
+
+# =========================================================
+# 🔹 PATCH: REBUILD OUTPUTS ONLY (NO OCR, NO PARSE)
+# =========================================================
+
+@bp.route("/rebuild_outputs", methods=["POST"])
+def rebuild_outputs():
+    try:
+        log("=== REBUILD OUTPUTS STARTED ===")
+        rebuild_outputs_from_review()
+        log("=== REBUILD OUTPUTS COMPLETE ===")
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        log(f"REBUILD OUTPUTS ERROR → {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
 
 
 # =========================================================
@@ -158,7 +177,6 @@ def api_single_sheet(member_key, sheet_file):
 
     for sheet in member.get("sheets", []):
         if sheet.get("source_file") == sheet_file:
-            # 🔹 Adapter: match UI contract without changing data
             return jsonify({
                 **sheet,
                 "valid_rows": sheet.get("rows", []),
@@ -220,7 +238,6 @@ def download_all():
 
 @bp.route("/reset", methods=["POST"])
 def reset():
-    # Clear INPUT files but keep folder structure
     for root, _, files in os.walk(DATA_DIR):
         for f in files:
             try:
@@ -228,7 +245,6 @@ def reset():
             except Exception as e:
                 log(f"RESET INPUT FILE ERROR → {e}")
 
-    # Clear OUTPUT files but keep all folders
     for root, _, files in os.walk(OUTPUT_DIR):
         for f in files:
             try:
