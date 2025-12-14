@@ -16,6 +16,7 @@ from flask import (
 from app.core.logger import (
     log,
     clear_logs,
+    get_logs,
     get_progress,
     reset_progress,
     set_progress,
@@ -40,51 +41,54 @@ from app.core.overrides import (
 
 bp = Blueprint("routes", __name__)
 
+
 # =========================================================
-# UI ROUTE (UNCHANGED)
+# UI
 # =========================================================
 
-@bp.route("/", methods=["GET"])
+@bp.route("/")
 def home():
     return send_from_directory(
         os.path.join(os.path.dirname(__file__), "web", "frontend"),
         "index.html",
     )
 
+
 # =========================================================
-# PROCESS ROUTE (UNCHANGED LOGIC)
+# PROCESS
 # =========================================================
 
 @bp.route("/process", methods=["POST"])
 def process_route():
     clear_logs()
     reset_progress()
-    log("=== PROCESS STARTED ===")
 
-    set_progress(status="PROCESSING", percent=0)
+    log("=== PROCESS STARTED ===")
+    set_progress(status="PROCESSING", percent=1)
 
     files = request.files.getlist("files") or request.files.getlist("pdfs")
+    # for basic % updates while processing (without touching processing.py)
+    set_progress(total=len([f for f in files if f and f.filename]))
+
     for f in files:
         if f and f.filename:
-            path = os.path.join(DATA_DIR, f.filename)
-            f.save(path)
-            log(f"SAVED INPUT FILE → {path}")
+            f.save(os.path.join(DATA_DIR, f.filename))
+            log(f"SAVED INPUT FILE → {os.path.join(DATA_DIR, f.filename)}")
 
-    template_file = request.files.get("template_pdf")
-    if template_file and template_file.filename:
-        template_file.save(TEMPLATE)
-        log(f"UPDATED TEMPLATE → {TEMPLATE}")
+    if "template_pdf" in request.files:
+        request.files["template_pdf"].save(TEMPLATE)
+        log("UPDATED TEMPLATE PDF")
 
-    rate_file = request.files.get("rates_csv")
-    if rate_file and rate_file.filename:
-        rate_file.save(RATE_FILE)
+    if "rates_csv" in request.files:
+        request.files["rates_csv"].save(RATE_FILE)
         rates.load_rates()
-        log("RATES RELOADED")
+        log("RATES CSV RELOADED")
 
     strike_color = request.form.get("strikeout_color", "Black")
 
     def _run():
         try:
+            set_progress(percent=10)
             process_all(strike_color=strike_color)
             set_progress(status="COMPLETE", percent=100)
             log("PROCESS COMPLETE")
@@ -95,91 +99,87 @@ def process_route():
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"status": "STARTED"})
 
+
 # =========================================================
-# PROGRESS (FIXED — NO NEW IMPORTS)
+# PROGRESS (UI-CONTRACT SAFE)
 # =========================================================
 
 @bp.route("/progress")
-def progress_route():
-    p = get_progress() or {}
-
-    logs = p.get("log", [])
-    if isinstance(logs, list):
-        logs = "\n".join(logs)
-
+def progress():
+    p = get_progress()
+    # Keep response shape flexible for older/newer index.html versions
     return jsonify({
-        "status": p.get("status", "Idle"),
+        "status": p.get("status", "IDLE"),
         "percent": p.get("percent", 0),
-        "log": logs,
+        "log": "\n".join(p.get("log", [])),
     })
 
+
 # =========================================================
-# REVIEW / OVERRIDE (PATCH 2 — SINGLE SHEET)
+# REVIEW & OVERRIDE
 # =========================================================
 
-def _load_review_state():
+def _load_review():
     if not os.path.exists(REVIEW_JSON_PATH):
         return {}
     with open(REVIEW_JSON_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
 
+
 @bp.route("/api/members")
 def api_members():
-    return jsonify(sorted(_load_review_state().keys()))
+    return jsonify(sorted(_load_review().keys()))
+
 
 @bp.route("/api/member/<path:member_key>/sheets")
 def api_member_sheets(member_key):
-    state = _load_review_state()
-    member = state.get(member_key)
-    if not member:
-        return jsonify([])
+    state = _load_review()
+    member = state.get(member_key, {})
+    return jsonify([s.get("source_file") for s in member.get("sheets", [])])
 
-    return jsonify([
-        sheet.get("source_file")
-        for sheet in member.get("sheets", [])
-        if sheet.get("source_file")
-    ])
 
 @bp.route("/api/member/<path:member_key>/sheet/<path:sheet_id>")
 def api_single_sheet(member_key, sheet_id):
-    state = _load_review_state()
+    state = _load_review()
     member = state.get(member_key)
     if not member:
         return jsonify({}), 404
 
     for sheet in member.get("sheets", []):
         if sheet.get("source_file") == sheet_id:
-            return jsonify({
-                "valid_rows": sheet.get("rows", []),
-                "invalid_events": sheet.get("invalid_events", []),
-            })
+            return jsonify(sheet)
 
     return jsonify({}), 404
 
+
 @bp.route("/api/override", methods=["POST"])
-def api_override_save():
-    payload = request.get_json(silent=True) or {}
+def api_override():
+    payload = request.get_json() or {}
     save_override(**payload)
 
-    state = _load_review_state()
-    state[payload["member_key"]] = apply_overrides(
-        payload["member_key"],
-        state[payload["member_key"]],
-    )
+    state = _load_review()
+    if payload.get("member_key") in state:
+        state[payload["member_key"]] = apply_overrides(
+            payload["member_key"],
+            state[payload["member_key"]],
+        )
 
-    with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2)
+        with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
 
-    return jsonify({"status": "override_saved"})
+    return jsonify({"status": "saved"})
+
 
 @bp.route("/api/override", methods=["DELETE"])
 def api_override_clear():
-    payload = request.get_json(silent=True) or {}
-    clear_overrides(payload["member_key"])
+    payload = request.get_json() or {}
+    if payload.get("member_key"):
+        clear_overrides(payload["member_key"])
     return jsonify({"status": "cleared"})
 
+
 # =========================================================
-# DOWNLOAD / RESET (UNCHANGED)
+# DOWNLOAD / RESET
 # =========================================================
 
 @bp.route("/download_all")
@@ -193,9 +193,11 @@ def download_all():
     mem.seek(0)
     return send_file(mem, as_attachment=True, download_name="ALL_OUTPUT.zip")
 
+
 @bp.route("/reset", methods=["POST"])
-def reset_all():
+def reset():
     shutil.rmtree(DATA_DIR, ignore_errors=True)
     shutil.rmtree(OUTPUT_DIR, ignore_errors=True)
     clear_logs()
+    reset_progress()
     return jsonify({"status": "reset"})
