@@ -73,16 +73,16 @@ TRACKER_FOLDER = os.path.join(OUTPUT_DIR, "TRACKER")
 # -----------------------------------
 
 # Parsed sheets (future use if we split parsing into JSON files)
-PARSED_DIR = os.path.join(DATA_DIR, "parsed")
+PARSED_DIR = os.path.join(OUTPUT_DIR, "parsed")
 
-# Manual overrides per member/sheet (future phase)
-OVERRIDES_DIR = os.path.join(DATA_DIR, "overrides")
+# Manual overrides per member/sheet
+OVERRIDES_DIR = os.path.join(OUTPUT_DIR, "overrides")
 
 # Validation reports (per member or global)
-REPORTS_DIR = os.path.join(DATA_DIR, "reports")
+REPORTS_DIR = os.path.join(OUTPUT_DIR, "reports")
 
 # Preview artifacts (PG-13 text, 1070/613 drafts, etc.)
-PREVIEWS_DIR = os.path.join(DATA_DIR, "previews")
+PREVIEWS_DIR = os.path.join(OUTPUT_DIR, "previews")
 
 # Phase 2–3 review JSON (per member, per sheet, per event)
 REVIEW_JSON_PATH = os.path.join(OUTPUT_DIR, "SEA_PAY_REVIEW.json")
