@@ -1,144 +1,105 @@
-import os
-import time
 import threading
+from datetime import datetime
 
-LOG_FILE = os.path.join("/app/output", "app.log")
+# =========================================================
+# In-memory logging + progress (thread-safe)
+# =========================================================
 
+_LOCK = threading.Lock()
+
+# Public (back-compat) containers some modules may import directly
+LIVE_LOGS = []  # list[str]
 PROGRESS = {
     "status": "IDLE",
-    "percentage": 0,
-    "logs": [],
+    "percent": 0,
+    "total": 0,
+    "processed": 0,
 }
 
-PROGRESS_LOCK = threading.Lock()
-
-
-# =========================================================
-# Legacy helper (kept as-is)
-# =========================================================
-...
-def add_progress_detail(message):
-    with PROGRESS_LOCK:
-        PROGRESS["logs"].append(message)
-
-
-# =========================================================
-# PATCH: UI log + progress helpers (minimal, backwards-safe)
-# =========================================================
-
-# Keep an in-memory rolling log for the UI (and for /progress).
-_LOG_LINES = []
-_LOG_LOCK = threading.Lock()
-_MAX_LOG_LINES = 2000
-
-
-def _timestamp() -> str:
-    return time.strftime("%H:%M:%S")
-
-
-def _ensure_progress_keys():
-    # Normalize keys used across older/newer code paths.
-    with PROGRESS_LOCK:
-        if "logs" not in PROGRESS:
-            PROGRESS["logs"] = []
-        if "log" not in PROGRESS:
-            PROGRESS["log"] = PROGRESS["logs"]
-        if "percentage" in PROGRESS and "percent" not in PROGRESS:
-            PROGRESS["percent"] = PROGRESS.get("percentage", 0)
-        if "percent" in PROGRESS and "percentage" not in PROGRESS:
-            PROGRESS["percentage"] = PROGRESS.get("percent", 0)
-        if "status" not in PROGRESS:
-            PROGRESS["status"] = "IDLE"
-
-
-def log(message: str):
-    # Add a log line for Live Log + /progress polling (and also app.log best-effort).
-    line = str(message)
-    if not line.startswith("["):
-        line = f"[{_timestamp()}] {line}"
-
-    with _LOG_LOCK:
-        _LOG_LINES.append(line)
-        if len(_LOG_LINES) > _MAX_LOG_LINES:
-            del _LOG_LINES[: len(_LOG_LINES) - _MAX_LOG_LINES]
-
-    _ensure_progress_keys()
-    with PROGRESS_LOCK:
-        PROGRESS["logs"].append(line)
-        PROGRESS["log"] = PROGRESS["logs"]
-
-        if len(PROGRESS["logs"]) > _MAX_LOG_LINES:
-            del PROGRESS["logs"][: len(PROGRESS["logs"]) - _MAX_LOG_LINES]
-            PROGRESS["log"] = PROGRESS["logs"]
-
-    # Best-effort file write (never crash the app if disk is read-only, etc.)
-    try:
-        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-        with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(line + "\n")
-    except Exception:
-        pass
-
+def _ts() -> str:
+    return datetime.now().strftime("[%H:%M:%S]")
 
 def clear_logs():
-    # Clear in-memory logs and truncate on-disk log file.
-    with _LOG_LOCK:
-        _LOG_LINES.clear()
-
-    _ensure_progress_keys()
-    with PROGRESS_LOCK:
-        PROGRESS["logs"].clear()
-        PROGRESS["log"] = PROGRESS["logs"]
-
-    try:
-        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-        with open(LOG_FILE, "w", encoding="utf-8") as f:
-            f.write("")
-    except Exception:
-        pass
-
+    """Clear live logs (UI uses this at the start of /process)."""
+    with _LOCK:
+        LIVE_LOGS.clear()
 
 def get_logs():
-    # Return rolling in-memory log as a list of lines.
-    with _LOG_LOCK:
-        return list(_LOG_LINES)
-
-
-def set_progress(status=None, percent=None, percentage=None):
-    # Update progress in a way that's compatible with both "percent" and "percentage".
-    _ensure_progress_keys()
-    with PROGRESS_LOCK:
-        if status is not None:
-            PROGRESS["status"] = status
-
-        if percent is None and percentage is not None:
-            percent = percentage
-
-        if percent is not None:
-            try:
-                p = int(percent)
-            except Exception:
-                p = 0
-            p = max(0, min(100, p))
-            PROGRESS["percent"] = p
-            PROGRESS["percentage"] = p
-
+    """Return a copy of the current logs (list of lines)."""
+    with _LOCK:
+        return list(LIVE_LOGS)
 
 def reset_progress():
-    # Reset progress (does not wipe logs unless clear_logs is also called).
-    _ensure_progress_keys()
-    with PROGRESS_LOCK:
+    """Reset progress to IDLE/0. Keeps logs untouched (caller decides)."""
+    with _LOCK:
         PROGRESS["status"] = "IDLE"
         PROGRESS["percent"] = 0
-        PROGRESS["percentage"] = 0
+        PROGRESS["total"] = 0
+        PROGRESS["processed"] = 0
 
+def set_progress(status=None, percent=None, total=None, processed=None):
+    """Update progress fields safely. Any arg can be omitted."""
+    with _LOCK:
+        if status is not None:
+            PROGRESS["status"] = str(status)
+        if percent is not None:
+            try:
+                PROGRESS["percent"] = max(0, min(100, int(percent)))
+            except Exception:
+                pass
+        if total is not None:
+            try:
+                PROGRESS["total"] = max(0, int(total))
+            except Exception:
+                pass
+        if processed is not None:
+            try:
+                PROGRESS["processed"] = max(0, int(processed))
+            except Exception:
+                pass
 
 def get_progress():
-    # Progress payload used by /progress.
-    _ensure_progress_keys()
-    with PROGRESS_LOCK:
+    """Return progress dict including log lines for /progress polling."""
+    with _LOCK:
         return {
             "status": PROGRESS.get("status", "IDLE"),
-            "percent": int(PROGRESS.get("percent", PROGRESS.get("percentage", 0)) or 0),
-            "log": list(PROGRESS.get("logs", [])),
+            "percent": PROGRESS.get("percent", 0),
+            "log": list(LIVE_LOGS),
         }
+
+def _auto_advance_from_log(msg: str):
+    """
+    Minimal progress updates without touching processing.py:
+    - When we see 'OCR →' lines, count one processed item.
+    - Map processed/total into 10..90%.
+    """
+    with _LOCK:
+        total = int(PROGRESS.get("total") or 0)
+        if total <= 0:
+            return
+
+        if "OCR \u2192" in msg or "OCR ->" in msg:
+            PROGRESS["processed"] = int(PROGRESS.get("processed") or 0) + 1
+            done = PROGRESS["processed"]
+            # Clamp so we never hit 100 until the worker sets COMPLETE
+            pct = 10 + int(80 * min(done, total) / total)
+            PROGRESS["percent"] = max(PROGRESS["percent"], min(99, pct))
+
+def log(message: str):
+    """Append a message to the live log. Adds [HH:MM:SS] prefix if missing."""
+    if message is None:
+        return
+    msg = str(message)
+
+    # Preserve messages that already have a timestamp prefix like [01:07:28]
+    if not msg.startswith("["):
+        msg = f"{_ts()} {msg}"
+
+    with _LOCK:
+        LIVE_LOGS.append(msg)
+        # Keep memory bounded
+        if len(LIVE_LOGS) > 5000:
+            del LIVE_LOGS[:1000]
+
+    # lightweight progress heuristics
+    _auto_advance_from_log(msg)
