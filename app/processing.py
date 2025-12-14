@@ -448,42 +448,43 @@ def process_all(strike_color: str = "black"):
 # -------------------------------
 # FINAL TOTALS AND SUMMARY FILES
 # -------------------------------
-final_details = {
-    "files_processed": files_processed_total,
-    "valid_days": valid_days_total,
-    "invalid_events": invalid_events_total,
-    "pg13_created": pg13_total,
-    "toris_marked": toris_total,
-}
-set_progress(details=final_details)
+    final_details = {
+        "files_processed": files_processed_total,
+        "valid_days": valid_days_total,
+        "invalid_events": invalid_events_total,
+        "pg13_created": pg13_total,
+        "toris_marked": toris_total,
+    }
+    set_progress(details=final_details)
 
-set_progress(current_step="Writing summary files")
-write_summary_files(summary_data)
+    set_progress(current_step="Writing summary files")
+    write_summary_files(summary_data)
 
 # ----------------------------------------------------
 # APPLY OVERRIDES (Phase 4 – Option A)
 # ----------------------------------------------------
-final_review_state = {}
-for member_key, member_data in review_state.items():
-    final_review_state[member_key] = apply_overrides(member_key, member_data)
+    final_review_state = {}
+    for member_key, member_data in review_state.items():
+        final_review_state[member_key] = apply_overrides(member_key, member_data)
 
 # ----------------------------------------------------
 # WRITE JSON REVIEW STATE (MUST HAPPEN BEFORE MERGE)
 # ----------------------------------------------------
-try:
-    os.makedirs(os.path.dirname(REVIEW_JSON_PATH), exist_ok=True)
-    with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(final_review_state, f, indent=2, default=str)
-    log(f"REVIEW JSON WRITTEN → {REVIEW_JSON_PATH}")
-except Exception as e:
-    log(f"REVIEW JSON ERROR → {e}")
+    try:
+        os.makedirs(os.path.dirname(REVIEW_JSON_PATH), exist_ok=True)
+        with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
+            json.dump(final_review_state, f, indent=2, default=str)
+        log(f"REVIEW JSON WRITTEN → {REVIEW_JSON_PATH}")
+    except Exception as e:
+        log(f"REVIEW JSON ERROR → {e}")
 
 # ----------------------------------------------------
 # MERGE OUTPUT PACKAGE (unchanged)
 # ----------------------------------------------------
-set_progress(current_step="Merging output package", percent=100)
-merge_all_pdfs()
+    set_progress(current_step="Merging output package", percent=100)
+    merge_all_pdfs()
 
-log("PROCESS COMPLETE")
-set_progress(status="COMPLETE", percent=100)
+    log("PROCESS COMPLETE")
+    set_progress(status="COMPLETE", percent=100)
+
 
