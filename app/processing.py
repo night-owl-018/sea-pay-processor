@@ -486,5 +486,101 @@ def process_all(strike_color: str = "black"):
 
     log("PROCESS COMPLETE")
     set_progress(status="COMPLETE", percent=100)
+# =========================================================
+# REBUILD OUTPUTS FROM REVIEW JSON (NO OCR / NO PARSING)
+# =========================================================
+def rebuild_outputs_from_review():
+    """
+    Rebuild PG-13, TORIS, summaries, and merged package
+    strictly from REVIEW_JSON_PATH.
+
+    This does NOT:
+    - Read DATA_DIR
+    - OCR PDFs
+    - Re-parse rows
+    """
+
+    if not os.path.exists(REVIEW_JSON_PATH):
+        log("REBUILD ERROR → REVIEW JSON NOT FOUND")
+        return
+
+    try:
+        with open(REVIEW_JSON_PATH, "r", encoding="utf-8") as f:
+            review_state = json.load(f)
+    except Exception as e:
+        log(f"REBUILD ERROR → FAILED TO READ REVIEW JSON: {e}")
+        return
+
+    set_progress(status="PROCESSING", percent=0, current_step="Rebuilding outputs")
+
+    # Ensure output folders exist
+    os.makedirs(SEA_PAY_PG13_FOLDER, exist_ok=True)
+    os.makedirs(TORIS_CERT_FOLDER, exist_ok=True)
+
+    summary_data = {}
+
+    pg13_total = 0
+    toris_total = 0
+
+    for member_key, member_data in review_state.items():
+        rate = member_data.get("rate")
+        last = member_data.get("last")
+        first = member_data.get("first")
+        name = f"{first} {last}"
+
+        summary_data.setdefault(member_key, {
+            "rate": rate,
+            "last": last,
+            "first": first,
+            "periods": [],
+            "skipped_unknown": [],
+            "skipped_dupe": [],
+            "reporting_periods": [],
+        })
+
+        for sheet in member_data.get("sheets", []):
+            rows = sheet.get("rows", [])
+            invalid_events = sheet.get("invalid_events", [])
+            src_file = sheet.get("source_file")
+
+            # Rebuild PG-13 by ship
+            ship_map = {}
+            for r in rows:
+                if r.get("final_classification", {}).get("is_valid"):
+                    ship_map.setdefault(r.get("ship"), []).append(r)
+
+            for ship, ship_rows in ship_map.items():
+                periods = group_by_ship(ship_rows)
+                make_pdf_for_ship(ship, periods, name)
+                pg13_total += 1
+
+            # Rebuild TORIS
+            toris_name = f"{rate}_{last}_{first}__TORIS_REBUILT.pdf".replace(" ", "_")
+            toris_path = os.path.join(TORIS_CERT_FOLDER, toris_name)
+
+            mark_sheet_with_strikeouts(
+                src_file,
+                invalid_events,
+                [],
+                toris_path,
+                None,
+                sheet.get("total_valid_days"),
+            )
+            toris_total += 1
+
+    write_summary_files(summary_data)
+    merge_all_pdfs()
+
+    set_progress(
+        status="COMPLETE",
+        percent=100,
+        details={
+            "pg13_created": pg13_total,
+            "toris_marked": toris_total,
+        },
+    )
+
+    log("REBUILD OUTPUTS COMPLETE")
+
 
 
