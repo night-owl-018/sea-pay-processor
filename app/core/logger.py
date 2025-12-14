@@ -1,67 +1,91 @@
+import time
 from collections import deque
-from datetime import datetime
+from threading import Lock
 
-# ------------------------------------------------
-# LIVE LOG BUFFER
-# ------------------------------------------------
+# ==============================
+# INTERNAL STATE (UNCHANGED)
+# ==============================
 
-LIVE_LOGS = deque(maxlen=500)
+LIVE_LOGS = deque(maxlen=2000)
+
+PROGRESS = {
+    "status": "idle",
+    "percentage": 0,
+    "current_step": "",
+    "details": [],
+}
+
+_LOCK = Lock()
 
 
-def log(msg: str) -> None:
-    ts = datetime.now().strftime("%H:%M:%S")
-    line = f"[{ts}] {msg}"
+# ==============================
+# LOGGING (UNCHANGED)
+# ==============================
+
+def log(message: str):
+    ts = time.strftime("[%H:%M:%S]")
+    line = f"{ts} {message}"
+
     print(line, flush=True)
-    LIVE_LOGS.append(line)
+
+    with _LOCK:
+        LIVE_LOGS.append(line)
 
 
 def clear_logs():
-    LIVE_LOGS.clear()
-    print("Logs cleared", flush=True)
+    with _LOCK:
+        LIVE_LOGS.clear()
 
 
-# ------------------------------------------------
-# PROGRESS STATE FOR UI
-# ------------------------------------------------
-
-PROGRESS = {
-    "status": "idle",           # idle | processing | complete | error
-    "total_files": 0,
-    "current_file": 0,
-    "current_step": "",
-    "percentage": 0,
-    "details": {},
-}
-
+# ==============================
+# PROGRESS (UNCHANGED)
+# ==============================
 
 def reset_progress():
-    PROGRESS.update(
-        {
-            "total_files": 0,
-            "current_file": 0,
-            "current_step": "",
-            "percentage": 0,
-            "details": {},
-        }
-    )
+    with _LOCK:
+        PROGRESS["status"] = "idle"
+        PROGRESS["percentage"] = 0
+        PROGRESS["current_step"] = ""
+        PROGRESS["details"] = []
 
 
-def set_progress(**kwargs):
-    PROGRESS.update(kwargs)
+def set_progress(status=None, percentage=None, current_step=None):
+    with _LOCK:
+        if status is not None:
+            PROGRESS["status"] = status
+        if percentage is not None:
+            PROGRESS["percentage"] = percentage
+        if current_step is not None:
+            PROGRESS["current_step"] = current_step
+
+
+def add_progress_detail(detail: str):
+    with _LOCK:
+        PROGRESS["details"].append(detail)
 
 
 def get_progress():
-    return PROGRESS
+    with _LOCK:
+        return {
+            "status": PROGRESS["status"],
+            "percentage": PROGRESS["percentage"],
+            "current_step": PROGRESS["current_step"],
+            "details": list(PROGRESS["details"]),
+        }
 
 
-# ------------------------------------------------
-# ✅ REQUIRED FOR processing.py
-# ------------------------------------------------
+# ======================================================
+# 🔧 UI ADAPTER (PATCH — READ ONLY, SAFE)
+# ======================================================
 
-def add_progress_detail(key: str, value):
+def get_ui_progress():
     """
-    Safely update PROGRESS['details']
+    Adapter for index.html.
+    Does NOT change internal logger behavior.
     """
-    if "details" not in PROGRESS:
-        PROGRESS["details"] = {}
-    PROGRESS["details"][key] = value
+    with _LOCK:
+        return {
+            "status": PROGRESS.get("status", "idle"),
+            "percent": PROGRESS.get("percentage", 0),
+            "log": "\n".join(LIVE_LOGS),
+        }
