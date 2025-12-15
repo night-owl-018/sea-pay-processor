@@ -235,6 +235,29 @@ def download_all():
     mem.seek(0)
     return send_file(mem, as_attachment=True, download_name="ALL_OUTPUT.zip")
 
+# =========================================================
+# 🔹 PATCH: DOWNLOAD MERGED PACKAGE
+# =========================================================
+
+@bp.route("/download_merged")
+def download_merged():
+    if not os.path.exists(PACKAGE_FOLDER):
+        return jsonify({"error": "Merged package folder not found"}), 404
+
+    mem = io.BytesIO()
+    with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
+        for root, _, files in os.walk(PACKAGE_FOLDER):
+            for f in files:
+                full = os.path.join(root, f)
+                z.write(full, os.path.relpath(full, PACKAGE_FOLDER))
+
+    mem.seek(0)
+    return send_file(
+        mem,
+        as_attachment=True,
+        download_name="MERGED_PACKAGE.zip",
+    )
+
 
 @bp.route("/reset", methods=["POST"])
 def reset():
@@ -256,3 +279,4 @@ def reset():
     reset_progress()
     log("RESET COMPLETE (files cleared, folders preserved)")
     return jsonify({"status": "reset"})
+
