@@ -513,20 +513,20 @@ def rebuild_outputs_from_review():
         return
 
     set_progress(status="PROCESSING", percent=0, current_step="Rebuilding outputs")
-
+    
     os.makedirs(SEA_PAY_PG13_FOLDER, exist_ok=True)
     os.makedirs(TORIS_CERT_FOLDER, exist_ok=True)
-
+    
     summary_data = {}
     pg13_total = 0
     toris_total = 0
-
+    
     for member_key, member_data in review_state.items():
         rate = member_data.get("rate")
         last = member_data.get("last")
         first = member_data.get("first")
         name = f"{first} {last}"
-
+    
         summary_data[member_key] = {
             "rate": rate,
             "last": last,
@@ -536,16 +536,19 @@ def rebuild_outputs_from_review():
             "skipped_dupe": [],
             "reporting_periods": [],
         }
-
+    
+        # 🔧 PATCH: ensure rebuild starts clean per member
+        summary_data[member_key]["periods"] = []
+    
         for sheet in member_data.get("sheets", []):
             src_file = sheet.get("source_file")
-
+    
             # -----------------------------
             # FINAL CLASSIFICATION SPLIT
             # -----------------------------
             final_valid_rows = []
             final_invalid_events = []
-
+    
             for r in sheet.get("rows", []):
                 if r.get("final_classification", {}).get("is_valid"):
                     final_valid_rows.append(r)
@@ -556,7 +559,7 @@ def rebuild_outputs_from_review():
                         "reason": r.get("final_classification", {}).get("reason", "Invalid (override)"),
                         "occ_idx": r.get("occ_idx"),
                     })
-
+    
             for e in sheet.get("invalid_events", []):
                 if not e.get("final_classification", {}).get("is_valid"):
                     final_invalid_events.append({
