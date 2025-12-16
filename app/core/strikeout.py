@@ -367,20 +367,21 @@ def mark_sheet_with_strikeouts(
             c.setStrokeColorRGB(*rgb)
         
             # ------------------------------------------------
-            # REBUILD MODE GUARD — HARD STOP
+            # TOTAL SEA PAY DAYS — FINAL CORRECT LOGIC
             # ------------------------------------------------
-            if extracted_total_days is None:
-                log("TOTAL DAYS SKIP → rebuild mode (no trusted original)")
+            if override_valid_rows is not None:
+                # REVIEW / REBUILD MODE → never touch totals
+                log("TOTAL DAYS SKIP → rebuild mode")
                 total_overlay = None
             else:
                 clean_extracted = re.sub(
                     r"\D",
                     "",
-                    str(extracted_total_days)
+                    str(extracted_total_days or "")
                 ).strip()
-        
+            
                 computed_str = str(computed_total_days)
-        
+            
                 if clean_extracted and clean_extracted == computed_str:
                     log(
                         f"TOTAL DAYS MATCH → extracted={clean_extracted} "
@@ -393,10 +394,11 @@ def mark_sheet_with_strikeouts(
                     )
                     c.line(old_start_x_pdf, target_y_pdf, strike_end_x, target_y_pdf)
                     c.drawString(correct_x_pdf, target_y_pdf, computed_str)
-        
+            
                 c.save()
                 buf.seek(0)
                 total_overlay = PdfReader(buf)
+
 
 
         # ------------------------------------------------
@@ -454,6 +456,7 @@ def mark_sheet_with_strikeouts(
             log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+
 
 
 
