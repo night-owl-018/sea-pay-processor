@@ -112,8 +112,13 @@ def mark_sheet_with_strikeouts(
         # ------------------------------------------------
         # BUILD ROWS & OCR tokens
         # ------------------------------------------------
-        # Collect all unique dates we need to match
+        # Collect all dates from invalid targets AND overridden-valid rows
         all_dates = {d for (d, _) in all_targets}
+        
+        if override_valid_rows:
+            for r in override_valid_rows:
+                if r.get("date"):
+                    all_dates.add(r["date"])
         date_variants_map = {d: _build_date_variants(d) for d in all_dates}
 
         # ocr_tokens[page_index] = list of (text, left, top, w, h)
@@ -465,5 +470,6 @@ def mark_sheet_with_strikeouts(
             log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+
 
 
