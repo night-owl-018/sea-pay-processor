@@ -275,5 +275,6 @@ def reset():
 
     clear_logs()
     reset_progress()
-    log("RESET COMPLETE (files cleared, folders preserved)")
+    log("RESET COMPLETE (files cleared)")
     return jsonify({"status": "reset"})
+
