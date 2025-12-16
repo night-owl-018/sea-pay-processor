@@ -62,7 +62,9 @@ def mark_sheet_with_strikeouts(
     extracted_total_days,
     computed_total_days,
     strike_color="black",
+    override_valid_rows=None,  # PATCH
 ):
+
     """
     Draws strikeout lines on the TORIS Sea Pay sheet for invalid/duplicate rows
     and (optionally) corrects the 'Total Sea Pay Days' number.
@@ -94,6 +96,15 @@ def mark_sheet_with_strikeouts(
         targets_dup = {(d["date"], d["occ_idx"]) for d in skipped_duplicates}
         all_targets = targets_invalid.union(targets_dup)
 
+        # PATCH — build override-valid lookup (DATE-ONLY)
+        override_valid_dates = set()
+        if override_valid_rows:
+            for r in override_valid_rows:
+                if r.get("date"):
+                    override_valid_dates.add(r["date"])
+
+
+        
         # Convert all pages to images for positional OCR
         pages = convert_from_path(original_pdf)
         row_list = []
@@ -265,6 +276,13 @@ def mark_sheet_with_strikeouts(
         for row in row_list:
             text = row["text"]
             if any(marker in text for marker in INVALID_MARKERS):
+                # PATCH — do not auto-strike overridden valid dates
+                if row.get("date") and row["date"] in override_valid_dates:
+                    log(
+                        f"SKIP AUTO-STRIKE (OVERRIDDEN VALID DATE) → {row['date']}"
+                    )
+                    continue
+                      
                 if row.get("date"):
                     target_date = row["date"]
                     target_y = row["y"]
@@ -442,3 +460,4 @@ def mark_sheet_with_strikeouts(
             log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
         except Exception as e2:
             log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+
