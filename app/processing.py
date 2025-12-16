@@ -489,6 +489,7 @@ def process_all(strike_color: str = "black"):
 # =========================================================
 # REBUILD OUTPUTS FROM REVIEW JSON (NO OCR / NO PARSING)
 # =========================================================
+# ===================== PATCHED REBUILD ONLY =====================
 def rebuild_outputs_from_review():
     """
     Rebuild PG-13, TORIS, summaries, and merged package
@@ -513,12 +514,10 @@ def rebuild_outputs_from_review():
 
     set_progress(status="PROCESSING", percent=0, current_step="Rebuilding outputs")
 
-    # Ensure output folders exist
     os.makedirs(SEA_PAY_PG13_FOLDER, exist_ok=True)
     os.makedirs(TORIS_CERT_FOLDER, exist_ok=True)
 
     summary_data = {}
-
     pg13_total = 0
     toris_total = 0
 
@@ -528,7 +527,7 @@ def rebuild_outputs_from_review():
         first = member_data.get("first")
         name = f"{first} {last}"
 
-        summary_data.setdefault(member_key, {
+        summary_data[member_key] = {
             "rate": rate,
             "last": last,
             "first": first,
@@ -536,35 +535,75 @@ def rebuild_outputs_from_review():
             "skipped_unknown": [],
             "skipped_dupe": [],
             "reporting_periods": [],
-        })
+        }
 
         for sheet in member_data.get("sheets", []):
-            rows = sheet.get("rows", [])
-            invalid_events = sheet.get("invalid_events", [])
             src_file = sheet.get("source_file")
 
-            # Rebuild PG-13 by ship
-            ship_map = {}
-            for r in rows:
+            # -----------------------------
+            # FINAL CLASSIFICATION SPLIT
+            # -----------------------------
+            final_valid_rows = []
+            final_invalid_events = []
+
+            for r in sheet.get("rows", []):
                 if r.get("final_classification", {}).get("is_valid"):
-                    ship_map.setdefault(r.get("ship"), []).append(r)
+                    final_valid_rows.append(r)
+                else:
+                    final_invalid_events.append({
+                        "date": r.get("date"),
+                        "ship": r.get("ship"),
+                        "reason": r.get("final_classification", {}).get("reason", "Invalid (override)"),
+                        "occ_idx": r.get("occ_idx"),
+                    })
+
+            for e in sheet.get("invalid_events", []):
+                if not e.get("final_classification", {}).get("is_valid"):
+                    final_invalid_events.append({
+                        "date": e.get("date"),
+                        "ship": e.get("ship"),
+                        "reason": e.get("final_classification", {}).get("reason", "Invalid"),
+                        "occ_idx": e.get("occ_idx"),
+                    })
+
+            # -----------------------------
+            # REBUILD PERIODS FROM FINAL
+            # -----------------------------
+            ship_map = {}
+            for r in final_valid_rows:
+                ship_map.setdefault(r["ship"], []).append(r)
 
             for ship, ship_rows in ship_map.items():
                 periods = group_by_ship(ship_rows)
+                for g in periods:
+                    summary_data[member_key]["periods"].append({
+                        "ship": ship,
+                        "start": g["start"],
+                        "end": g["end"],
+                        "days": (g["end"] - g["start"]).days + 1,
+                        "sheet_file": src_file,
+                    })
                 make_pdf_for_ship(ship, periods, name)
                 pg13_total += 1
 
-            # Rebuild TORIS
+            # -----------------------------
+            # TORIS REBUILD (FINAL INVALID)
+            # -----------------------------
             toris_name = f"{rate}_{last}_{first}__TORIS_REBUILT.pdf".replace(" ", "_")
             toris_path = os.path.join(TORIS_CERT_FOLDER, toris_name)
 
+            computed_days = sum(
+                (g["end"] - g["start"]).days + 1
+                for g in summary_data[member_key]["periods"]
+            )
+
             mark_sheet_with_strikeouts(
                 src_file,
-                invalid_events,
                 [],
+                final_invalid_events,
                 toris_path,
                 None,
-                sheet.get("total_valid_days"),
+                computed_days,
             )
             toris_total += 1
 
@@ -581,6 +620,8 @@ def rebuild_outputs_from_review():
     )
 
     log("REBUILD OUTPUTS COMPLETE")
+
+
 
 
 
