@@ -69,6 +69,8 @@ def apply_overrides(member_key, review_state_member):
     Convention:
     - event_index >= 0  → rows[event_index]
     - event_index < 0   → invalid_events[-event_index - 1]
+    
+    PATCH: When forcing invalid event to valid, MOVE it to rows array
     """
 
     overrides = load_overrides(member_key).get("overrides", [])
@@ -108,6 +110,7 @@ def apply_overrides(member_key, review_state_member):
 
             # -------------------------
             # INVALID EVENT OVERRIDE
+            # PATCH: Move to rows if forcing valid
             # -------------------------
             else:
                 invalid_index = -idx - 1
@@ -123,5 +126,40 @@ def apply_overrides(member_key, review_state_member):
                 e["final_classification"]["is_valid"] = (status == "valid")
                 e["final_classification"]["reason"] = reason
                 e["final_classification"]["source"] = "override"
+
+                # PATCH: If forcing to valid, move event to rows array
+                if status == "valid":
+                    # Create row entry from invalid event
+                    new_row = {
+                        "date": e.get("date"),
+                        "ship": e.get("ship"),
+                        "occ_idx": e.get("occ_idx"),
+                        "raw": e.get("raw", ""),
+                        "is_inport": False,
+                        "inport_label": None,
+                        "is_mission": False,
+                        "label": None,
+                        "status": "valid",
+                        "status_reason": reason,
+                        "confidence": 1.0,
+                        "system_classification": e.get("system_classification", {}),
+                        "override": {
+                            "status": status,
+                            "reason": reason,
+                            "source": source,
+                            "history": [],
+                        },
+                        "final_classification": {
+                            "is_valid": True,
+                            "reason": reason,
+                            "source": "override",
+                        },
+                    }
+                    
+                    # Add to rows array
+                    sheet["rows"].append(new_row)
+                    
+                    # Remove from invalid_events array
+                    sheet["invalid_events"].pop(invalid_index)
 
     return review_state_member
