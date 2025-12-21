@@ -1,3 +1,9 @@
+# This module processes TORIS Sea Pay sheets by:
+# 1. Building date variants for OCR matching flexibility
+# 2. Marking duplicate/invalid rows with strikeout lines
+# 3. Correcting the "Total Sea Pay Days" number when needed
+# 4. Handling multi-line event entries and manual overrides
+
 import os
 import shutil
 from datetime import datetime
@@ -50,33 +56,32 @@ def _build_date_variants(date_str):
     return variants
 
 
-    # ------------------------------------------------
-    # STRIKEOUT ENGINE
-    # ------------------------------------------------
-    
-    def mark_sheet_with_strikeouts(
-        original_pdf,
-        skipped_duplicates,
-        skipped_unknown,
-        output_path,
-        extracted_total_days,
-        computed_total_days,
-        strike_color="black",
-        override_valid_rows=None,  # PATCH
-    ):
-    
-        """
-        Draws strikeout lines on the TORIS Sea Pay sheet for invalid/duplicate rows
-        and (optionally) corrects the 'Total Sea Pay Days' number.
-    
-        Args:
-            original_pdf: Path to original TORIS sheet.
-            skipped_duplicates: list of dicts with 'date' and 'occ_idx' for dupes.
-            skipped_unknown: list of dicts with 'date' and 'occ_idx' for invalid rows.
-            output_path: Where to write the marked PDF.
-            extracted_total_days: The number parsed from the TORIS text (may be None).
-            computed_total_days: The total valid sea pay days we computed from logic.
-            strike_color: 'black' or 'red' for strike lines.
+# ------------------------------------------------
+# STRIKEOUT ENGINE
+# ------------------------------------------------
+
+def mark_sheet_with_strikeouts(
+    original_pdf,
+    skipped_duplicates,
+    skipped_unknown,
+    output_path,
+    extracted_total_days,
+    computed_total_days,
+    strike_color="black",
+    override_valid_rows=None,  # PATCH
+):
+    """
+    Draws strikeout lines on the TORIS Sea Pay sheet for invalid/duplicate rows
+    and (optionally) corrects the 'Total Sea Pay Days' number.
+
+    Args:
+        original_pdf: Path to original TORIS sheet.
+        skipped_duplicates: list of dicts with 'date' and 'occ_idx' for dupes.
+        skipped_unknown: list of dicts with 'date' and 'occ_idx' for invalid rows.
+        output_path: Where to write the marked PDF.
+        extracted_total_days: The number parsed from the TORIS text (may be None).
+        computed_total_days: The total valid sea pay days we computed from logic.
+        strike_color: 'black' or 'red' for strike lines.
     """
 
     # ------------------------------------------------
@@ -199,6 +204,7 @@ def _build_date_variants(date_str):
                         break
 
             row_list.extend(tmp_rows)
+
         # ------------------------------------------------
         # PATCH: MERGE MULTI-LINE EVENTS INTO DATE ROWS (SEQUENTIAL)
         # ------------------------------------------------
@@ -327,7 +333,6 @@ def _build_date_variants(date_str):
         ]
         
         for row in row_list:
-        
             if row.get("override") is True:
                 log("SKIP AUTO-STRIKE (ROW HAS MANUAL OVERRIDE)")
                 continue
@@ -335,7 +340,6 @@ def _build_date_variants(date_str):
             text = row["text"]
         
             if any(marker in text for marker in INVALID_MARKERS):
-        
                 if row.get("date"):
                     target_date = row["date"]
                     target_y = row["y"]
@@ -472,67 +476,58 @@ def _build_date_variants(date_str):
                 buf.seek(0)
                 total_overlay = PdfReader(buf)
 
+        # ------------------------------------------------
+        # NORMAL STRIKEOUT LINES
+        # ------------------------------------------------
+        overlays = []
+        for p in range(len(pages)):
+            date_to_y = strike_targets_by_page.get(p)
+            if not date_to_y:
+                overlays.append(None)
+                continue
 
-            # ------------------------------------------------
-            # NORMAL STRIKEOUT LINES
-            # ------------------------------------------------
-            overlays = []
-            for p in range(len(pages)):
-                date_to_y = strike_targets_by_page.get(p)
-                if not date_to_y:
-                    overlays.append(None)
-                    continue
-    
-                buf = io.BytesIO()
-                c = canvas.Canvas(buf, pagesize=letter)
-                c.setLineWidth(0.8)
-                c.setStrokeColorRGB(*rgb)
-    
-                for date_str, y in date_to_y.items():
-                    c.line(40, y, 550, y)
-    
-                c.save()
-                buf.seek(0)
-                overlays.append(PdfReader(buf))
+            buf = io.BytesIO()
+            c = canvas.Canvas(buf, pagesize=letter)
+            c.setLineWidth(0.8)
+            c.setStrokeColorRGB(*rgb)
 
-            # ------------------------------------------------
-            # APPLY OVERLAYS
-            # ------------------------------------------------
-            reader = PdfReader(original_pdf)
-            writer = PdfWriter()
-    
-            for i, page in enumerate(reader.pages):
-                if total_overlay and total_row and i == total_row["page"]:
-                    page.merge_page(total_overlay.pages[0])
-    
-                if i < len(overlays) and overlays[i] is not None:
-                    page.merge_page(overlays[i].pages[0])
-    
-                try:
-                    page.compress_content_streams()
-                except Exception:
-                    pass
-    
-                writer.add_page(page)
-    
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            with open(output_path, "wb") as f:
-                writer.write(f)
-    
-            log(f"MARKED SHEET CREATED → {os.path.basename(output_path)}")
-    
-        except Exception as e:
-            log(f"⚠️ MARKING FAILED → {e}")
+            for date_str, y in date_to_y.items():
+                c.line(40, y, 550, y)
+
+            c.save()
+            buf.seek(0)
+            overlays.append(PdfReader(buf))
+
+        # ------------------------------------------------
+        # APPLY OVERLAYS
+        # ------------------------------------------------
+        reader = PdfReader(original_pdf)
+        writer = PdfWriter()
+
+        for i, page in enumerate(reader.pages):
+            if total_overlay and total_row and i == total_row["page"]:
+                page.merge_page(total_overlay.pages[0])
+
+            if i < len(overlays) and overlays[i] is not None:
+                page.merge_page(overlays[i].pages[0])
+
             try:
-                shutil.copy2(original_pdf, output_path)
-                log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
-            except Exception as e2:
-                log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+                page.compress_content_streams()
+            except Exception:
+                pass
 
+            writer.add_page(page)
 
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, "wb") as f:
+            writer.write(f)
 
+        log(f"MARKED SHEET CREATED → {os.path.basename(output_path)}")
 
-
-
-
-
+    except Exception as e:
+        log(f"⚠️ MARKING FAILED → {e}")
+        try:
+            shutil.copy2(original_pdf, output_path)
+            log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
+        except Exception as e2:
+            log(f"⚠️ FALLBACK COPY FAILED → {e2}")
