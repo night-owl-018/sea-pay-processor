@@ -555,12 +555,22 @@ def rebuild_outputs_from_review():
             # Only keep invalid events (force-valid ones already moved to rows)
             for e in sheet.get("invalid_events", []):
                 if not e.get("final_classification", {}).get("is_valid"):
-                    final_invalid_events.append({
+                    invalid_entry = {
                         "date": e.get("date"),
                         "ship": e.get("ship"),
                         "occ_idx": e.get("occ_idx"),
-                        "reason": e.get("final_classification", {}).get("reason"),
-                    })
+                        "raw": e.get("raw", ""),
+                        "reason": e.get("reason", ""),
+                        "category": e.get("category", ""),
+                    }
+                    final_invalid_events.append(invalid_entry)
+                    
+                    # PATCH: Populate summary data invalid lists for summary txt/pdf
+                    category = e.get("category", "")
+                    if category == "duplicate" or "duplicate" in e.get("reason", "").lower():
+                        summary_data[member_key]["skipped_dupe"].append(invalid_entry)
+                    else:
+                        summary_data[member_key]["skipped_unknown"].append(invalid_entry)
 
             # =============================
             # REBUILD PERIODS (FINAL VALID)
