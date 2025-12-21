@@ -46,6 +46,39 @@ def _parse_any_date(val):
 
 
 # ------------------------------------------------
+# PATCH: EXTRACT REPORTING PERIOD
+# ------------------------------------------------
+def _extract_reporting_period(info):
+    """
+    Extract the earliest and latest reporting period dates from sheets.
+    Returns tuple: (from_date_str, to_date_str) or (None, None)
+    """
+    reporting_periods = info.get("reporting_periods") or []
+    
+    if not reporting_periods:
+        return None, None
+    
+    all_starts = []
+    all_ends = []
+    
+    for rp in reporting_periods:
+        start = _parse_any_date(rp.get("start"))
+        end = _parse_any_date(rp.get("end"))
+        if start:
+            all_starts.append(start)
+        if end:
+            all_ends.append(end)
+    
+    if not all_starts or not all_ends:
+        return None, None
+    
+    earliest = min(all_starts)
+    latest = max(all_ends)
+    
+    return _fmt_mdY(earliest), _fmt_mdY(latest)
+
+
+# ------------------------------------------------
 # SUMMARY WRITER
 # ------------------------------------------------
 
@@ -58,6 +91,8 @@ def write_summary_files(summary_data):
         'tracker_lines' → uses those EXACTLY (Option C).
       • Otherwise builds them from 'periods', 'skipped_dupe', 'skipped_unknown'
         (Option 1 fallback).
+    
+    PATCH: Adds reporting period section to all outputs
     """
 
     os.makedirs(SUMMARY_TXT_FOLDER, exist_ok=True)
@@ -70,6 +105,12 @@ def write_summary_files(summary_data):
         last = (info.get("last") or "UNKNOWN").strip()
         first = (info.get("first") or "").strip()
         rate = (info.get("rate") or "UNKNOWN").strip()
+
+        # PATCH: Extract reporting period
+        from_date, to_date = _extract_reporting_period(info)
+        reporting_period_str = None
+        if from_date and to_date:
+            reporting_period_str = f"{from_date} - {to_date}"
 
         # ----------------------------------------
         # 1. Try to use precomputed lists (Option C)
@@ -179,10 +220,19 @@ def write_summary_files(summary_data):
 
         # ----------------------------------------
         # 3. BUILD SUMMARY TEXT
+        # PATCH: Add reporting period header
         # ----------------------------------------
         header = []
         header.append(f"{rate} {last}".upper())
         header.append("")
+        
+        # PATCH: Add reporting period section
+        if reporting_period_str:
+            header.append("=" * 60)
+            header.append(f"REPORTING PERIOD: {reporting_period_str}")
+            header.append("=" * 60)
+            header.append("")
+        
         header.append("VALID SEA PAY PERIODS (PAY AUTHORIZED):")
         header.append("")
 
@@ -231,6 +281,7 @@ def write_summary_files(summary_data):
 
         # ----------------------------------------
         # 5. WRITE SUMMARY PDF (simple 1+ page text)
+        # PATCH: Add reporting period header
         # ----------------------------------------
         pdf_path = os.path.join(SUMMARY_PDF_FOLDER, f"{filename_base}_SUMMARY.pdf")
         c = canvas.Canvas(pdf_path, pagesize=letter)
@@ -251,13 +302,23 @@ def write_summary_files(summary_data):
 
     # ----------------------------------------
     # 6. GLOBAL TRACKER FILE
+    # PATCH: Add professional header
     # ----------------------------------------
     if tracker_agg_lines:
         tracker_path = os.path.join(TRACKER_FOLDER, "SEA_PAY_TRACKER.txt")
         with open(tracker_path, "w", encoding="utf-8") as f:
-            f.write("RATE LAST, FIRST | SHIP | PERIOD / DATE | STATUS\n\n")
+            f.write("=" * 100 + "\n")
+            f.write(" " * 30 + "SEA PAY TRACKER - OFFICIAL RECORD\n")
+            f.write("=" * 100 + "\n")
+            f.write(f"Generated: {datetime.now().strftime('%m/%d/%Y %H:%M:%S')}\n")
+            f.write("=" * 100 + "\n\n")
+            f.write("RATE LAST, FIRST | SHIP | PERIOD / DATE | STATUS\n")
+            f.write("-" * 100 + "\n")
             for line in tracker_agg_lines:
                 f.write(line + "\n")
+            f.write("\n" + "=" * 100 + "\n")
+            f.write(f"Total Entries: {len(tracker_agg_lines)}\n")
+            f.write("=" * 100 + "\n")
         log(f"TRACKER WRITTEN → {tracker_path}")
     else:
         log("TRACKER EMPTY → no tracker lines generated")
