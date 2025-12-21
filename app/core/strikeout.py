@@ -50,33 +50,33 @@ def _build_date_variants(date_str):
     return variants
 
 
-# ------------------------------------------------
-# STRIKEOUT ENGINE
-# ------------------------------------------------
-
-def mark_sheet_with_strikeouts(
-    original_pdf,
-    skipped_duplicates,
-    skipped_unknown,
-    output_path,
-    extracted_total_days,
-    computed_total_days,
-    strike_color="black",
-    override_valid_rows=None,  # PATCH
-):
-
-    """
-    Draws strikeout lines on the TORIS Sea Pay sheet for invalid/duplicate rows
-    and (optionally) corrects the 'Total Sea Pay Days' number.
-
-    Args:
-        original_pdf: Path to original TORIS sheet.
-        skipped_duplicates: list of dicts with 'date' and 'occ_idx' for dupes.
-        skipped_unknown: list of dicts with 'date' and 'occ_idx' for invalid rows.
-        output_path: Where to write the marked PDF.
-        extracted_total_days: The number parsed from the TORIS text (may be None).
-        computed_total_days: The total valid sea pay days we computed from logic.
-        strike_color: 'black' or 'red' for strike lines.
+    # ------------------------------------------------
+    # STRIKEOUT ENGINE
+    # ------------------------------------------------
+    
+    def mark_sheet_with_strikeouts(
+        original_pdf,
+        skipped_duplicates,
+        skipped_unknown,
+        output_path,
+        extracted_total_days,
+        computed_total_days,
+        strike_color="black",
+        override_valid_rows=None,  # PATCH
+    ):
+    
+        """
+        Draws strikeout lines on the TORIS Sea Pay sheet for invalid/duplicate rows
+        and (optionally) corrects the 'Total Sea Pay Days' number.
+    
+        Args:
+            original_pdf: Path to original TORIS sheet.
+            skipped_duplicates: list of dicts with 'date' and 'occ_idx' for dupes.
+            skipped_unknown: list of dicts with 'date' and 'occ_idx' for invalid rows.
+            output_path: Where to write the marked PDF.
+            extracted_total_days: The number parsed from the TORIS text (may be None).
+            computed_total_days: The total valid sea pay days we computed from logic.
+            strike_color: 'black' or 'red' for strike lines.
     """
 
     # ------------------------------------------------
@@ -528,6 +528,7 @@ def mark_sheet_with_strikeouts(
                 log(f"FALLBACK COPY CREATED → {os.path.basename(original_pdf)}")
             except Exception as e2:
                 log(f"⚠️ FALLBACK COPY FAILED → {e2}")
+
 
 
 
