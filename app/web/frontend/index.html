@@ -5,135 +5,548 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>ATGSD Sea Pay Processor</title>
   <style>
-    :root{--navy:#0b4c6b;--border:#d9d9d9;--bg:#f6f7f9;--panel:#fff;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
-    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:#111;}
-    header{background:var(--navy);color:#fff;padding:14px 18px;font-weight:700;}
-    .wrap{padding:16px 18px;}
-    .grid{display:grid;grid-template-columns:380px 1fr;gap:18px;align-items:start;}
-    .card{background:var(--panel);border:1px solid var(--border);border-radius:4px;}
-    .card h3{margin:0;padding:10px 12px;border-bottom:1px solid var(--border);font-size:13px;letter-spacing:.02em;}
-    .card .body{padding:12px;}
-    label{display:block;font-size:12px;margin:10px 0 6px;}
-    input[type=file], select{width:100%;}
-    button{width:100%;padding:9px 10px;border:1px solid #1a4f6b;background:var(--navy);color:#fff;border-radius:2px;font-weight:700;cursor:pointer;}
-    button.secondary{background:#fff;color:#111;border:1px solid var(--border);font-weight:600;}
-    button.danger{background:#b00000;border-color:#8a0000;}
-    .stack > * + *{margin-top:10px;}
-    .status{font-size:13px;}
-    .logbox{height:260px;overflow:auto;background:#000;color:#35ff57;font-family:var(--mono);font-size:12px;line-height:1.35;padding:10px;white-space:pre;}
-    .review-controls{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px;}
-    .review-controls select{height:32px;}
-    table{width:100%;border-collapse:collapse;font-size:12px;}
-    th,td{border:1px solid var(--border);padding:6px 8px;vertical-align:middle;}
-    th{background:#eee;text-align:left;}
-    tr.valid{background:#eaffea;}
-    tr.invalid{background:#ffecec;}
-    .override-cell{min-width:240px;}
-    .override-wrap{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-    .override-wrap select{width:150px;height:28px;}
-    .override-wrap input{flex:1;min-width:160px;height:26px;padding:0 6px;}
-    .small{font-size:12px;color:#444;}
-    footer{padding:10px;text-align:center;color:#777;font-size:11px;}
+    :root {
+      --navy-dark: #0a3854;
+      --navy: #0e5578;
+      --navy-light: #1a7ba8;
+      --accent: #00d4ff;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --border: #e5e7eb;
+      --bg: #f9fafb;
+      --panel: #ffffff;
+      --text-primary: #111827;
+      --text-secondary: #6b7280;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+      --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    /* Header */
+    header {
+      background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 100%);
+      color: white;
+      padding: 20px 24px;
+      box-shadow: var(--shadow-lg);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+
+    header .subtitle {
+      font-size: 13px;
+      opacity: 0.9;
+      margin-top: 2px;
+    }
+
+    /* Layout */
+    .wrap {
+      max-width: 1800px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 1200px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .stack > * + * {
+      margin-top: 16px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+
+    .card:hover {
+      box-shadow: var(--shadow);
+    }
+
+    .card h3 {
+      margin: 0;
+      padding: 16px 20px;
+      background: linear-gradient(to right, #f8fafc 0%, #ffffff 100%);
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.025em;
+      color: var(--navy);
+      text-transform: uppercase;
+    }
+
+    .card .body {
+      padding: 20px;
+    }
+
+    /* Form Elements */
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+
+    input[type=file],
+    select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      background: white;
+      transition: all 0.2s ease;
+    }
+
+    input[type=file]:hover,
+    select:hover {
+      border-color: var(--navy-light);
+    }
+
+    input[type=file]:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--navy);
+      box-shadow: 0 0 0 3px rgba(14, 85, 120, 0.1);
+    }
+
+    input[type=text] {
+      padding: 8px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      transition: all 0.2s ease;
+    }
+
+    input[type=text]:focus {
+      outline: none;
+      border-color: var(--navy);
+      box-shadow: 0 0 0 3px rgba(14, 85, 120, 0.1);
+    }
+
+    /* Buttons */
+    button {
+      width: 100%;
+      padding: 12px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    button:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow);
+    }
+
+    button:not(:disabled):active {
+      transform: translateY(0);
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+      color: white;
+    }
+
+    button.secondary {
+      background: white;
+      color: var(--text-primary);
+      border: 1.5px solid var(--border);
+    }
+
+    button.secondary:hover {
+      background: var(--bg);
+      border-color: var(--navy);
+    }
+
+    button.danger {
+      background: linear-gradient(135deg, #dc2626 0%, var(--danger) 100%);
+      color: white;
+    }
+
+    button.success {
+      background: linear-gradient(135deg, #059669 0%, var(--success) 100%);
+      color: white;
+    }
+
+    /* Status Badge */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+    }
+
+    .status::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Log Box */
+    .logbox {
+      height: 320px;
+      overflow: auto;
+      background: #0f172a;
+      color: #10b981;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.5;
+      padding: 16px;
+      border-radius: 8px;
+      white-space: pre;
+      box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.3);
+    }
+
+    .logbox::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .logbox::-webkit-scrollbar-track {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+
+    .logbox::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+
+    .logbox::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    /* Review Controls */
+    .review-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .review-controls select {
+      height: 44px;
+    }
+
+    /* Tables */
+    .table-container {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin-top: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 700;
+      color: var(--navy);
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      position: sticky;
+      top: 0;
+    }
+
+    tr.valid {
+      background: #f0fdf4;
+    }
+
+    tr.invalid {
+      background: #fef2f2;
+    }
+
+    tr:hover {
+      background: #f9fafb;
+    }
+
+    tr.valid:hover {
+      background: #dcfce7;
+    }
+
+    tr.invalid:hover {
+      background: #fee2e2;
+    }
+
+    .override-wrap {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .override-wrap select {
+      width: 140px;
+      height: 36px;
+      font-size: 13px;
+    }
+
+    .override-wrap input {
+      flex: 1;
+      min-width: 180px;
+      height: 36px;
+    }
+
+    /* Section Headers */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 13px;
+      margin: 20px 0 8px;
+      color: var(--navy);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .section-header::before {
+      content: '';
+      width: 4px;
+      height: 16px;
+      background: var(--navy);
+      border-radius: 2px;
+    }
+
+    /* Hint Text */
+    .hint {
+      font-size: 13px;
+      color: var(--text-secondary);
+      padding: 12px 16px;
+      background: var(--bg);
+      border-radius: 8px;
+      border: 1px dashed var(--border);
+      text-align: center;
+    }
+
+    .small {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 8px;
+    }
+
+    /* Footer */
+    footer {
+      padding: 24px;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 12px;
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+      background: white;
+    }
+
+    footer strong {
+      color: var(--navy);
+    }
+
+    /* Action Buttons Container */
+    .action-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    /* Utility */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 16px 0;
+    }
   </style>
 </head>
 <body>
-<header>ATGSD Sea Pay Processor</header>
+<header>
+  <h1>⚓ ATGSD Sea Pay Processor</h1>
+  <div class="subtitle">Automated Sea Duty Certification & PG-13 Generation System</div>
+</header>
 
 <div class="wrap">
   <div class="grid">
+    <!-- Left Sidebar -->
     <div class="stack">
+      <!-- Input Card -->
       <div class="card">
-        <h3>INPUT</h3>
+        <h3>📂 Input Files</h3>
         <div class="body">
           <form id="processForm" class="stack">
             <div>
-              <label>SEA DUTY CERTIFICATION SHEETS (PDF)</label>
+              <label>Sea Duty Certification Sheets (PDF)</label>
               <input id="pdfs" name="pdfs" type="file" accept="application/pdf" multiple required>
             </div>
 
             <div>
-              <label>RATE CSV</label>
+              <label>Rate CSV (Optional)</label>
               <input id="ratesCsv" name="rates_csv" type="file" accept=".csv">
             </div>
 
             <div>
-              <label>NAVPERS 1070/613 TEMPLATE</label>
+              <label>NAVPERS 1070/613 Template (Optional)</label>
               <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf">
             </div>
 
             <div>
               <label>Strikeout Color</label>
               <select id="strikeColor" name="strikeout_color">
-                <option value="Black" selected>Black</option>
-                <option value="Red">Red</option>
+                <option value="Black" selected>⚫ Black</option>
+                <option value="Red">🔴 Red</option>
               </select>
             </div>
 
-            <button type="submit" id="processBtn">PROCESS</button>
+            <button type="submit" id="processBtn" class="primary">
+              ▶️ Process Files
+            </button>
           </form>
         </div>
       </div>
 
+      <!-- Status Card -->
       <div class="card">
-        <h3>STATUS</h3>
+        <h3>📊 Status</h3>
         <div class="body">
           <div class="status" id="statusText">Idle</div>
         </div>
       </div>
 
+      <!-- Downloads Card -->
       <div class="card">
-        <h3>DOWNLOADS</h3>
-        <div class="body">
-          <button class="secondary" type="button" id="btnMerged">Merged Package</button>
-          <button class="secondary" type="button" id="btnAll" style="margin-top:8px;">Download All</button>
-          <div class="small" style="margin-top:8px;">(If a download is empty, run PROCESS first.)</div>
+        <h3>⬇️ Downloads</h3>
+        <div class="body stack">
+          <button class="secondary" type="button" id="btnMerged">
+            📦 Merged Package
+          </button>
+          <button class="secondary" type="button" id="btnAll">
+            📥 Download All Outputs
+          </button>
+          <div class="small">💡 Run PROCESS first if downloads are empty</div>
         </div>
       </div>
 
+      <!-- Reset Card -->
       <div class="card">
+        <h3>🔄 System</h3>
         <div class="body">
-          <button class="danger" type="button" id="btnReset">RESET ALL</button>
+          <button class="danger" type="button" id="btnReset">
+            🗑️ Reset All Data
+          </button>
         </div>
       </div>
     </div>
 
+    <!-- Main Content Area -->
     <div class="stack">
+      <!-- Live Log Card -->
       <div class="card">
-        <h3>LIVE LOG</h3>
+        <h3>📜 Live Processing Log</h3>
         <div class="body">
           <div id="liveLog" class="logbox"></div>
         </div>
       </div>
 
+      <!-- Review & Override Card -->
       <div class="card">
-        <h3>REVIEW &amp; OVERRIDE</h3>
+        <h3>✏️ Review & Override</h3>
         <div class="body">
           <div class="review-controls">
             <div>
-              <label>Member</label>
+              <label>👤 Member</label>
               <select id="memberSelect">
                 <option value="">Select member</option>
               </select>
             </div>
             <div>
-              <label>Sheet</label>
+              <label>📄 Sheet</label>
               <select id="sheetSelect" disabled>
                 <option value="">Select sheet</option>
               </select>
             </div>
           </div>
 
-          <div class="small" id="reviewHint">Pick a member and a sheet to edit auto results.</div>
+          <div class="hint" id="reviewHint">
+            👆 Select a member and sheet to review and override validation results
+          </div>
 
-          <div style="margin-top:10px;">
-            <div style="font-weight:700;font-size:12px;margin:6px 0;">Valid Rows</div>
+          <!-- Valid Rows Table -->
+          <div class="section-header">✅ Valid Rows</div>
+          <div class="table-container">
             <table>
               <thead>
                 <tr>
                   <th style="width:110px;">Date</th>
-                  <th style="width:220px;">Ship</th>
-                  <th style="width:110px;">Final</th>
-                  <th class="override-cell">Override</th>
+                  <th style="width:180px;">Ship</th>
+                  <th style="width:90px;">Status</th>
+                  <th style="min-width:320px;">Override</th>
                   <th>Reason</th>
                 </tr>
               </thead>
@@ -141,48 +554,47 @@
             </table>
           </div>
 
-          <div style="margin-top:12px;">
-            <div style="font-weight:700;font-size:12px;margin:6px 0;">Invalid Events</div>
+          <!-- Invalid Events Table -->
+          <div class="section-header">❌ Invalid Events</div>
+          <div class="table-container">
             <table>
               <thead>
                 <tr>
                   <th style="width:110px;">Date</th>
-                  <th style="width:220px;">Ship</th>
-                  <th style="width:110px;">Final</th>
-                  <th class="override-cell">Override</th>
+                  <th style="width:180px;">Ship</th>
+                  <th style="width:90px;">Status</th>
+                  <th style="min-width:320px;">Override</th>
                   <th>Reason</th>
                 </tr>
               </thead>
               <tbody id="invalidBody"></tbody>
             </table>
           </div>
-          
-          <!-- PATCH: explicit Save button (does not change layout, just adds button) -->
-          <div style="margin-top: 10px; text-align: right;">
-            <button id="saveOverridesBtn" type="button" onclick="saveOverrides()">
-              Save Overrides
+
+          <!-- Action Buttons -->
+          <div class="action-buttons">
+            <button id="saveOverridesBtn" type="button" class="success" onclick="saveOverrides()">
+              💾 Save Overrides
+            </button>
+            <button class="primary" type="button" onclick="rebuildOutputs()">
+              🔄 Rebuild Outputs
             </button>
           </div>
-          <div style="margin-top: 6px; text-align: right;">
-            <button class="secondary" type="button" onclick="rebuildOutputs()">
-              Rebuild Outputs
-            </button>
-            
-          </div>
-      <footer>STG1(SW) Nivera, Ryan | ATGSD Sea Pay Processor</footer>
+        </div>
+      </div>
     </div>
   </div>
 </div>
+
+<footer>
+  Developed by <strong>STG1(SW) Nivera, Ryan</strong> | ATGSD Sea Pay Processor © 2025
+</footer>
 
 <script>
   const $ = (id) => document.getElementById(id);
   
   let lastStatus = null;
-
-  // PATCH: queue overrides locally until user hits Save
-  // key format: memberKey|sheetFile|eventIndex
   let pendingOverrides = {};
-  // END PATCH
 
   function safeText(v) {
     if (v === null || v === undefined) return "";
@@ -230,7 +642,6 @@
     return await r.json();
   }
 
-  // ----- LIVE LOG -----
   async function pollProgress() {
     try {
       const data = await jget("/progress");
@@ -238,7 +649,6 @@
       const status = pick(data, ["status","state","message"], "Idle");
       const log = pick(data, ["log","lines","text"], "");
 
-      // Detect transition to COMPLETE and refresh Review list once
       if (status === "COMPLETE" && lastStatus !== "COMPLETE") {
         refreshReviewLists();
       }
@@ -252,25 +662,17 @@
 
       if (typeof log === "string") {
         const logBox = $("liveLog");
-      
-        // Check if user is already at the bottom
-        const isAtBottom =
-          logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
-      
+        const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
         logBox.textContent = log;
-      
-        // Only auto-scroll if user was already at the bottom
         if (isAtBottom) {
           logBox.scrollTop = logBox.scrollHeight;
         }
       }
-
     } catch (e) {}
   }
   setInterval(pollProgress, 1000);
   pollProgress();
 
-  // ----- PROCESS -----
   $("processForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData();
@@ -291,39 +693,30 @@
     }
   });
 
-  // ----- DOWNLOADS -----
   $("btnMerged").addEventListener("click", () => { window.location = "/download_merged"; });
   $("btnAll").addEventListener("click", () => { window.location = "/download_all"; });
 
-  // ----- RESET -----
   $("btnReset").addEventListener("click", async () => {
-    if (!confirm("Reset all output and overrides?")) return;
+    if (!confirm("⚠️ Reset all output and overrides? This cannot be undone.")) return;
     try {
       const r = await fetch("/reset", {method:"POST"});
       if (!r.ok) throw new Error("Reset failed: " + r.status);
       
-      // Clear form inputs
       $("processForm").reset();
-      
-      // Clear review UI
       $("memberSelect").innerHTML = '<option value="">Select member</option>';
       $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
       $("sheetSelect").disabled = true;
       $("validBody").innerHTML = "";
       $("invalidBody").innerHTML = "";
-      $("reviewHint").textContent = "Pick a member and a sheet to edit auto results.";
-
-      // PATCH: also clear queued overrides
+      $("reviewHint").textContent = "👆 Select a member and sheet to review and override validation results";
       pendingOverrides = {};
-      // END PATCH
       
-      alert("Reset complete!");
+      alert("✅ Reset complete!");
     } catch (err) {
       alert(err.message || String(err));
     }
   });
 
-  // ----- REVIEW & OVERRIDE (Option A: Navy-proof) -----
   async function refreshReviewLists() {
     try {
       const members = await jget("/api/members");
@@ -364,9 +757,9 @@
 
     const sel = document.createElement("select");
     const options = [
-      {v:"", t:"Auto"},
-      {v:"valid", t:"Force Valid"},
-      {v:"invalid", t:"Force Invalid"},
+      {v:"", t:"🔄 Auto"},
+      {v:"valid", t:"✅ Force Valid"},
+      {v:"invalid", t:"❌ Force Invalid"},
     ];
     for (const o of options) {
       const opt = document.createElement("option");
@@ -381,7 +774,6 @@
     reason.placeholder = "Reason (optional)";
     reason.value = currentReason || "";
 
-    // PATCH: queue changes locally (do NOT auto-save)
     const queue = () => {
       const key = memberKey + "|" + sheetFile + "|" + String(eventIndex);
       pendingOverrides[key] = {
@@ -396,7 +788,6 @@
 
     sel.addEventListener("change", queue);
     reason.addEventListener("input", queue);
-    // END PATCH
 
     wrap.appendChild(sel);
     wrap.appendChild(reason);
@@ -421,7 +812,6 @@
       const ovReason = pick(ov || row, ["reason","override_reason"], "");
       const source = pick(ov || row, ["source","override_source"], "");
       
-      // Use negative index for invalid events
       let eventIndex = pick(row, ["event_index","index","i"], null);
       if (eventIndex === null) {
         eventIndex = (rowClass === "invalid") ? -(idx + 1) : idx;
@@ -432,7 +822,6 @@
       const tdFinal = document.createElement("td"); tdFinal.textContent = safeText(final);
 
       const tdOverride = document.createElement("td");
-      tdOverride.className = "override-cell";
       tdOverride.appendChild(buildOverrideControl(memberKey, sheetFile, eventIndex, ovStatus, ovReason, source));
 
       const tdReason = document.createElement("td"); tdReason.textContent = safeText(reason);
@@ -457,24 +846,19 @@
     renderRows($("invalidBody"), invalidRows, memberKey, sheetFile, "invalid");
   }
 
-  // PATCH: Save button action (commit all queued overrides)
   async function saveOverrides() {
     try {
       const keys = Object.keys(pendingOverrides);
       if (keys.length === 0) {
-        alert("No changes to save.");
+        alert("ℹ️ No changes to save.");
         return;
       }
-  // END PATCH
 
-      // Commit each queued change
       for (const k of keys) {
         const payload = pendingOverrides[k];
-
         const st = payload.status;
         const rsn = (payload.reason || "").trim();
 
-        // If user set Auto and blank reason => clear override
         if ((st === null || st === "") && rsn === "") {
           await jdel("/api/override", {
             member_key: payload.member_key,
@@ -493,33 +877,25 @@
         }
       }
 
-      // Clear queue after save
       pendingOverrides = {};
-
-      // Reload current sheet to reflect server-side changes
       await loadSheet($("memberSelect").value, $("sheetSelect").value);
-
-      alert("Overrides saved.");
+      alert("✅ Overrides saved successfully!");
     } catch (e) {
-      alert(e.message || String(e));
+      alert("❌ " + (e.message || String(e)));
     }
   }
-  // END PATCH
 
-  // PATCH: Rebuild Outputs button action (TOP LEVEL)
   async function rebuildOutputs() {
-    if (!confirm("Rebuild outputs using current overrides?")) return;
+    if (!confirm("🔄 Rebuild all outputs using current overrides?")) return;
 
     try {
       const r = await fetch("/rebuild_outputs", { method: "POST" });
       if (!r.ok) throw new Error("Rebuild failed");
-
-      alert("Rebuild started. Watch LIVE LOG for progress.");
+      alert("✅ Rebuild started. Check the live log for progress.");
     } catch (e) {
-      alert(e.message || String(e));
+      alert("❌ " + (e.message || String(e)));
     }
   }
-  // END PATCH
   
   $("memberSelect").addEventListener("change", async () => {
     await loadSheetsForMember($("memberSelect").value);
