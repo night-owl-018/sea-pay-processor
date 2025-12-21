@@ -251,9 +251,20 @@
       }
 
       if (typeof log === "string") {
-        $("liveLog").textContent = log;
-        $("liveLog").scrollTop = $("liveLog").scrollHeight;
+        const logBox = $("liveLog");
+      
+        // Check if user is already at the bottom
+        const isAtBottom =
+          logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
+      
+        logBox.textContent = log;
+      
+        // Only auto-scroll if user was already at the bottom
+        if (isAtBottom) {
+          logBox.scrollTop = logBox.scrollHeight;
+        }
       }
+
     } catch (e) {}
   }
   setInterval(pollProgress, 1000);
