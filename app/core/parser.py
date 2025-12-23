@@ -48,22 +48,24 @@ def detect_inport_label(raw, upper):
 
 
 # ----------------------------------------------------------
-# MAIN TORIS PARSER (SBTT/MITE suppression included)
+# MAIN TORIS PARSER (SBTT/MITE as invalid entries, not suppressors)
 # ----------------------------------------------------------
 def parse_rows(text, year):
     """
     TORIS Sea Duty parser, enriched for UI / JSON review state.
 
-    Behavior stays EXACTLY the same as your original:
-      - If SBTT/MITE present → entire date invalid
-      - Mission priority for multi-ship days
-      - Duplicates marked accordingly
-      - Unknowns stay invalid
+    PATCH: MITE/SBTT are now treated as invalid entries on a date,
+    not as suppressors of the entire date. Valid ships still go through
+    normal duplicate/mission priority logic.
+    
+    Behavior:
+      - MITE/SBTT → added to skipped_unknown as invalid entries
+      - Valid ships → normal mission priority + duplicate detection
+      - Unknowns → stay invalid
     
     NEW (Phase 2):
       - rows now carry: raw, is_inport, inport_label, is_mission, label
       - skipped_unknown rows carry raw text
-      - no other logic changed
     """
 
     rows = []
@@ -129,10 +131,10 @@ def parse_rows(text, year):
 
     # --------------------------------------------------
     # PASS 2 – Per-date evaluation
+    # PATCH: MITE/SBTT are invalid entries, not date suppressors
     # --------------------------------------------------
     for date in date_order:
         entries = per_date_entries[date]
-        inport_variant = None
         occ = 0
 
         # First scan – detect labels, classify ships
@@ -148,54 +150,34 @@ def parse_rows(text, year):
             if label:
                 e["is_inport"] = True
                 e["inport_label"] = label
-                if inport_variant is None or len(label) > len(inport_variant):
-                    inport_variant = label
+                e["kind"] = "inport"  # Mark as inport training
             else:
                 e["is_inport"] = False
-
-            # Only compute ship for non-inport entries
-            if not e["is_inport"]:
+                # Compute ship for non-inport entries
                 ship = match_ship(raw)
                 e["ship"] = ship
                 e["kind"] = "valid" if ship else "unknown"
 
         # ------------------------------------------------------
-        # CASE 1: SHORE-SIDE SBTT/MITE SUPPRESSION
+        # PATCH: Add MITE/SBTT to skipped_unknown (don't suppress date)
         # ------------------------------------------------------
-        if inport_variant:
-            for e in entries:
-                raw = e["raw"]
-                occ_idx = e["occ_idx"]
-
-                if e["is_inport"]:
-                    skipped_unknown.append({
-                        "date": date,
-                        "raw": raw,
-                        "occ_idx": occ_idx,
-                        "ship": e["inport_label"],
-                        "reason": f"In-Port Shore Side Event ({e['inport_label']})",
-                    })
-                    continue
-
-                ship = e["ship"] or "UNK"
-                base = "Unknown or Non-Platform Event" if e["kind"] == "unknown" else "Suppressed by In-Port Shore Side Event"
-
+        for e in entries:
+            if e["kind"] == "inport":
                 skipped_unknown.append({
                     "date": date,
-                    "raw": raw,
-                    "occ_idx": occ_idx,
-                    "ship": ship,
-                    "reason": f"{base} ({inport_variant})",
+                    "raw": e["raw"],
+                    "occ_idx": e["occ_idx"],
+                    "ship": e["inport_label"],
+                    "reason": f"In-Port Shore Side Event ({e['inport_label']})",
                 })
 
-            continue  # no valid rows for this date
-
         # ------------------------------------------------------
-        # CASE 2: NORMAL NON-TRAINING DAY BEHAVIOR
+        # NORMAL VALID SHIP PROCESSING (mission priority + duplicates)
         # ------------------------------------------------------
         valids = [e for e in entries if e["kind"] == "valid"]
 
         if not valids:
+            # Only unknowns (no valid ships)
             for e in entries:
                 if e["kind"] == "unknown":
                     skipped_unknown.append({
@@ -221,11 +203,11 @@ def parse_rows(text, year):
             "date": date,
             "ship": kept["ship"],
             "occ_idx": kept["occ_idx"],
-            "raw": kept["raw"],                # NEW
-            "is_inport": False,                # NEW (kept rows are never in-port)
-            "inport_label": None,              # NEW
-            "is_mission": is_mission(kept),    # NEW
-            "label": None,                     # NEW
+            "raw": kept["raw"],
+            "is_inport": False,
+            "inport_label": None,
+            "is_mission": is_mission(kept),
+            "label": None,
         })
 
         # remaining valids → duplicates
