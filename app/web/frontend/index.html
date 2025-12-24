@@ -34,7 +34,6 @@
       line-height: 1.5;
     }
 
-    /* Header */
     header {
       background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 100%);
       color: white;
@@ -59,7 +58,6 @@
       margin-top: 2px;
     }
 
-    /* Layout */
     .wrap {
       max-width: 1800px;
       margin: 0 auto;
@@ -83,7 +81,6 @@
       margin-top: 16px;
     }
 
-    /* Cards */
     .card {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -113,7 +110,6 @@
       padding: 20px;
     }
 
-    /* Form Elements */
     label {
       display: block;
       font-size: 13px;
@@ -159,7 +155,6 @@
       box-shadow: 0 0 0 3px rgba(14, 85, 120, 0.1);
     }
 
-    /* Buttons */
     button {
       width: 100%;
       padding: 12px 16px;
@@ -215,7 +210,6 @@
       color: white;
     }
 
-    /* Status Badge */
     .status {
       display: inline-flex;
       align-items: center;
@@ -242,7 +236,6 @@
       50% { opacity: 0.5; }
     }
 
-    /* Log Box */
     .logbox {
       height: 320px;
       overflow: auto;
@@ -275,7 +268,6 @@
       background: #475569;
     }
 
-    /* Review Controls */
     .review-controls {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -287,7 +279,6 @@
       height: 44px;
     }
 
-    /* Tables */
     .table-container {
       overflow-x: auto;
       border-radius: 8px;
@@ -357,7 +348,6 @@
       height: 36px;
     }
 
-    /* Section Headers */
     .section-header {
       display: flex;
       align-items: center;
@@ -378,7 +368,6 @@
       border-radius: 2px;
     }
 
-    /* Hint Text */
     .hint {
       font-size: 13px;
       color: var(--text-secondary);
@@ -395,7 +384,6 @@
       margin-top: 8px;
     }
 
-    /* Footer */
     footer {
       padding: 24px;
       text-align: center;
@@ -406,11 +394,18 @@
       background: white;
     }
 
-    footer strong {
+    footer a {
       color: var(--navy);
+      text-decoration: none;
+      font-weight: 700;
+      border-bottom: 2px solid transparent;
+      transition: border-color 0.2s ease;
     }
 
-    /* Action Buttons Container */
+    footer a:hover {
+      border-bottom-color: var(--navy);
+    }
+
     .action-buttons {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -418,7 +413,6 @@
       margin-top: 16px;
     }
 
-    /* Utility */
     .divider {
       height: 1px;
       background: var(--border);
@@ -434,9 +428,7 @@
 
 <div class="wrap">
   <div class="grid">
-    <!-- Left Sidebar -->
     <div class="stack">
-      <!-- Input Card -->
       <div class="card">
         <h3>📂 Input Files</h3>
         <div class="body">
@@ -445,17 +437,14 @@
               <label>Sea Duty Certification Sheets (PDF)</label>
               <input id="pdfs" name="pdfs" type="file" accept="application/pdf" multiple required>
             </div>
-
             <div>
               <label>Rate CSV (Optional)</label>
               <input id="ratesCsv" name="rates_csv" type="file" accept=".csv">
             </div>
-
             <div>
               <label>NAVPERS 1070/613 Template (Optional)</label>
               <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf">
             </div>
-
             <div>
               <label>Strikeout Color</label>
               <select id="strikeColor" name="strikeout_color">
@@ -463,50 +452,33 @@
                 <option value="Red">🔴 Red</option>
               </select>
             </div>
-
-            <button type="submit" id="processBtn" class="primary">
-              ▶️ Process Files
-            </button>
+            <button type="submit" id="processBtn" class="primary">▶️ Process Files</button>
           </form>
         </div>
       </div>
-
-      <!-- Status Card -->
       <div class="card">
         <h3>📊 Status</h3>
         <div class="body">
           <div class="status" id="statusText">Idle</div>
         </div>
       </div>
-
-      <!-- Downloads Card -->
       <div class="card">
         <h3>⬇️ Downloads</h3>
         <div class="body stack">
-          <button class="secondary" type="button" id="btnMerged">
-            📦 Merged Package
-          </button>
-          <button class="secondary" type="button" id="btnAll">
-            📥 Download All Outputs
-          </button>
+          <button class="secondary" type="button" id="btnMerged">📦 Merged Package</button>
+          <button class="secondary" type="button" id="btnAll">📥 Download All Outputs</button>
           <div class="small">💡 Run PROCESS first if downloads are empty</div>
         </div>
       </div>
-
-      <!-- Reset Card -->
       <div class="card">
         <h3>🔄 System</h3>
         <div class="body">
-          <button class="danger" type="button" id="btnReset">
-            🗑️ Reset All Data
-          </button>
+          <button class="danger" type="button" id="btnReset">🗑️ Reset All Data</button>
         </div>
       </div>
     </div>
 
-    <!-- Main Content Area -->
     <div class="stack">
-      <!-- Live Log Card -->
       <div class="card">
         <h3>📜 Live Processing Log</h3>
         <div class="body">
@@ -514,7 +486,6 @@
         </div>
       </div>
 
-      <!-- Review & Override Card -->
       <div class="card">
         <h3>✏️ Review & Override</h3>
         <div class="body">
@@ -537,16 +508,16 @@
             👆 Select a member and sheet to review and override validation results
           </div>
 
-          <!-- Valid Rows Table -->
           <div class="section-header">✅ Valid Rows</div>
           <div class="table-container">
             <table>
               <thead>
                 <tr>
-                  <th style="width:110px;">Date</th>
-                  <th style="width:180px;">Ship</th>
-                  <th style="width:90px;">Status</th>
-                  <th style="min-width:320px;">Override</th>
+                  <th style="width:100px;">Date</th>
+                  <th style="width:140px;">Ship</th>
+                  <th style="width:200px;">Event</th>
+                  <th style="width:80px;">Status</th>
+                  <th style="min-width:300px;">Override</th>
                   <th>Reason</th>
                 </tr>
               </thead>
@@ -554,16 +525,16 @@
             </table>
           </div>
 
-          <!-- Invalid Events Table -->
           <div class="section-header">❌ Invalid Events</div>
           <div class="table-container">
             <table>
               <thead>
                 <tr>
-                  <th style="width:110px;">Date</th>
-                  <th style="width:180px;">Ship</th>
-                  <th style="width:90px;">Status</th>
-                  <th style="min-width:320px;">Override</th>
+                  <th style="width:100px;">Date</th>
+                  <th style="width:140px;">Ship</th>
+                  <th style="width:200px;">Event</th>
+                  <th style="width:80px;">Status</th>
+                  <th style="min-width:300px;">Override</th>
                   <th>Reason</th>
                 </tr>
               </thead>
@@ -571,7 +542,6 @@
             </table>
           </div>
 
-          <!-- Action Buttons -->
           <div class="action-buttons">
             <button id="saveOverridesBtn" type="button" class="success" onclick="saveOverrides()">
               💾 Save Overrides
@@ -587,7 +557,7 @@
 </div>
 
 <footer>
-  Developed by <strong>STG1(SW) Nivera, Ryan</strong> | ATGSD Sea Pay Processor © 2025
+  Developed by <a href="mailto:ryan.n.nivera.mil@us.navy.mil?subject=ATGSD Sea Pay Processor - Support Request&body=Hello STG1(SW) Nivera, Ryan,%0D%0A%0D%0AI have a question about the ATGSD Sea Pay Processor:%0D%0A%0D%0A">STG1(SW) Nivera, Ryan</a> | ATGSD Sea Pay Processor © 2025
 </footer>
 
 <script>
@@ -803,7 +773,8 @@
       tr.className = rowClass || "";
 
       const date = pick(row, ["date","Date","event_date","schedule_day","day","dt"], "");
-      const ship = pick(row, ["ship","Ship","event","Event","ship_name"], "");
+      const ship = pick(row, ["ship","Ship","ship_name"], "");
+      const event = pick(row, ["event","Event","event_details"], "");
       const final = pick(row, ["final","Final","final_status","final_valid","computed_status","status"], "");
       const reason = pick(row, ["reason","Reason","invalid_reason","why"], "");
 
@@ -819,6 +790,7 @@
 
       const tdDate = document.createElement("td"); tdDate.textContent = safeText(date);
       const tdShip = document.createElement("td"); tdShip.textContent = safeText(ship);
+      const tdEvent = document.createElement("td"); tdEvent.textContent = safeText(event);
       const tdFinal = document.createElement("td"); tdFinal.textContent = safeText(final);
 
       const tdOverride = document.createElement("td");
@@ -828,6 +800,7 @@
 
       tr.appendChild(tdDate);
       tr.appendChild(tdShip);
+      tr.appendChild(tdEvent);
       tr.appendChild(tdFinal);
       tr.appendChild(tdOverride);
       tr.appendChild(tdReason);
