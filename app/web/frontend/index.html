@@ -542,15 +542,14 @@
           <div class="table-container">
             <table>
               <thead>
-                  <tr>
-                    <th style="width:100px;">Date</th>
-                    <th style="width:140px;">Ship</th>
-                    <th style="width:200px;">Event</th>
-                    <th style="width:80px;">Status</th>
-                    <th style="min-width:300px;">Override</th>
-                    <th>Reason</th>
-                  </tr>
-                </thead>
+                <tr>
+                  <th style="width:110px;">Date</th>
+                  <th style="width:180px;">Ship</th>
+                  <th style="width:90px;">Status</th>
+                  <th style="min-width:320px;">Override</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
               <tbody id="validBody"></tbody>
             </table>
           </div>
@@ -804,9 +803,9 @@
       tr.className = rowClass || "";
 
       const date = pick(row, ["date","Date","event_date","schedule_day","day","dt"], "");
-      const ship = pick(row, ["ship","Ship","ship_name"], "");
-      const event = pick(row, ["event","Event","event_details"], "");
+      const ship = pick(row, ["ship","Ship","event","Event","ship_name"], "");
       const final = pick(row, ["final","Final","final_status","final_valid","computed_status","status"], "");
+      const reason = pick(row, ["reason","Reason","invalid_reason","why"], "");
 
       const ov = row.override || row.Override || null;
       const ovStatus = pick(ov || row, ["status","override_status","override"], "");
@@ -820,7 +819,6 @@
 
       const tdDate = document.createElement("td"); tdDate.textContent = safeText(date);
       const tdShip = document.createElement("td"); tdShip.textContent = safeText(ship);
-      const tdEvent = document.createElement("td"); tdEvent.textContent = safeText(event);
       const tdFinal = document.createElement("td"); tdFinal.textContent = safeText(final);
 
       const tdOverride = document.createElement("td");
@@ -830,10 +828,10 @@
 
       tr.appendChild(tdDate);
       tr.appendChild(tdShip);
-      tr.appendChild(tdEvent);
       tr.appendChild(tdFinal);
       tr.appendChild(tdOverride);
       tr.appendChild(tdReason);
+      tbody.appendChild(tr);
     });
   }
 
