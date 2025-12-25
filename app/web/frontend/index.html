@@ -368,6 +368,18 @@
       border-radius: 2px;
     }
 
+    /* PATCH: small day-count badge for Valid/Invalid headers */
+    .count-badge {
+      margin-left: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: var(--navy);
+      border: 1px solid var(--border);
+    }
+
     .hint {
       font-size: 13px;
       color: var(--text-secondary);
@@ -508,7 +520,8 @@
             👆 Select a member and sheet to review and override validation results
           </div>
 
-          <div class="section-header">✅ Valid Rows</div>
+          <!-- PATCH: count badges -->
+          <div class="section-header">✅ Valid Rows <span id="validDayCount" class="count-badge">0 days</span></div>
           <div class="table-container">
             <table>
               <thead>
@@ -525,7 +538,8 @@
             </table>
           </div>
 
-          <div class="section-header">❌ Invalid Events</div>
+          <!-- PATCH: count badges -->
+          <div class="section-header">❌ Invalid Events <span id="invalidDayCount" class="count-badge">0 days</span></div>
           <div class="table-container">
             <table>
               <thead>
@@ -578,6 +592,18 @@
       if (obj[k] !== undefined && obj[k] !== null && obj[k] !== "") return obj[k];
     }
     return fallback;
+  }
+
+  /* PATCH: update day counts in section headers */
+  function setDayCounts(validRows, invalidRows) {
+    const v = Array.isArray(validRows) ? validRows.length : 0;
+    const i = Array.isArray(invalidRows) ? invalidRows.length : 0;
+
+    const vEl = $("validDayCount");
+    const iEl = $("invalidDayCount");
+
+    if (vEl) vEl.textContent = v + " day" + (v === 1 ? "" : "s");
+    if (iEl) iEl.textContent = i + " day" + (i === 1 ? "" : "s");
   }
 
   async function jget(url) {
@@ -680,6 +706,9 @@
       $("invalidBody").innerHTML = "";
       $("reviewHint").textContent = "👆 Select a member and sheet to review and override validation results";
       pendingOverrides = {};
+
+      /* PATCH: reset counts */
+      setDayCounts([], []);
       
       alert("✅ Reset complete!");
     } catch (err) {
@@ -708,6 +737,10 @@
     $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
     $("validBody").innerHTML = "";
     $("invalidBody").innerHTML = "";
+
+    /* PATCH: clear counts when switching member */
+    setDayCounts([], []);
+
     if (!memberKey) return;
 
     const sheets = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheets");
@@ -814,6 +847,9 @@
     const validRows = data.valid_rows || data.valid || data.rows_valid || [];
     const invalidRows = data.invalid_events || data.invalid || data.rows_invalid || [];
 
+    /* PATCH: update counts whenever sheet loads */
+    setDayCounts(validRows, invalidRows);
+
     $("reviewHint").textContent = "";
     renderRows($("validBody"), validRows, memberKey, sheetFile, "valid");
     renderRows($("invalidBody"), invalidRows, memberKey, sheetFile, "invalid");
@@ -879,6 +915,9 @@
   });
 
   refreshReviewLists();
+
+  /* PATCH: initialize counts */
+  setDayCounts([], []);
 </script>
 </body>
 </html>
