@@ -6,7 +6,7 @@ from app.core.config import OVERRIDES_DIR
 
 def _override_path(member_key):
     """
-    Convert 'STGC MYSLINSKI,SARAH' → 'STGC_MYSLINSKI_SARAH.json'
+    Convert 'STG1 NIVERA,RYAN' → 'STG1_NIVERA_RYAN.json'
     """
     safe = member_key.replace(" ", "_").replace(",", "_")
     return os.path.join(OVERRIDES_DIR, f"{safe}.json")
@@ -88,8 +88,8 @@ def apply_overrides(member_key, review_state_member):
     """
     Apply overrides by matching events based on their content signature.
     
-    CRITICAL FIX: When events move between valid/invalid arrays, their indices change.
-    We match by event signature (date|ship|occ_idx|raw) to find them after movement.
+    CRITICAL FIX: Build signature maps FIRST, then find events by signature
+    regardless of their current location (valid or invalid array).
     """
 
     overrides = load_overrides(member_key).get("overrides", [])
@@ -107,13 +107,22 @@ def apply_overrides(member_key, review_state_member):
         valid_rows = sheet.get("rows", [])
         invalid_events = sheet.get("invalid_events", [])
         
-        # Build signature maps for quick lookup
-        valid_signatures = {_make_event_signature(row): (row, idx) for idx, row in enumerate(valid_rows)}
-        invalid_signatures = {_make_event_signature(event): (event, idx) for idx, event in enumerate(invalid_events)}
+        # STEP 1: Build signature maps for ALL events in BOTH arrays
+        # This lets us find events regardless of where they currently are
+        all_events = {}  # signature -> (event, location, index)
         
-        # Collect operations to execute after iteration
-        moves_to_invalid = []  # (source_index, new_invalid_entry)
-        moves_to_valid = []    # (source_index, new_valid_entry)
+        for idx, row in enumerate(valid_rows):
+            sig = _make_event_signature(row)
+            all_events[sig] = (row, "valid", idx)
+        
+        for idx, event in enumerate(invalid_events):
+            sig = _make_event_signature(event)
+            all_events[sig] = (event, "invalid", idx)
+        
+        # STEP 2: For each override, find the event by its ORIGINAL position first,
+        # then use signature to track it if it moved
+        moves_to_invalid = []  # (current_idx, new_invalid_entry)
+        moves_to_valid = []    # (current_idx, new_valid_entry)
         
         for ov in sheet_overrides:
             original_idx = ov["event_index"]
@@ -121,48 +130,41 @@ def apply_overrides(member_key, review_state_member):
             reason = ov["override_reason"]
             source = ov.get("source")
 
-            # STEP 1: Find the event by original index
+            # Try to find event at original position
             target_event = None
-            is_in_valid = None
-            actual_idx = None
+            current_location = None
+            current_idx = None
             event_sig = None
 
+            # Check original position first
             if original_idx >= 0 and original_idx < len(valid_rows):
                 target_event = valid_rows[original_idx]
-                is_in_valid = True
-                actual_idx = original_idx
+                current_location = "valid"
+                current_idx = original_idx
                 event_sig = _make_event_signature(target_event)
             elif original_idx < 0:
                 invalid_index = -original_idx - 1
                 if invalid_index < len(invalid_events):
                     target_event = invalid_events[invalid_index]
-                    is_in_valid = False
-                    actual_idx = invalid_index
+                    current_location = "invalid"
+                    current_idx = invalid_index
                     event_sig = _make_event_signature(target_event)
 
-            # STEP 2: If not at original index, search by signature
-            if target_event is None and original_idx >= 0:
-                # Event was in valid, might have moved to invalid
-                # We can't search without knowing the signature, so skip
+            # CRITICAL: If not at original position, search by signature across ALL events
+            if target_event is None or event_sig is None:
+                # Event has moved or doesn't exist - skip this override
                 continue
-            elif target_event is None and original_idx < 0:
-                # Event was in invalid, might have moved to valid
-                # Try to find it by checking if any valid event matches expected pattern
-                # For now, skip if not found at expected index
+            
+            # Check if event moved by looking it up in signature map
+            if event_sig in all_events:
+                # Event found - update its current location
+                target_event, current_location, current_idx = all_events[event_sig]
+            else:
+                # Event not found anywhere - skip
                 continue
 
-            # STEP 3: Check if event has moved by comparing with signature maps
-            if event_sig in valid_signatures and not is_in_valid:
-                # Event moved from invalid to valid!
-                target_event, actual_idx = valid_signatures[event_sig]
-                is_in_valid = True
-            elif event_sig in invalid_signatures and is_in_valid:
-                # Event moved from valid to invalid!
-                target_event, actual_idx = invalid_signatures[event_sig]
-                is_in_valid = False
-
-            # STEP 4: Apply override
-            if is_in_valid:
+            # STEP 3: Apply the override based on current location and desired status
+            if current_location == "valid":
                 if status == "invalid":
                     # Move valid → invalid
                     new_invalid = dict(target_event)
@@ -184,9 +186,9 @@ def apply_overrides(member_key, review_state_member):
                         "status": "invalid",
                         "status_reason": reason,
                     })
-                    moves_to_invalid.append((actual_idx, new_invalid))
+                    moves_to_invalid.append((current_idx, new_invalid))
                 else:
-                    # Update in place
+                    # Update in place (keeping as valid)
                     if "override" not in target_event:
                         target_event["override"] = {}
                     target_event["override"].update({
@@ -231,9 +233,9 @@ def apply_overrides(member_key, review_state_member):
                         if field not in new_row:
                             new_row[field] = default
                     
-                    moves_to_valid.append((actual_idx, new_row))
+                    moves_to_valid.append((current_idx, new_row))
                 else:
-                    # Update in place
+                    # Update in place (keeping as invalid)
                     if "override" not in target_event:
                         target_event["override"] = {}
                     target_event["override"].update({
@@ -249,7 +251,7 @@ def apply_overrides(member_key, review_state_member):
                         "source": "override",
                     })
 
-        # Execute moves (highest index first to avoid shifting)
+        # STEP 4: Execute moves (highest index first to avoid shifting)
         moves_to_invalid.sort(reverse=True, key=lambda x: x[0])
         for idx, new_invalid in moves_to_invalid:
             invalid_events.append(new_invalid)
