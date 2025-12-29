@@ -90,6 +90,13 @@ def process_route():
         try:
             set_progress(status="PROCESSING", percent=5, current_step="Processing")
             process_all(strike_color=strike_color)
+            
+            # 🔹 PATCH: Create original backup after processing completes
+            original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
+            if os.path.exists(REVIEW_JSON_PATH):
+                shutil.copy(REVIEW_JSON_PATH, original_path)
+                log(f"CREATED ORIGINAL REVIEW BACKUP → {original_path}")
+            
             set_progress(status="COMPLETE", percent=100, current_step="Complete")
             log("PROCESS COMPLETE")
         except Exception as e:
@@ -145,6 +152,23 @@ def logs():
 # =========================================================
 
 def _load_review():
+    """
+    Load the ORIGINAL review state (before any overrides).
+    
+    🔹 PATCH: Always load from _ORIGINAL.json to ensure clean state.
+    This prevents index shifting issues when events move between arrays.
+    """
+    original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
+    
+    # Try to load original first
+    if os.path.exists(original_path):
+        try:
+            with open(original_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    
+    # Fallback to regular file
     if not os.path.exists(REVIEW_JSON_PATH):
         return {}
     try:
@@ -156,6 +180,7 @@ def _load_review():
 
 
 def _write_review(state: dict) -> None:
+    """Write the review state with overrides applied."""
     os.makedirs(os.path.dirname(REVIEW_JSON_PATH), exist_ok=True)
     with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2)
@@ -175,10 +200,19 @@ def api_member_sheets(member_key):
 
 @bp.route("/api/member/<path:member_key>/sheet/<path:sheet_file>")
 def api_single_sheet(member_key, sheet_file):
-    state = _load_review()
+    """
+    Load a single sheet with overrides applied.
+    
+    🔹 PATCH: Load original state, apply overrides, then return sheet.
+    This ensures UI always shows correct data after events move between arrays.
+    """
+    state = _load_review()  # Loads ORIGINAL clean state
     member = state.get(member_key)
     if not member:
         return jsonify({}), 404
+
+    # 🔹 CRITICAL: Apply overrides to get current state
+    member = apply_overrides(member_key, member)
 
     for sheet in member.get("sheets", []):
         if sheet.get("source_file") == sheet_file:
@@ -193,12 +227,19 @@ def api_single_sheet(member_key, sheet_file):
 
 @bp.route("/api/override", methods=["POST"])
 def api_override():
+    """
+    Save an override and regenerate review state.
+    
+    🔹 PATCH: Load original, apply ALL overrides, write modified state.
+    """
     payload = request.get_json(silent=True) or {}
     if not payload.get("member_key"):
         return jsonify({"error": "member_key required"}), 400
 
+    # Save the override
     save_override(**payload)
 
+    # Load original state and apply all overrides
     state = _load_review()
     mk = payload["member_key"]
     if mk in state:
@@ -210,13 +251,20 @@ def api_override():
 
 @bp.route("/api/override", methods=["DELETE"])
 def api_override_clear():
+    """
+    Clear overrides for a member and regenerate review state.
+    
+    🔹 PATCH: Load original, apply remaining overrides, write modified state.
+    """
     payload = request.get_json(silent=True) or {}
     mk = payload.get("member_key")
     if not mk:
         return jsonify({"error": "member_key required"}), 400
 
+    # Clear the overrides
     clear_overrides(mk)
 
+    # Load original state and reapply any remaining overrides
     state = _load_review()
     if mk in state:
         state[mk] = apply_overrides(mk, state[mk])
@@ -259,6 +307,11 @@ def download_merged():
 
 @bp.route("/reset", methods=["POST"])
 def reset():
+    """
+    Reset all data including original backup.
+    
+    🔹 PATCH: Also remove _ORIGINAL.json backup file.
+    """
     for root, _, files in os.walk(DATA_DIR):
         for f in files:
             try:
@@ -273,8 +326,16 @@ def reset():
             except Exception as e:
                 log(f"RESET OUTPUT FILE ERROR → {e}")
 
+    # 🔹 PATCH: Remove original backup
+    original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
+    if os.path.exists(original_path):
+        try:
+            os.remove(original_path)
+            log("REMOVED ORIGINAL REVIEW BACKUP")
+        except Exception as e:
+            log(f"RESET ORIGINAL BACKUP ERROR → {e}")
+
     clear_logs()
     reset_progress()
     log("RESET COMPLETE (files cleared)")
     return jsonify({"status": "reset"})
-
