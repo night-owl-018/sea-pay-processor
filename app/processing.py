@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import shutil  # 🔹 PATCH: Add shutil import
 from datetime import datetime
 
 from app.core.logger import (
@@ -498,6 +499,12 @@ def process_all(strike_color: str = "black"):
         with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
             json.dump(final_review_state, f, indent=2, default=str)
         log(f"REVIEW JSON WRITTEN → {REVIEW_JSON_PATH}")
+        
+        # 🔹 PATCH: Create original backup immediately after writing
+        original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
+        shutil.copy(REVIEW_JSON_PATH, original_path)
+        log(f"ORIGINAL REVIEW BACKUP CREATED → {original_path}")
+        
     except Exception as e:
         log(f"REVIEW JSON ERROR → {e}")
 
