@@ -298,7 +298,6 @@
       min-width: 180px;
       height: 36px;
     }
-    /* 🔹 PATCH: Style for unsaved changes */
     .override-wrap.dirty select,
     .override-wrap.dirty input {
       border-color: var(--warning);
@@ -504,8 +503,6 @@
   
   let lastStatus = null;
   let pendingOverrides = {};
-
-  // 🔹 PATCH: Store the original dropdown values to revert if user cancels navigation
   let lastSelectedMember = "";
   let lastSelectedSheet = "";
   
@@ -633,7 +630,7 @@
       if (current && members.includes(current)) {
         sel.value = current;
       }
-      lastSelectedMember = sel.value; // 🔹 PATCH: Initialize last selected member
+      lastSelectedMember = sel.value;
     } catch (e) {}
   }
   async function loadSheetsForMember(memberKey) {
@@ -651,7 +648,7 @@
       sel.appendChild(opt);
     }
     sel.disabled = false;
-    lastSelectedSheet = sel.value; // 🔹 PATCH: Initialize last selected sheet
+    lastSelectedSheet = sel.value;
   }
   function buildOverrideControl(memberKey, sheetFile, eventIndex, currentStatus, currentReason, source) {
     const wrap = document.createElement("div");
@@ -683,7 +680,6 @@
         reason: reason.value || "",
         source: "manual"
       };
-      // 🔹 PATCH: Add visual indicator for unsaved changes
       wrap.classList.add("dirty");
     };
     sel.addEventListener("change", queue);
@@ -692,10 +688,13 @@
     wrap.appendChild(reason);
     return wrap;
   }
+  
+  // 🔹 --- START OF PATCH --- 🔹
+
   function renderRows(tbody, rows, memberKey, sheetFile, rowClass) {
     tbody.innerHTML = "";
     if (!Array.isArray(rows) || rows.length === 0) return;
-    rows.forEach((row, idx) => {
+    rows.forEach((row) => {
       const tr = document.createElement("tr");
       tr.className = rowClass || "";
       const date = pick(row, ["date","Date","event_date","schedule_day","day","dt"], "");
@@ -708,16 +707,20 @@
       const ovReason = pick(ov || row, ["reason","override_reason"], "");
       const source = pick(ov || row, ["source","override_source"], "");
       
-      let eventIndex = pick(row, ["event_index","index","i"], null);
-      if (eventIndex === null) {
-        eventIndex = (rowClass === "invalid") ? -(idx + 1) : idx;
-      }
+      // Now we ONLY use the permanent index from the backend. No more fallback logic.
+      const eventIndex = pick(row, ["event_index","index","i"], null);
+      
       const tdDate = document.createElement("td"); tdDate.textContent = safeText(date);
       const tdShip = document.createElement("td"); tdShip.textContent = safeText(ship);
       const tdEvent = document.createElement("td"); tdEvent.textContent = safeText(event);
       const tdFinal = document.createElement("td"); tdFinal.textContent = safeText(final);
       const tdOverride = document.createElement("td");
-      tdOverride.appendChild(buildOverrideControl(memberKey, sheetFile, eventIndex, ovStatus, ovReason, source));
+
+      // Only render the override control if a permanent index exists.
+      if (eventIndex !== null) {
+          tdOverride.appendChild(buildOverrideControl(memberKey, sheetFile, eventIndex, ovStatus, ovReason, source));
+      }
+
       const tdReason = document.createElement("td"); tdReason.textContent = safeText(reason);
       tr.appendChild(tdDate);
       tr.appendChild(tdShip);
@@ -728,9 +731,11 @@
       tbody.appendChild(tr);
     });
   }
+  
+  // 🔹 --- END OF PATCH --- 🔹
+
   async function loadSheet(memberKey, sheetFile) {
     if (!memberKey || !sheetFile) {
-        // 🔹 PATCH: Clear tables and hint if no sheet is selected
         $("validBody").innerHTML = "";
         $("invalidBody").innerHTML = "";
         $("reviewHint").textContent = "👆 Select a member and sheet to review and override validation results";
@@ -742,46 +747,36 @@
     $("reviewHint").textContent = "";
     renderRows($("validBody"), validRows, memberKey, sheetFile, "valid");
     renderRows($("invalidBody"), invalidRows, memberKey, sheetFile, "invalid");
-
-    // 🔹 PATCH: Update last selected values after a successful load
     lastSelectedMember = $("memberSelect").value;
     lastSelectedSheet = $("sheetSelect").value;
   }
+  
+  // 🔹 --- START OF PATCH --- 🔹
+
   async function saveOverrides() {
     try {
-      const keys = Object.keys(pendingOverrides);
-      if (keys.length === 0) {
+      // Convert the pendingOverrides object into an array of its values for the batch payload
+      const batchPayload = Object.values(pendingOverrides);
+      
+      if (batchPayload.length === 0) {
         alert("ℹ️ No changes to save.");
         return;
       }
-      for (const k of keys) {
-        const payload = pendingOverrides[k];
-        const st = payload.status;
-        const rsn = (payload.reason || "").trim();
-        if ((st === null || st === "") && rsn === "") {
-          await jdel("/api/override", {
-            member_key: payload.member_key,
-            sheet_file: payload.sheet_file,
-            event_index: payload.event_index
-          });
-        } else {
-          await jpost("/api/override", {
-            member_key: payload.member_key,
-            sheet_file: payload.sheet_file,
-            event_index: payload.event_index,
-            status: st,
-            reason: payload.reason || "",
-source: "manual"
-          });
-        }
-      }
-      pendingOverrides = {};
-      await loadSheet($("memberSelect").value, $("sheetSelect").value);
+      
+      // Send all changes in a single batch request to the new endpoint
+      await jpost("/api/overrides/batch", batchPayload);
+      
+      pendingOverrides = {}; // Clear the queue after successful save
+      await loadSheet($("memberSelect").value, $("sheetSelect").value); // Reload the current view
       alert("✅ Overrides saved successfully!");
+      
     } catch (e) {
       alert("❌ " + (e.message || String(e)));
     }
   }
+
+  // 🔹 --- END OF PATCH --- 🔹
+
   async function rebuildOutputs() {
     if (!confirm("🔄 Rebuild all outputs using current overrides?")) return;
     try {
@@ -792,32 +787,31 @@ source: "manual"
       alert("❌ " + (e.message || String(e)));
     }
   }
-
-  // 🔹 PATCH: Centralized handler for navigating away from a view with pending changes
+  
   function confirmNavigation() {
     if (Object.keys(pendingOverrides).length > 0) {
       return confirm("⚠️ You have unsaved changes that will be lost. Are you sure you want to continue?");
     }
-    return true; // No pending changes, so navigation is safe
+    return true;
   }
   
   $("memberSelect").addEventListener("change", async () => {
     if (!confirmNavigation()) {
-      $("memberSelect").value = lastSelectedMember; // Revert selection
+      $("memberSelect").value = lastSelectedMember;
       return;
     }
-    pendingOverrides = {}; // Clear pending changes
+    pendingOverrides = {};
     await loadSheetsForMember($("memberSelect").value);
   });
   $("sheetSelect").addEventListener("change", async () => {
     if (!confirmNavigation()) {
-      $("sheetSelect").value = lastSelectedSheet; // Revert selection
+      $("sheetSelect").value = lastSelectedSheet;
       return;
     }
-    pendingOverrides = {}; // Clear pending changes
+    pendingOverrides = {};
     await loadSheet($("memberSelect").value, $("sheetSelect").value);
   });
-
+  
   refreshReviewLists();
 </script>
 </body>
