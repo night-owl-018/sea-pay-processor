@@ -5,6 +5,7 @@ import zipfile
 import shutil
 import threading
 from flask import Blueprint, request, jsonify, send_file, send_from_directory
+
 from app.core.logger import (
     log,
     clear_logs,
@@ -13,6 +14,7 @@ from app.core.logger import (
     reset_progress,
     set_progress,
 )
+
 from app.core.config import (
     DATA_DIR,
     OUTPUT_DIR,
@@ -20,38 +22,77 @@ from app.core.config import (
     RATE_FILE,
     REVIEW_JSON_PATH,
     PACKAGE_FOLDER,
+    OVERRIDES_DIR,  # 🔹 PATCH: Import OVERRIDES_DIR
 )
+
 from app.processing import process_all
 import app.core.rates as rates
 from app.core.overrides import (
     save_override,
     clear_overrides,
     apply_overrides,
+    load_overrides,  # 🔹 PATCH: Import load_overrides
 )
-# 🔹 PATCH IMPORT (isolated, no refactor)
+
 from app.processing import rebuild_outputs_from_review
-from app.core.merge import merge_all_pdfs  # 🔹 PATCH
+from app.core.merge import merge_all_pdfs
 
 bp = Blueprint("routes", __name__)
-
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "web", "frontend")
 
-# =========================================================
-# UI
-# =========================================================
+
+# 🔹 --- START OF PATCH --- 🔹
+
+def _get_override_path(member_key):
+    """
+    Local copy of private function from overrides.py to ensure stable path generation.
+    Convert 'STG1 NIVERA,RYAN' → 'STG1_NIVERA_RYAN.json'
+    """
+    safe = member_key.replace(" ", "_").replace(",", "_")
+    return os.path.join(OVERRIDES_DIR, f"{safe}.json")
+
+def _delete_single_override(member_key, sheet_file, event_index):
+    """
+    Deletes a single override entry for a specific event. This is a helper
+    for the batch endpoint and fixes the bug where the old DELETE endpoint
+    cleared all overrides for a member instead of just one.
+    """
+    path = _get_override_path(member_key)
+    if not os.path.exists(path):
+        return
+
+    data = load_overrides(member_key)
+    overrides = data.get("overrides", [])
+    original_count = len(overrides)
+
+    # Filter out the override to be deleted
+    data["overrides"] = [
+        ov for ov in overrides
+        if not (ov.get("sheet_file") == sheet_file and ov.get("event_index") == event_index)
+    ]
+
+    # If the file is now empty, delete it. Otherwise, write the updated list.
+    if not data["overrides"]:
+        clear_overrides(member_key)
+    elif len(data["overrides"]) < original_count:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+# 🔹 --- END OF PATCH --- 🔹
+
+
 @bp.route("/")
 def home():
     return send_from_directory(FRONTEND_DIR, "index.html")
 
-# =========================================================
-# PROCESS
-# =========================================================
+
 @bp.route("/process", methods=["POST"])
 def process_route():
     clear_logs()
     reset_progress()
     log("=== PROCESS STARTED ===")
     set_progress(status="PROCESSING", percent=1, current_step="Saving input files")
+
     files = request.files.getlist("files") or request.files.getlist("pdfs") or []
     for f in files:
         if f and getattr(f, "filename", ""):
@@ -71,14 +112,15 @@ def process_route():
             log(f"RATES CSV RELOAD ERROR → {e}")
         else:
             log("RATES CSV RELOADED")
-
+    
     strike_color = request.form.get("strikeout_color", "Black")
+    
     def _run():
         try:
             set_progress(status="PROCESSING", percent=5, current_step="Processing")
             process_all(strike_color=strike_color)
             
-            # 🔹 PATCH: Create original backup after processing completes
+            # This patch is from your original code, it is preserved
             original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
             if os.path.exists(REVIEW_JSON_PATH):
                 shutil.copy(REVIEW_JSON_PATH, original_path)
@@ -93,24 +135,20 @@ def process_route():
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"status": "STARTED"})
 
-# =========================================================
-# 🔹 PATCH: REBUILD OUTPUTS ONLY (NO OCR, NO PARSE)
-# =========================================================
+
 @bp.route("/rebuild_outputs", methods=["POST"])
 def rebuild_outputs():
     try:
         log("=== REBUILD OUTPUTS STARTED ===")
         rebuild_outputs_from_review()
-        merge_all_pdfs()  # 🔹 PATCH: build merged PDFs
+        merge_all_pdfs()
         log("=== REBUILD OUTPUTS COMPLETE ===")
         return jsonify({"status": "ok"})
     except Exception as e:
         log(f"REBUILD OUTPUTS ERROR → {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
 
-# =========================================================
-# PROGRESS
-# =========================================================
+
 @bp.route("/progress")
 def progress():
     p = get_progress()
@@ -122,38 +160,29 @@ def progress():
         "details": p.get("details", {}) or {},
     })
 
+
 @bp.route("/logs")
 def logs():
     return jsonify({"log": "\n".join(get_logs())})
 
-# =========================================================
-# REVIEW & OVERRIDE
-# =========================================================
+
 def _load_review():
     """
     Load the ORIGINAL review state (before any overrides).
-    
-    🔹 PATCH: Always load from _ORIGINAL.json to ensure clean state.
-    This prevents index shifting issues when events move between arrays.
     """
     original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
     
-    # Try to load original first
     if os.path.exists(original_path):
         try:
             with open(original_path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        # --- START OF PATCH ---
         except Exception as e:
-            # Instead of 'pass', log a detailed error using the app's logger.
             log(
                 f"CRITICAL: Could not load '{original_path}'. "
                 f"This file is the required source of truth. Falling back to '{REVIEW_JSON_PATH}', "
                 f"but the state may be inconsistent. Error: {e}"
             )
-        # --- END OF PATCH ---
     
-    # Fallback to regular file
     if not os.path.exists(REVIEW_JSON_PATH):
         return {}
     try:
@@ -162,7 +191,6 @@ def _load_review():
     except Exception as e:
         log(f"REVIEW JSON READ ERROR → {e}")
         return {}
-
 
 def _write_review(state: dict) -> None:
     """Write the review state with overrides applied."""
@@ -187,18 +215,14 @@ def api_member_sheets(member_key):
 def api_single_sheet(member_key, sheet_file):
     """
     Load a single sheet with overrides applied.
-    
-    🔹 PATCH: Load original state, apply overrides, then return sheet.
-    This ensures UI always shows correct data after events move between arrays.
     """
-    state = _load_review()  # Loads ORIGINAL clean state
+    state = _load_review()
     member = state.get(member_key)
     if not member:
         return jsonify({}), 404
-
-    # 🔹 CRITICAL: Apply overrides to get current state
+        
     member = apply_overrides(member_key, member)
-
+    
     for sheet in member.get("sheets", []):
         if sheet.get("source_file") == sheet_file:
             return jsonify({
@@ -206,24 +230,78 @@ def api_single_sheet(member_key, sheet_file):
                 "valid_rows": sheet.get("rows", []),
                 "invalid_events": sheet.get("invalid_events", []),
             })
+            
     return jsonify({}), 404
 
+
+# 🔹 --- START OF PATCH --- 🔹
+
+@bp.route("/api/overrides/batch", methods=["POST"])
+def api_override_batch():
+    """
+    Receives a list of override changes and applies them in a single batch.
+    This is more efficient than one request per change.
+    It also correctly handles single-entry deletions.
+    """
+    payload_list = request.get_json(silent=True) or []
+    if not isinstance(payload_list, list):
+        return jsonify({"error": "Request payload must be a list of override objects"}), 400
+
+    affected_members = set()
+
+    for payload in payload_list:
+        member_key = payload.get("member_key")
+        if not member_key:
+            continue
+            
+        affected_members.add(member_key)
+        status = payload.get("status")
+        reason = (payload.get("reason") or "").strip()
+
+        # If status and reason are empty, it's a delete action. Otherwise, it's a save/update.
+        if (status is None or status == "") and reason == "":
+            _delete_single_override(
+                member_key=payload.get("member_key"),
+                sheet_file=payload.get("sheet_file"),
+                event_index=payload.get("event_index"),
+            )
+        else:
+            save_override(
+                member_key=payload.get("member_key"),
+                sheet_file=payload.get("sheet_file"),
+                event_index=payload.get("event_index"),
+                status=status,
+                reason=reason,
+                source=payload.get("source", "manual"),
+            )
+
+    # After all changes are made, regenerate the review state for all affected members
+    if affected_members:
+        state = _load_review()
+        for mk in affected_members:
+            if mk in state:
+                state[mk] = apply_overrides(mk, state[mk])
+        _write_review(state)
+
+    return jsonify({"status": "batch processed"})
+
+# 🔹 --- END OF PATCH --- 🔹
+
+
+# NOTE: The following single-override endpoints are kept for backwards compatibility
+# but are no longer used by the patched frontend.
 
 @bp.route("/api/override", methods=["POST"])
 def api_override():
     """
     Save an override and regenerate review state.
-    
-    🔹 PATCH: Load original, apply ALL overrides, write modified state.
     """
     payload = request.get_json(silent=True) or {}
     if not payload.get("member_key"):
         return jsonify({"error": "member_key required"}), 400
-
-    # Save the override
+        
     save_override(**payload)
-
-    # Load original state and apply all overrides
+    
     state = _load_review()
     mk = payload["member_key"]
     if mk in state:
@@ -237,28 +315,22 @@ def api_override():
 def api_override_clear():
     """
     Clear overrides for a member and regenerate review state.
-    
-    🔹 PATCH: Load original, apply remaining overrides, write modified state.
     """
     payload = request.get_json(silent=True) or {}
     mk = payload.get("member_key")
     if not mk:
         return jsonify({"error": "member_key required"}), 400
-
-    # Clear the overrides
+        
     clear_overrides(mk)
-
-    # Load original state and reapply any remaining overrides
+    
     state = _load_review()
     if mk in state:
         state[mk] = apply_overrides(mk, state[mk])
         _write_review(state)
-
+        
     return jsonify({"status": "cleared"})
 
-# =========================================================
-# DOWNLOAD / RESET
-# =========================================================
+
 @bp.route("/download_all")
 def download_all():
     mem = io.BytesIO()
@@ -289,8 +361,6 @@ def download_merged():
 def reset():
     """
     Reset all data including original backup.
-    
-    🔹 PATCH: Also remove _ORIGINAL.json backup file.
     """
     for root, _, files in os.walk(DATA_DIR):
         for f in files:
@@ -298,15 +368,14 @@ def reset():
                 os.remove(os.path.join(root, f))
             except Exception as e:
                 log(f"RESET INPUT FILE ERROR → {e}")
-
+                
     for root, _, files in os.walk(OUTPUT_DIR):
         for f in files:
             try:
                 os.remove(os.path.join(root, f))
             except Exception as e:
                 log(f"RESET OUTPUT FILE ERROR → {e}")
-
-    # 🔹 PATCH: Remove original backup
+                
     original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
     if os.path.exists(original_path):
         try:
