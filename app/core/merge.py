@@ -40,16 +40,20 @@ def _append_pdf(writer, file_path, bookmark_title, parent_bookmark=None):
     Helper to append a PDF to the writer and add an optional bookmark.
     Returns the number of pages added.
     """
+    # Add detailed logging
     if not os.path.exists(file_path):
-        log(f"  - Skipping bookmark '{bookmark_title}': File not found at {file_path}")
+        log(f"  - ❗️ SKIPPING: File not found for bookmark '{bookmark_title}' at path: {file_path}")
         return 0
         
     try:
         reader = PdfReader(file_path)
         num_pages_added = len(reader.pages)
+        if num_pages_added == 0:
+            log(f"  - ⚠️ WARNING: PDF file '{os.path.basename(file_path)}' is empty (0 pages). Skipping.")
+            return 0
+
         page_num_before_add = len(writer.pages)
         
-        # Add the bookmark pointing to the first new page
         writer.add_outline_item(bookmark_title, page_num_before_add, parent=parent_bookmark)
         log(f"  - Adding bookmark '{bookmark_title}' at page {page_num_before_add + 1}")
 
@@ -59,7 +63,7 @@ def _append_pdf(writer, file_path, bookmark_title, parent_bookmark=None):
         log(f"    ... Appended {os.path.basename(file_path)} ({num_pages_added} pages)")
         return num_pages_added
     except Exception as e:
-        log(f"  - ❗️ ERROR appending PDF {os.path.basename(file_path)}: {e}")
+        log(f"  - ❗️ CRITICAL ERROR appending PDF {os.path.basename(file_path)}: {e}")
         return 0
 
 def merge_all_pdfs():
@@ -72,71 +76,69 @@ def merge_all_pdfs():
     final_package_path = os.path.join(PACKAGE_FOLDER, "MERGED_SEA_PAY_PACKAGE.pdf")
     writer = PdfWriter()
     
-    # 1. Get a master list of all members from the summary files
-    # This is the most reliable source for the list of members processed.
-    all_members = _get_members_from_files(SUMMARY_PDF_FOLDER)
-    if not all_members:
-        log("MERGE SKIPPED → No member summary PDFs found to create a package.")
-        return
-
+    # Add detailed logging
     log("=== BOOKMARKED PACKAGE MERGE STARTED ===")
     
-    # 2. Loop through each member to build their section
+    all_members = _get_members_from_files(SUMMARY_PDF_FOLDER)
+    if not all_members:
+        log("MERGE FAILED → No member summary PDFs found in SUMMARY_PDF folder. Cannot determine which members to process.")
+        writer.close()
+        return
+
+    log(f"Found {len(all_members)} members to process: {all_members}")
+    
     for member_key in all_members:
-        log(f"Processing member: {member_key}")
+        log(f"Processing member: '{member_key}'")
         
-        # Create the filename-safe version of the key
         safe_key_prefix = member_key.replace(",", "").replace(" ", "_")
+        log(f"  - Using safe file prefix: '{safe_key_prefix}'")
         
-        # Get current page number to create the main parent bookmark for this member
         parent_page_num = len(writer.pages)
         parent_bookmark = writer.add_outline_item(member_key, parent_page_num)
-        log(f"Creating parent bookmark '{member_key}' at page {parent_page_num + 1}")
+        log(f"  - Creating parent bookmark '{member_key}' at page {parent_page_num + 1}")
         
-        # 3. Find and append this member's files in a specific order
-        
-        # Add Summary PDF
+        # Find and append Summary PDF
         summary_file = os.path.join(SUMMARY_PDF_FOLDER, f"{safe_key_prefix}_SUMMARY.pdf")
         _append_pdf(writer, summary_file, "Summary", parent_bookmark)
         
-        # Add TORIS Cert PDF
-        # Find the TORIS file that contains this member's safe key prefix in its name.
+        # Find and append TORIS Cert PDF
         try:
             toris_files = [f for f in os.listdir(TORIS_CERT_FOLDER) if safe_key_prefix in f]
             if toris_files:
-                # Assuming the first match is the correct one
                 toris_file_path = os.path.join(TORIS_CERT_FOLDER, toris_files[0])
                 _append_pdf(writer, toris_file_path, "TORIS Certification", parent_bookmark)
+            else:
+                log(f"  - INFO: No TORIS Cert file found for prefix '{safe_key_prefix}'")
         except FileNotFoundError:
-            log(f"  - Skipping TORIS Cert: Folder not found at {TORIS_CERT_FOLDER}")
+            log(f"  - WARNING: TORIS Cert folder not found at {TORIS_CERT_FOLDER}")
 
-
-        # Add all PG-13 PDFs for this member
+        # Find and append all PG-13 PDFs for this member
         try:
             pg13_files = [f for f in os.listdir(SEA_PAY_PG13_FOLDER) if safe_key_prefix in f]
             if pg13_files:
                 pg13_parent_bookmark = writer.add_outline_item("PG-13s", len(writer.pages), parent=parent_bookmark)
                 for pg13_file in sorted(pg13_files):
-                    # Extract ship name from filename like 'STG1_NIVERA_RYAN_PG13_USS_CHAFEE.pdf'
                     match = re.search(r'PG13_(.+)\.pdf', pg13_file, re.IGNORECASE)
                     ship_name = match.group(1).replace("_", " ") if match else pg13_file
                     bookmark_title = f"{ship_name}"
                     pg13_file_path = os.path.join(SEA_PAY_PG13_FOLDER, pg13_file)
                     _append_pdf(writer, pg13_file_path, bookmark_title, pg13_parent_bookmark)
+            else:
+                log(f"  - INFO: No PG-13 files found for prefix '{safe_key_prefix}'")
         except FileNotFoundError:
-            log(f"  - Skipping PG-13s: Folder not found at {SEA_PAY_PG13_FOLDER}")
+            log(f"  - WARNING: PG-13 folder not found at {SEA_PAY_PG13_FOLDER}")
 
+    log(f"Finalizing PDF. Total pages to write: {len(writer.pages)}")
 
-    # 4. Write the final merged file
     if len(writer.pages) > 0:
         try:
             with open(final_package_path, "wb") as f:
                 writer.write(f)
-            log(f"BOOKMARKED PACKAGE CREATED → {os.path.basename(final_package_path)}")
+            log(f"✅ BOOKMARKED PACKAGE CREATED → {os.path.basename(final_package_path)}")
         except Exception as e:
             log(f"❗️CRITICAL ERROR writing final PDF: {e}")
     else:
-        log("MERGE CANCELED → No content was added to the final package.")
+        log("MERGE FAILED → No pages were added to the final package. Check file paths and prefixes.")
         
     writer.close()
     log("PACKAGE MERGE COMPLETE")
