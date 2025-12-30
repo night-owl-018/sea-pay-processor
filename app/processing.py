@@ -232,149 +232,83 @@ def process_all(strike_color: str = "black"):
             "parse_confidence": 1.0,
         }
 
-        # -------------------------
-        # CLASSIFY VALID ROWS
-        # PATCH: Add event field
-        # -------------------------
-        for r in rows:
+        # 🔹 --- START OF PATCH --- 🔹
+
+        # CLASSIFY VALID ROWS: Add a permanent, positive event_index to every valid row.
+        for valid_idx, r in enumerate(rows):
             system_classification = {
                 "is_valid": True,
                 "reason": None,
-                "explanation": (
-                    "Valid sea pay day after TORIS parser filtering "
-                    "(non-training, non-duplicate, known ship)."
-                ),
+                "explanation": "Valid sea pay day after TORIS parser filtering (non-training, non-duplicate, known ship).",
                 "confidence": 1.0,
             }
+            override = { "status": None, "reason": None, "source": None, "history": [] }
+            final_classification = { "is_valid": True, "reason": None, "source": "system" }
+            
+            sheet_block["rows"].append({
+                "event_index": valid_idx,  # Stamp permanent positive index
+                "date": r.get("date"),
+                "ship": r.get("ship"),
+                "event": extract_event_details(r.get("raw", "")),
+                "occ_idx": r.get("occ_idx"),
+                "raw": r.get("raw", ""),
+                "is_inport": bool(r.get("is_inport", False)),
+                "inport_label": r.get("inport_label"),
+                "is_mission": r.get("is_mission"),
+                "label": r.get("label"),
+                "status": "valid",
+                "status_reason": None,
+                "confidence": 1.0,
+                "system_classification": system_classification,
+                "override": override,
+                "final_classification": final_classification,
+            })
 
-            override = {
-                "status": None,   # "valid" | "invalid" | None
-                "reason": None,
-                "source": None,   # "manual" | "admin" | None
-                "history": [],
-            }
-
-            final_classification = {
-                "is_valid": system_classification["is_valid"],
-                "reason": system_classification["reason"],
-                "source": "system",
-            }
-
-            sheet_block["rows"].append(
-                {
-                    "date": r.get("date"),
-                    "ship": r.get("ship"),
-                    "event": extract_event_details(r.get("raw", "")),  # PATCH: Add event
-                    "occ_idx": r.get("occ_idx"),
-                    "raw": r.get("raw", ""),
-                    "is_inport": bool(r.get("is_inport", False)),
-                    "inport_label": r.get("inport_label"),
-                    "is_mission": r.get("is_mission"),
-                    "label": r.get("label"),
-                    # Backwards-compatible simple flags
-                    "status": "valid",
-                    "status_reason": None,
-                    "confidence": 1.0,
-                    # Structured classifications
-                    "system_classification": system_classification,
-                    "override": override,
-                    "final_classification": final_classification,
-                }
-            )
-
-        # -------------------------
-        # CLASSIFY INVALID EVENTS
-        # PATCH: Add event field and occ_idx
-        # -------------------------
+        # CLASSIFY INVALID EVENTS: Add a permanent, negative event_index to every invalid event.
         invalid_events = []
-
-        # Duplicates
-        for e in skipped_dupe:
-            system_classification = {
-                "is_valid": False,
-                "reason": "duplicate",
-                "explanation": (
-                    "Duplicate event for this date; another entry kept "
-                    "as primary sea pay event."
-                ),
-                "confidence": 1.0,
-            }
-            override = {
-                "status": None,
-                "reason": None,
-                "source": None,
-                "history": [],
-            }
-            final_classification = {
-                "is_valid": False,
-                "reason": "duplicate",
-                "source": "system",
-            }
-
-            invalid_events.append(
-                {
-                    "date": e.get("date"),
-                    "ship": e.get("ship"),
-                    "event": extract_event_details(e.get("raw", "")),  # PATCH: Add event
-                    "occ_idx": e.get("occ_idx"),
-                    "raw": e.get("raw", ""),
-                    "reason": e.get("reason", "Duplicate"),
-                    "category": "duplicate",
-                    "source": "parser",
-                    "system_classification": system_classification,
-                    "override": override,
-                    "final_classification": final_classification,
-                }
-            )
-
-        # Unknown / shore-side / suppressed
-        for e in skipped_unknown:
-            raw_reason = (e.get("reason") or "").lower()
-            if "in-port" in raw_reason or "shore" in raw_reason:
-                category = "shore_side_event"
-                explanation = "In-port shore-side training or non-sea-pay event."
+        all_invalid_source = skipped_dupe + skipped_unknown
+        
+        for invalid_idx, e in enumerate(all_invalid_source):
+            event_index = -(invalid_idx + 1)  # Stamp permanent negative index
+            
+            # This logic is a consolidation of your original two separate loops
+            is_dupe = e in skipped_dupe
+            
+            if is_dupe:
+                category = "duplicate"
+                explanation = "Duplicate event for this date; another entry kept as primary sea pay event."
             else:
-                category = "unknown"
-                explanation = (
-                    "Unknown or non-platform event; no valid ship identified "
-                    "for sea pay."
-                )
+                raw_reason = (e.get("reason") or "").lower()
+                if "in-port" in raw_reason or "shore" in raw_reason:
+                    category = "shore_side_event"
+                    explanation = "In-port shore-side training or non-sea-pay event."
+                else:
+                    category = "unknown"
+                    explanation = "Unknown or non-platform event; no valid ship identified for sea pay."
 
-            system_classification = {
-                "is_valid": False,
-                "reason": category,
-                "explanation": explanation,
-                "confidence": 1.0,
-            }
-            override = {
-                "status": None,
-                "reason": None,
-                "source": None,
-                "history": [],
-            }
-            final_classification = {
-                "is_valid": False,
-                "reason": category,
-                "source": "system",
-            }
-
-            invalid_events.append(
-                {
-                    "date": e.get("date"),
-                    "ship": e.get("ship"),
-                    "event": extract_event_details(e.get("raw", "")),  # PATCH: Add event
-                    "occ_idx": e.get("occ_idx"),
-                    "raw": e.get("raw", ""),
-                    "reason": e.get("reason", "Unknown"),
-                    "category": category,
-                    "source": "parser",
-                    "system_classification": system_classification,
-                    "override": override,
-                    "final_classification": final_classification,
-                }
-            )
-
+            system_classification = { "is_valid": False, "reason": category, "explanation": explanation, "confidence": 1.0 }
+            override = { "status": None, "reason": None, "source": None, "history": [] }
+            final_classification = { "is_valid": False, "reason": category, "source": "system" }
+            
+            invalid_events.append({
+                "event_index": event_index,
+                "date": e.get("date"),
+                "ship": e.get("ship"),
+                "event": extract_event_details(e.get("raw", "")),
+                "occ_idx": e.get("occ_idx"),
+                "raw": e.get("raw", ""),
+                "reason": e.get("reason", "Unknown"),
+                "category": category,
+                "source": "parser",
+                "system_classification": system_classification,
+                "override": override,
+                "final_classification": final_classification,
+            })
+            
         sheet_block["invalid_events"] = invalid_events
+
+        # 🔹 --- END OF PATCH --- 🔹
+
 
         # -------------------------
         # PARSE CONFIDENCE HEURISTICS
