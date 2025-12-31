@@ -617,6 +617,35 @@
       background: var(--danger);
       color: white;
     }
+
+    /* --- TIGHTER TABLE ROWS (auto-fit to text) --- */
+    table { line-height: 1.2; }              /* tighter line spacing */
+    
+    th, td {
+      padding: 6px 10px;                     /* was 10-16px */
+      vertical-align: middle;                /* keep everything centered */
+    }
+    
+    /* Header can stay slightly taller */
+    th { padding: 8px 10px; }
+    
+    /* --- OVERRIDE CONTROL: shrink height so it doesn't inflate rows --- */
+    .override-wrap { gap: 6px; }
+    
+    .override-wrap select{
+      height: 30px;                          /* was 36px */
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    
+    .override-wrap input{
+      height: 30px;                          /* was 36px */
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    
+    /* Optional: slightly tighten the Override column cell itself */
+    td:nth-child(5){ padding-top: 4px; padding-bottom: 4px; }
   </style>
 </head>
 <body>
