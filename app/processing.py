@@ -334,62 +334,103 @@ def process_all(strike_color: str = "black"):
             "rows": [],
             "invalid_events": [],
             "parsing_warnings": [],
+            "parse_confidence": 1.0,
         }
 
-        # Build rows
-        for r in rows:
-            row_obj = {
-                "date": r["date"].strftime("%m/%d/%Y"),
-                "ship": r["ship"],
-                "event": r.get("event", ""),
-                "raw": r.get("raw", ""),
+        # 🔹 --- START OF PATCH --- 🔹
+
+        # CLASSIFY VALID ROWS: Add a permanent, positive event_index to every valid row.
+        for valid_idx, r in enumerate(rows):
+            system_classification = {
+                "is_valid": True,
+                "reason": None,
+                "explanation": "Valid sea pay day after TORIS parser filtering (non-training, non-duplicate, known ship).",
+                "confidence": 1.0,
+            }
+            override = { "status": None, "reason": None, "source": None, "history": [] }
+            final_classification = { "is_valid": True, "reason": None, "source": "system" }
+            
+            sheet_block["rows"].append({
+                "event_index": valid_idx,  # Stamp permanent positive index
+                "date": r.get("date"),
+                "ship": r.get("ship"),
+                "event": extract_event_details(r.get("raw", "")),
                 "occ_idx": r.get("occ_idx"),
-                "event_index": r.get("event_index"),
-                "reason": r.get("reason", ""),
-                "final_classification": {
-                    "is_valid": True,
-                    "source": "parser",
-                    "reason": "Valid row from parser",
-                },
-            }
-            sheet_block["rows"].append(row_obj)
+                "raw": r.get("raw", ""),
+                "is_inport": bool(r.get("is_inport", False)),
+                "inport_label": r.get("inport_label"),
+                "is_mission": r.get("is_mission"),
+                "label": r.get("label"),
+                "status": "valid",
+                "status_reason": None,
+                "confidence": 1.0,
+                "system_classification": system_classification,
+                "override": override,
+                "final_classification": final_classification,
+            })
 
-        # Build invalid_events
-        for sk in skipped_dupe:
-            inv = {
-                "date": sk.get("date"),
-                "ship": sk.get("ship"),
-                "event": sk.get("event", ""),
-                "raw": sk.get("raw", ""),
-                "occ_idx": sk.get("occ_idx"),
-                "event_index": sk.get("event_index"),
-                "reason": sk.get("reason", "Duplicate event"),
-                "category": "duplicate",
-                "final_classification": {
-                    "is_valid": False,
-                    "source": "parser",
-                    "reason": sk.get("reason", "Duplicate event"),
-                },
-            }
-            sheet_block["invalid_events"].append(inv)
+        # CLASSIFY INVALID EVENTS: Add a permanent, negative event_index to every invalid event.
+        invalid_events = []
+        all_invalid_source = skipped_dupe + skipped_unknown
+        
+        for invalid_idx, e in enumerate(all_invalid_source):
+            event_index = -(invalid_idx + 1)  # Stamp permanent negative index
+            
+            # This logic is a consolidation of your original two separate loops
+            is_dupe = e in skipped_dupe
+            
+            if is_dupe:
+                category = "duplicate"
+                explanation = "Duplicate event for this date; another entry kept as primary sea pay event."
+            else:
+                raw_reason = (e.get("reason") or "").lower()
+                if "in-port" in raw_reason or "shore" in raw_reason:
+                    category = "shore_side_event"
+                    explanation = "In-port shore-side training or non-sea-pay event."
+                else:
+                    category = "unknown"
+                    explanation = "Unknown or non-platform event; no valid ship identified for sea pay."
 
-        for sk in skipped_unknown:
-            inv = {
-                "date": sk.get("date"),
-                "ship": sk.get("ship"),
-                "event": sk.get("event", ""),
-                "raw": sk.get("raw", ""),
-                "occ_idx": sk.get("occ_idx"),
-                "event_index": sk.get("event_index"),
-                "reason": sk.get("reason", "Unknown/filtered event"),
-                "category": "unknown",
-                "final_classification": {
-                    "is_valid": False,
-                    "source": "parser",
-                    "reason": sk.get("reason", "Unknown/filtered event"),
-                },
-            }
-            sheet_block["invalid_events"].append(inv)
+            system_classification = { "is_valid": False, "reason": category, "explanation": explanation, "confidence": 1.0 }
+            override = { "status": None, "reason": None, "source": None, "history": [] }
+            final_classification = { "is_valid": False, "reason": category, "source": "system" }
+            
+            # 🔹 --- START OF CORRECTION --- 🔹
+            invalid_events.append({
+                "event_index": event_index,
+                "status": "invalid",
+                "date": e.get("date"),
+                "ship": e.get("ship"),  # Corrected from e.g.get
+                "event": extract_event_details(e.get("raw", "")),
+                "occ_idx": e.get("occ_idx"),
+                "raw": e.get("raw", ""),
+                "reason": e.get("reason", "Unknown"),
+                "category": category,
+                "source": "parser",
+                "system_classification": system_classification,
+                "override": override,
+                "final_classification": final_classification,
+            })
+            # 🔹 --- END OF CORRECTION --- 🔹
+            
+        sheet_block["invalid_events"] = invalid_events
+
+        # 🔹 --- END OF PATCH --- 🔹
+
+
+        # -------------------------
+        # PARSE CONFIDENCE HEURISTICS
+        # -------------------------
+        if len(skipped_unknown) > 0:
+            sheet_block["parse_confidence"] = 0.7
+            sheet_block["parsing_warnings"].append(
+                f"{len(skipped_unknown)} unknown/suppressed entries detected."
+            )
+        if len(rows) == 0 and invalid_events:
+            sheet_block["parse_confidence"] = 0.4
+            sheet_block["parsing_warnings"].append(
+                "Sheet had no valid rows after parser filtering."
+            )
 
         review_state[member_key]["sheets"].append(sheet_block)
 
@@ -407,8 +448,13 @@ def process_all(strike_color: str = "black"):
                 "reporting_periods": [],
             }
 
+        sd = summary_data[member_key]
+        sd["reporting_periods"].append(
+            {"start": sheet_start, "end": sheet_end, "file": file}
+        )
+
         for g in groups:
-            summary_data[member_key]["periods"].append({
+            sd["periods"].append({
                 "ship": g["ship"],
                 "start": g["start"],
                 "end": g["end"],
@@ -416,32 +462,8 @@ def process_all(strike_color: str = "black"):
                 "sheet_file": file,
             })
 
-        for d in skipped_dupe:
-            summary_data[member_key]["skipped_dupe"].append({
-                "date": d.get("date"),
-                "ship": d.get("ship"),
-                "occ_idx": d.get("occ_idx"),
-                "raw": d.get("raw", ""),
-                "reason": d.get("reason", ""),
-                "category": "duplicate",
-            })
-
-        for u in skipped_unknown:
-            summary_data[member_key]["skipped_unknown"].append({
-                "date": u.get("date"),
-                "ship": u.get("ship"),
-                "occ_idx": u.get("occ_idx"),
-                "raw": u.get("raw", ""),
-                "reason": u.get("reason", ""),
-                "category": "unknown",
-            })
-
-        if sheet_start and sheet_end:
-            summary_data[member_key]["reporting_periods"].append({
-                "from": sheet_start.strftime("%m/%d/%Y"),
-                "to": sheet_end.strftime("%m/%d/%Y"),
-                "sheet": file,
-            })
+        sd["skipped_unknown"].extend(skipped_unknown)
+        sd["skipped_dupe"].extend(skipped_dupe)
 
         # 🔹 PATCH: TORIS marking (80% of this file)
         progress.update(idx, progress.STEP_OCR + progress.STEP_PARSE + 
@@ -449,8 +471,12 @@ def process_all(strike_color: str = "black"):
                        f"[{idx+1}/{total_files}] Marking TORIS: {file}")
 
         # TORIS with strikeouts
-        toris_name = f"{rate}_{last}_{first}__TORIS_SEA_DUTY_CERT_SHEETS.pdf".replace(" ", "_")
-        toris_path = os.path.join(TORIS_CERT_FOLDER, toris_name)
+        hf = sheet_start.strftime("%m-%d-%Y") if sheet_start else "UNKNOWN"
+        ht = sheet_end.strftime("%m-%d-%Y") if sheet_end else "UNKNOWN"
+        toris_filename = (
+            f"{rate}_{last}_{first}__TORIS_SEA_DUTY_CERT_SHEETS__{hf}_TO_{ht}.pdf"
+        ).replace(" ", "_")
+        toris_path = os.path.join(TORIS_CERT_FOLDER, toris_filename)
 
         if os.path.exists(toris_path):
             os.remove(toris_path)
