@@ -25,12 +25,18 @@
     }
     * { box-sizing: border-box; }
     
+    html {
+      overflow-x: hidden;
+    }
+    
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       background: var(--bg);
       color: var(--text-primary);
       line-height: 1.5;
+      overflow-x: hidden;
+      width: 100%;
     }
     header {
       background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 100%);
@@ -57,14 +63,17 @@
       max-width: 1400px;
       margin: 0 auto;
       padding: 16px;
+      width: 100%;
+      overflow-x: hidden;
     }
     
     /* RESPONSIVE GRID */
     .grid {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 20px;
+      gap: 16px;
       align-items: start;
+      width: 100%;
     }
     
     /* Tablet and up: side-by-side layout */
@@ -73,8 +82,8 @@
         padding: 20px;
       }
       .grid {
-        grid-template-columns: minmax(300px, 380px) 1fr;
-        gap: 24px;
+        grid-template-columns: minmax(280px, 360px) 1fr;
+        gap: 20px;
       }
     }
     
@@ -85,6 +94,7 @@
       }
       .grid {
         grid-template-columns: minmax(340px, 420px) 1fr;
+        gap: 24px;
       }
     }
     
@@ -98,26 +108,38 @@
       box-shadow: var(--shadow-sm);
       overflow: hidden;
       transition: box-shadow 0.2s ease, transform 0.2s ease;
+      max-width: 100%;
+      width: 100%;
     }
     .card:hover {
       box-shadow: var(--shadow);
     }
     .card h3 {
       margin: 0;
-      padding: 14px 16px;
+      padding: 12px 14px;
       background: linear-gradient(to right, #f8fafc 0%, #ffffff 100%);
       border-bottom: 1px solid var(--border);
-      font-size: clamp(12px, 2vw, 14px);
+      font-size: clamp(11px, 2.5vw, 14px);
       font-weight: 700;
       letter-spacing: 0.025em;
       color: var(--navy);
       text-transform: uppercase;
     }
     .card .body {
-      padding: 16px;
+      padding: 14px;
     }
     
     @media (min-width: 768px) {
+      .card h3 {
+        padding: 14px 16px;
+        font-size: clamp(12px, 2vw, 14px);
+      }
+      .card .body {
+        padding: 16px;
+      }
+    }
+    
+    @media (min-width: 1024px) {
       .card h3 {
         padding: 16px 20px;
       }
@@ -136,12 +158,14 @@
     input[type=file],
     select {
       width: 100%;
+      max-width: 100%;
       padding: 10px 12px;
       border: 1.5px solid var(--border);
       border-radius: 8px;
       font-size: 14px;
       background: white;
       transition: all 0.2s ease;
+      box-sizing: border-box;
     }
     input[type=file]:hover,
     select:hover {
@@ -165,6 +189,19 @@
       outline: none;
       border-color: var(--navy);
       box-shadow: 0 0 0 3px rgba(14, 85, 120, 0.1);
+    }
+    
+    /* Mobile: prevent zoom and larger touch targets */
+    @media (max-width: 767px) {
+      input[type=file],
+      select {
+        font-size: 16px; /* Prevents iOS zoom */
+        padding: 12px 14px;
+      }
+      input[type=text] {
+        font-size: 16px; /* Prevents iOS zoom */
+        padding: 10px 12px;
+      }
     }
     button {
       width: 100%;
@@ -310,8 +347,15 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: clamp(11px, 1.5vw, 13px);
-      min-width: 700px;
+      font-size: clamp(10px, 1.8vw, 13px);
+      min-width: 500px;
+    }
+    
+    @media (min-width: 768px) {
+      table {
+        min-width: 650px;
+        font-size: clamp(11px, 1.5vw, 13px);
+      }
     }
     
     @media (min-width: 1024px) {
@@ -668,9 +712,9 @@
   </div>
 </div>
 <footer>
-  Developed by <a href="mailto:ryan.n.nivera.mil@us.navy.mil?subject=ATGSD Sea Pay Processor - Support Request&body=Hello STG1(SW) Nivera, Ryan,%0D%0A%0D%0AI have a question about the ATGSD Sea Pay Processor:%0D%0A%0D%0A">STG1(SW) Nivera, Ryan</a> | ATGSD Sea Pay Processor © 2025
+  Developed by <a href="/cdn-cgi/l/email-protection#9ceee5fdf2b2f2b2f2f5eaf9eefdb2f1f5f0dce9efb2f2fdeae5b2f1f5f0a3efe9fef6f9ffe8a1ddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eebcb1bccfe9ececf3eee8bccef9ede9f9efe8bafef3f8e5a1d4f9f0f0f3bccfc8dbadb4cfcbb5bcd2f5eaf9eefdb0bccee5fdf2b0b9acd8b9acddb9acd8b9acddd5bcf4fdeaf9bcfdbcede9f9efe8f5f3f2bcfdfef3e9e8bce8f4f9bcddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eea6b9acd8b9acddb9acd8b9acdd">STG1(SW) Nivera, Ryan</a> | ATGSD Sea Pay Processor © 2025
 </footer>
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
   const $ = (id) => document.getElementById(id);
   
   let lastStatus = null;
