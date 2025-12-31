@@ -35,7 +35,7 @@
     header {
       background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 100%);
       color: white;
-      padding: 20px 24px;
+      padding: 16px 20px;
       box-shadow: var(--shadow-lg);
       position: sticky;
       top: 0;
@@ -44,31 +44,50 @@
     }
     header h1 {
       margin: 0;
-      font-size: 24px;
+      font-size: clamp(18px, 4vw, 24px);
       font-weight: 700;
       letter-spacing: -0.025em;
     }
     header .subtitle {
-      font-size: 13px;
+      font-size: clamp(11px, 2vw, 13px);
       opacity: 0.9;
       margin-top: 2px;
     }
     .wrap {
-      max-width: 1800px;
+      max-width: 1400px;
       margin: 0 auto;
-      padding: 24px;
+      padding: 16px;
     }
+    
+    /* RESPONSIVE GRID */
     .grid {
       display: grid;
-      grid-template-columns: 420px 1fr;
-      gap: 24px;
+      grid-template-columns: 1fr;
+      gap: 20px;
       align-items: start;
     }
-    @media (max-width: 1200px) {
+    
+    /* Tablet and up: side-by-side layout */
+    @media (min-width: 768px) {
+      .wrap {
+        padding: 20px;
+      }
       .grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(300px, 380px) 1fr;
+        gap: 24px;
       }
     }
+    
+    /* Desktop: optimal layout */
+    @media (min-width: 1024px) {
+      .wrap {
+        padding: 24px;
+      }
+      .grid {
+        grid-template-columns: minmax(340px, 420px) 1fr;
+      }
+    }
+    
     .stack > * + * {
       margin-top: 16px;
     }
@@ -85,18 +104,28 @@
     }
     .card h3 {
       margin: 0;
-      padding: 16px 20px;
+      padding: 14px 16px;
       background: linear-gradient(to right, #f8fafc 0%, #ffffff 100%);
       border-bottom: 1px solid var(--border);
-      font-size: 14px;
+      font-size: clamp(12px, 2vw, 14px);
       font-weight: 700;
       letter-spacing: 0.025em;
       color: var(--navy);
       text-transform: uppercase;
     }
     .card .body {
-      padding: 20px;
+      padding: 16px;
     }
+    
+    @media (min-width: 768px) {
+      .card h3 {
+        padding: 16px 20px;
+      }
+      .card .body {
+        padding: 20px;
+      }
+    }
+    
     label {
       display: block;
       font-size: 13px;
@@ -130,6 +159,7 @@
       border-radius: 6px;
       font-size: 13px;
       transition: all 0.2s ease;
+      width: 100%;
     }
     input[type=text]:focus {
       outline: none;
@@ -206,18 +236,33 @@
       50% { opacity: 0.5; }
     }
     .logbox {
-      height: 320px;
+      height: 240px;
       overflow: auto;
       background: #0f172a;
       color: #10b981;
       font-family: var(--mono);
-      font-size: 12px;
+      font-size: clamp(10px, 1.5vw, 12px);
       line-height: 1.5;
-      padding: 16px;
+      padding: 12px;
       border-radius: 8px;
       white-space: pre;
       box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.3);
     }
+    
+    @media (min-width: 768px) {
+      .logbox {
+        height: 280px;
+        padding: 14px;
+      }
+    }
+    
+    @media (min-width: 1024px) {
+      .logbox {
+        height: 320px;
+        padding: 16px;
+      }
+    }
+    
     .logbox::-webkit-scrollbar {
       width: 8px;
     }
@@ -232,40 +277,71 @@
     .logbox::-webkit-scrollbar-thumb:hover {
       background: #475569;
     }
+    
+    /* RESPONSIVE REVIEW CONTROLS */
     .review-controls {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 20px;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
     }
+    
+    @media (min-width: 640px) {
+      .review-controls {
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+    }
+    
     .review-controls select {
       height: 44px;
     }
+    
+    /* RESPONSIVE TABLE */
     .table-container {
       overflow-x: auto;
       border-radius: 8px;
       border: 1px solid var(--border);
       margin-top: 12px;
+      max-width: 100%;
+      -webkit-overflow-scrolling: touch;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 13px;
+      font-size: clamp(11px, 1.5vw, 13px);
+      min-width: 700px;
     }
+    
+    @media (min-width: 1024px) {
+      table {
+        min-width: 800px;
+      }
+    }
+    
     th, td {
-      padding: 12px 16px;
+      padding: 10px 12px;
       text-align: left;
       border-bottom: 1px solid var(--border);
     }
+    
+    @media (min-width: 768px) {
+      th, td {
+        padding: 12px 16px;
+      }
+    }
+    
     th {
       background: #f8fafc;
       font-weight: 700;
       color: var(--navy);
       text-transform: uppercase;
-      font-size: 11px;
+      font-size: clamp(10px, 1.5vw, 11px);
       letter-spacing: 0.05em;
       position: sticky;
       top: 0;
+      z-index: 10;
     }
     tr.valid {
       background: #f0fdf4;
@@ -282,22 +358,46 @@
     tr.invalid:hover {
       background: #fee2e2;
     }
+    
+    /* RESPONSIVE OVERRIDE CONTROLS */
     .override-wrap {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
       flex-wrap: wrap;
     }
-    .override-wrap select {
-      width: 140px;
-      height: 36px;
-      font-size: 13px;
+    
+    @media (min-width: 768px) {
+      .override-wrap {
+        gap: 8px;
+      }
     }
+    
+    .override-wrap select {
+      width: 120px;
+      height: 36px;
+      font-size: 12px;
+    }
+    
+    @media (min-width: 768px) {
+      .override-wrap select {
+        width: 140px;
+        font-size: 13px;
+      }
+    }
+    
     .override-wrap input {
       flex: 1;
-      min-width: 180px;
+      min-width: 140px;
       height: 36px;
     }
+    
+    @media (min-width: 768px) {
+      .override-wrap input {
+        min-width: 180px;
+      }
+    }
+    
     .override-wrap.dirty select,
     .override-wrap.dirty input {
       border-color: var(--warning);
@@ -308,7 +408,7 @@
       align-items: center;
       gap: 10px;
       font-weight: 700;
-      font-size: 13px;
+      font-size: clamp(12px, 2vw, 13px);
       margin: 20px 0 8px;
       color: var(--navy);
       text-transform: uppercase;
@@ -322,28 +422,44 @@
       border-radius: 2px;
     }
     .hint {
-      font-size: 13px;
+      font-size: clamp(12px, 2vw, 13px);
       color: var(--text-secondary);
-      padding: 12px 16px;
+      padding: 12px 14px;
       background: var(--bg);
       border-radius: 8px;
       border: 1px dashed var(--border);
       text-align: center;
     }
+    
+    @media (min-width: 768px) {
+      .hint {
+        padding: 12px 16px;
+      }
+    }
+    
     .small {
       font-size: 12px;
       color: var(--text-secondary);
       margin-top: 8px;
     }
     footer {
-      padding: 24px;
+      padding: 20px 16px;
       text-align: center;
       color: var(--text-secondary);
-      font-size: 12px;
+      font-size: 11px;
       border-top: 1px solid var(--border);
-      margin-top: 40px;
+      margin-top: 32px;
       background: white;
     }
+    
+    @media (min-width: 768px) {
+      footer {
+        padding: 24px;
+        font-size: 12px;
+        margin-top: 40px;
+      }
+    }
+    
     footer a {
       color: var(--navy);
       text-decoration: none;
@@ -354,32 +470,54 @@
     footer a:hover {
       border-bottom-color: var(--navy);
     }
+    
+    /* RESPONSIVE ACTION BUTTONS */
     .action-buttons {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      grid-template-columns: 1fr;
+      gap: 10px;
       margin-top: 16px;
     }
+    
+    @media (min-width: 640px) {
+      .action-buttons {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+    }
+    
     .divider {
       height: 1px;
       background: var(--border);
       margin: 16px 0;
     }
-    /* 🔹 --- START OF PATCH --- 🔹 */
+    
+    /* RESPONSIVE STATS */
     .review-stats {
       display: flex;
-      justify-content: flex-end;
-      gap: 16px;
-      padding: 0 4px 16px;
+      justify-content: center;
+      gap: 12px;
+      padding: 0 4px 12px;
       border-bottom: 1px solid var(--border);
-      margin-bottom: 20px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
     }
+    
+    @media (min-width: 640px) {
+      .review-stats {
+        justify-content: flex-end;
+        gap: 16px;
+        padding: 0 4px 16px;
+        margin-bottom: 20px;
+      }
+    }
+    
     .stat-item {
-      font-size: 14px;
+      font-size: clamp(12px, 2vw, 14px);
       font-weight: 600;
     }
     .stat-item span {
-      font-size: 16px;
+      font-size: clamp(14px, 2vw, 16px);
       font-weight: 700;
       padding: 4px 10px;
       border-radius: 6px;
@@ -393,7 +531,6 @@
       background: var(--danger);
       color: white;
     }
-    /* 🔹 --- END OF PATCH --- 🔹 */
   </style>
 </head>
 <body>
@@ -477,12 +614,10 @@
             </div>
           </div>
 
-          <!-- 🔹 --- START OF PATCH --- 🔹 -->
           <div class="review-stats">
             <div class="stat-item">VALID: <span id="validCount" class="valid-count">0</span></div>
             <div class="stat-item">INVALID: <span id="invalidCount" class="invalid-count">0</span></div>
           </div>
-          <!-- 🔹 --- END OF PATCH --- 🔹 -->
 
           <div class="hint" id="reviewHint">
             👆 Select a member and sheet to review and override validation results
@@ -647,7 +782,6 @@
       $("reviewHint").textContent = "👆 Select a member and sheet to review and override validation results";
       pendingOverrides = {};
       
-      // 🔹 PATCH: Reset counters on system reset
       if($("validCount")) $("validCount").textContent = "0";
       if($("invalidCount")) $("invalidCount").textContent = "0";
 
@@ -680,7 +814,6 @@
     $("validBody").innerHTML = "";
     $("invalidBody").innerHTML = "";
     if (!memberKey) {
-        // 🔹 PATCH: Reset counters when no member is selected
         if($("validCount")) $("validCount").textContent = "0";
         if($("invalidCount")) $("invalidCount").textContent = "0";
         return;
@@ -696,9 +829,11 @@
     sel.disabled = false;
     lastSelectedSheet = sel.value;
   }
+  
   function buildOverrideControl(memberKey, sheetFile, eventIndex, currentStatus, currentReason, source) {
     const wrap = document.createElement("div");
     wrap.className = "override-wrap";
+    
     const sel = document.createElement("select");
     const options = [
       {v:"", t:"🔄 Auto"},
@@ -712,184 +847,197 @@
       sel.appendChild(opt);
     }
     sel.value = currentStatus || "";
+    
     const reason = document.createElement("input");
     reason.type = "text";
-    reason.placeholder = "Reason (optional)";
+    reason.placeholder = "Optional reason for override...";
     reason.value = currentReason || "";
-    const queue = () => {
-      const key = memberKey + "|" + sheetFile + "|" + String(eventIndex);
+    
+    const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
+    
+    function markDirty() {
+      wrap.classList.add("dirty");
       pendingOverrides[key] = {
         member_key: memberKey,
         sheet_file: sheetFile,
         event_index: eventIndex,
-        status: sel.value || null,
-        reason: reason.value || "",
-        source: "manual"
+        override_status: sel.value || null,
+        override_reason: reason.value || null
       };
+    }
+    
+    sel.addEventListener("change", markDirty);
+    reason.addEventListener("input", markDirty);
+    
+    if (source === "override") {
       wrap.classList.add("dirty");
-    };
-    sel.addEventListener("change", queue);
-    reason.addEventListener("input", queue);
+    }
+    
     wrap.appendChild(sel);
     wrap.appendChild(reason);
     return wrap;
   }
   
-  function renderRows(tbody, rows, memberKey, sheetFile, rowClass) {
-    tbody.innerHTML = "";
-    if (!Array.isArray(rows) || rows.length === 0) return;
-    rows.forEach((row, idx) => {
-      const tr = document.createElement("tr");
-      tr.className = rowClass || "";
-      const date = pick(row, ["date","Date","event_date","schedule_day","day","dt"], "");
-      const ship = pick(row, ["ship","Ship","ship_name"], "");
-      const event = pick(row, ["event","Event","event_details"], "");
-      const final = pick(row, ["final","Final","final_status","final_valid","computed_status","status"], "");
-      const reason = pick(row, ["reason","Reason","invalid_reason","why"], "");
-      const ov = row.override || row.Override || null;
-      const ovStatus = pick(ov || row, ["status","override_status","override"], "");
-      const ovReason = pick(ov || row, ["reason","override_reason"], "");
-      const source = pick(ov || row, ["source","override_source"], "");
-      
-      let eventIndex = pick(row, ["event_index","index","i"], null);
-      if (eventIndex === null) {
-        eventIndex = (rowClass === "invalid") ? -(idx + 1) : idx;
-      }
-      const tdDate = document.createElement("td"); tdDate.textContent = safeText(date);
-      const tdShip = document.createElement("td"); tdShip.textContent = safeText(ship);
-      const tdEvent = document.createElement("td"); tdEvent.textContent = safeText(event);
-      const tdFinal = document.createElement("td"); tdFinal.textContent = safeText(final);
-      const tdOverride = document.createElement("td");
-      tdOverride.appendChild(buildOverrideControl(memberKey, sheetFile, eventIndex, ovStatus, ovReason, source));
-      const tdReason = document.createElement("td"); tdReason.textContent = safeText(reason);
-      tr.appendChild(tdDate);
-      tr.appendChild(tdShip);
-      tr.appendChild(tdEvent);
-      tr.appendChild(tdFinal);
-      tr.appendChild(tdOverride);
-      tr.appendChild(tdReason);
-      tbody.appendChild(tr);
-    });
-  }
-
-  // 🔹 --- START OF PATCH --- 🔹
-
-  async function loadSheet(memberKey, sheetFile) {
-    const validBody = $("validBody");
-    const invalidBody = $("invalidBody");
-    const reviewHint = $("reviewHint");
-    const validCountEl = $("validCount");
-    const invalidCountEl = $("invalidCount");
-
-    // Clear the view if no sheet is selected
-    if (!memberKey || !sheetFile) {
-        validBody.innerHTML = "";
-        invalidBody.innerHTML = "";
-        if (validCountEl) validCountEl.textContent = "0";
-        if (invalidCountEl) invalidCountEl.textContent = "0";
-        reviewHint.style.display = "block";
-        reviewHint.textContent = "👆 Select a member and sheet to review and override validation results";
-        return;
-    };
-
+  async function loadEventTableForSheet(memberKey, sheetFile) {
+    $("validBody").innerHTML = "";
+    $("invalidBody").innerHTML = "";
+    $("reviewHint").textContent = "Loading events...";
+    
     try {
-        const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile));
-        const validRows = data.valid_rows || data.valid || data.rows_valid || [];
-        const invalidRows = data.invalid_events || data.invalid || data.rows_invalid || [];
-
-        // Update the counts in the UI
-        if (validCountEl) validCountEl.textContent = validRows.length;
-        if (invalidCountEl) invalidCountEl.textContent = invalidRows.length;
+      const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile) + "/events");
+      
+      const validRows = data.valid || [];
+      const invalidRows = data.invalid || [];
+      
+      if($("validCount")) $("validCount").textContent = String(validRows.length);
+      if($("invalidCount")) $("invalidCount").textContent = String(invalidRows.length);
+      
+      const validBody = $("validBody");
+      const invalidBody = $("invalidBody");
+      
+      if (validRows.length === 0 && invalidRows.length === 0) {
+        $("reviewHint").textContent = "No events found for this sheet";
+        return;
+      }
+      
+      $("reviewHint").style.display = "none";
+      
+      for (const row of validRows) {
+        const tr = document.createElement("tr");
+        tr.className = "valid";
         
-        reviewHint.style.display = "none";
-
-        // Render the tables
-        renderRows(validBody, validRows, memberKey, sheetFile, "valid");
-        renderRows(invalidBody, invalidRows, memberKey, sheetFile, "invalid");
+        const tdDate = document.createElement("td");
+        tdDate.textContent = safeText(row.date);
         
-        // Update the last known good selection
-        lastSelectedMember = $("memberSelect").value;
-        lastSelectedSheet = $("sheetSelect").value;
-    } catch (e) {
-        alert("❌ Failed to load sheet data: " + (e.message || String(e)));
-        if (validCountEl) validCountEl.textContent = "ERR";
-        if (invalidCountEl) invalidCountEl.textContent = "ERR";
+        const tdShip = document.createElement("td");
+        tdShip.textContent = safeText(row.ship);
+        
+        const tdEvent = document.createElement("td");
+        tdEvent.textContent = safeText(row.event);
+        
+        const tdStatus = document.createElement("td");
+        tdStatus.textContent = row.source === "override" ? "Override" : "Valid";
+        
+        const tdOverride = document.createElement("td");
+        tdOverride.appendChild(
+          buildOverrideControl(
+            memberKey,
+            sheetFile,
+            row.event_index,
+            row.override_status || "",
+            row.override_reason || "",
+            row.source
+          )
+        );
+        
+        const tdReason = document.createElement("td");
+        tdReason.textContent = safeText(row.reason);
+        
+        tr.appendChild(tdDate);
+        tr.appendChild(tdShip);
+        tr.appendChild(tdEvent);
+        tr.appendChild(tdStatus);
+        tr.appendChild(tdOverride);
+        tr.appendChild(tdReason);
+        
+        validBody.appendChild(tr);
+      }
+      
+      for (const row of invalidRows) {
+        const tr = document.createElement("tr");
+        tr.className = "invalid";
+        
+        const tdDate = document.createElement("td");
+        tdDate.textContent = safeText(row.date);
+        
+        const tdShip = document.createElement("td");
+        tdShip.textContent = safeText(row.ship);
+        
+        const tdEvent = document.createElement("td");
+        tdEvent.textContent = safeText(row.event);
+        
+        const tdStatus = document.createElement("td");
+        tdStatus.textContent = row.source === "override" ? "Override" : "Invalid";
+        
+        const tdOverride = document.createElement("td");
+        tdOverride.appendChild(
+          buildOverrideControl(
+            memberKey,
+            sheetFile,
+            row.event_index,
+            row.override_status || "",
+            row.override_reason || "",
+            row.source
+          )
+        );
+        
+        const tdReason = document.createElement("td");
+        tdReason.textContent = safeText(row.reason);
+        
+        tr.appendChild(tdDate);
+        tr.appendChild(tdShip);
+        tr.appendChild(tdEvent);
+        tr.appendChild(tdStatus);
+        tr.appendChild(tdOverride);
+        tr.appendChild(tdReason);
+        
+        invalidBody.appendChild(tr);
+      }
+      
+    } catch (err) {
+      $("reviewHint").textContent = "Error loading events: " + err.message;
+      $("reviewHint").style.display = "block";
     }
   }
-
-  // 🔹 --- END OF PATCH --- 🔹
+  
+  $("memberSelect").addEventListener("change", async (e) => {
+    const memberKey = e.target.value;
+    lastSelectedMember = memberKey;
+    pendingOverrides = {};
+    await loadSheetsForMember(memberKey);
+  });
+  
+  $("sheetSelect").addEventListener("change", async (e) => {
+    const sheetFile = e.target.value;
+    lastSelectedSheet = sheetFile;
+    pendingOverrides = {};
+    if (!sheetFile || !lastSelectedMember) return;
+    await loadEventTableForSheet(lastSelectedMember, sheetFile);
+  });
   
   async function saveOverrides() {
+    const overrides = Object.values(pendingOverrides);
+    if (overrides.length === 0) {
+      alert("No changes to save");
+      return;
+    }
+    
+    $("saveOverridesBtn").disabled = true;
     try {
-      const keys = Object.keys(pendingOverrides);
-      if (keys.length === 0) {
-        alert("ℹ️ No changes to save.");
-        return;
-      }
-      for (const k of keys) {
-        const payload = pendingOverrides[k];
-        const st = payload.status;
-        const rsn = (payload.reason || "").trim();
-        if ((st === null || st === "") && rsn === "") {
-          await jdel("/api/override", {
-            member_key: payload.member_key,
-            sheet_file: payload.sheet_file,
-            event_index: payload.event_index
-          });
-        } else {
-          await jpost("/api/override", {
-            member_key: payload.member_key,
-            sheet_file: payload.sheet_file,
-            event_index: payload.event_index,
-            status: st,
-            reason: payload.reason || "",
-            source: "manual"
-          });
-        }
-      }
+      await jpost("/api/overrides", {overrides});
+      alert(`✅ Saved ${overrides.length} override(s)`);
       pendingOverrides = {};
-      await loadSheet($("memberSelect").value, $("sheetSelect").value);
-      alert("✅ Overrides saved successfully!");
-    } catch (e) {
-      alert("❌ " + (e.message || String(e)));
+      
+      if (lastSelectedMember && lastSelectedSheet) {
+        await loadEventTableForSheet(lastSelectedMember, lastSelectedSheet);
+      }
+    } catch (err) {
+      alert("Error saving overrides: " + err.message);
+    } finally {
+      $("saveOverridesBtn").disabled = false;
     }
   }
+  
   async function rebuildOutputs() {
-    if (!confirm("🔄 Rebuild all outputs using current overrides?")) return;
+    if (!confirm("🔄 Rebuild all output files using current overrides?")) return;
+    
     try {
-      const r = await fetch("/rebuild_outputs", { method: "POST" });
-      if (!r.ok) throw new Error("Rebuild failed");
-      alert("✅ Rebuild started. Check the live log for progress.");
-    } catch (e) {
-      alert("❌ " + (e.message || String(e)));
+      const resp = await jpost("/api/rebuild", {});
+      alert("✅ " + (resp.message || "Rebuild complete"));
+    } catch (err) {
+      alert("Error rebuilding: " + err.message);
     }
   }
-  
-  function confirmNavigation() {
-    if (Object.keys(pendingOverrides).length > 0) {
-      return confirm("⚠️ You have unsaved changes that will be lost. Are you sure you want to continue?");
-    }
-    return true;
-  }
-  
-  $("memberSelect").addEventListener("change", async () => {
-    if (!confirmNavigation()) {
-      $("memberSelect").value = lastSelectedMember;
-      return;
-    }
-    pendingOverrides = {};
-    await loadSheetsForMember($("memberSelect").value);
-  });
-  $("sheetSelect").addEventListener("change", async () => {
-    if (!confirmNavigation()) {
-      $("sheetSelect").value = lastSelectedSheet;
-      return;
-    }
-    pendingOverrides = {};
-    await loadSheet($("memberSelect").value, $("sheetSelect").value);
-  });
-  
-  refreshReviewLists();
 </script>
 </body>
 </html>
