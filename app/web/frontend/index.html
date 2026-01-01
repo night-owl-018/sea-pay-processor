@@ -41,16 +41,30 @@
       width: 100%;
     }
 
+    /* =========================
+       PATCH: Full-width header background + centered inner content
+       ========================= */
     header {
       background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 100%);
       color: white;
-      padding: 16px 20px;
       box-shadow: var(--shadow-lg);
       position: sticky;
       top: 0;
       z-index: 100;
       backdrop-filter: blur(10px);
+      width: 100%;
     }
+    .header-inner{
+      max-width: 1600px;                 /* match .wrap max width */
+      margin: 0 auto;                    /* center inner content */
+      padding: 16px 20px;                /* same as your old header padding */
+      width: 100%;
+      box-sizing: border-box;
+    }
+    @media (max-width: 480px){
+      .header-inner{ padding: 12px 14px; }
+    }
+
     header h1 {
       margin: 0;
       font-size: clamp(18px, 4vw, 24px);
@@ -69,6 +83,7 @@
       padding: clamp(10px, 2.5vw, 24px);
       width: 100%;
       overflow-x: hidden;
+      box-sizing: border-box;
     }
 
     /* RESPONSIVE GRID */
@@ -157,6 +172,7 @@
       font-size: 13px;
       transition: all 0.2s ease;
       width: 100%;
+      box-sizing: border-box;
     }
     input[type=text]:focus {
       outline: none;
@@ -510,7 +526,6 @@
     }
 
     @media (max-width: 480px) {
-      header { padding: 12px 14px; }
       header h1 { font-size: 18px; }
       header .subtitle { font-size: 12px; }
 
@@ -591,8 +606,11 @@
 </head>
 <body>
 <header>
-  <h1>⚓ ATGSD Sea Pay Processor</h1>
-  <div class="subtitle">Automated Sea Duty Certification & PG-13 Generation System</div>
+  <!-- PATCH: centered inner header content -->
+  <div class="header-inner">
+    <h1>⚓ ATGSD Sea Pay Processor</h1>
+    <div class="subtitle">Automated Sea Duty Certification & PG-13 Generation System</div>
+  </div>
 </header>
 
 <div class="wrap">
