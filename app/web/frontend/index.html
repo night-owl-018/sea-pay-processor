@@ -22,6 +22,9 @@
       --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
       --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
       --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+      /* PATCH: minimum auto-fit font size */
+      --fit-min-font: 6;
     }
     
     .grid * { min-width: 0; }
@@ -638,6 +641,53 @@
     /* Optional: slightly tighten the Override column cell itself */
     td:nth-child(5){ padding-top: 4px; padding-bottom: 4px; }
 
+
+    /* =========================
+       PATCH: Reason auto-fit (min font 6px) + Override reason auto-grow
+       ========================= */
+
+    td.reason-cell {
+      white-space: normal !important;
+      overflow: hidden;
+      text-overflow: unset;
+      word-break: break-word;
+    }
+
+    td.reason-cell .fit-text {
+      display: block;
+      width: 100%;
+      line-height: 1.15;
+    }
+
+    /* override reason becomes a textarea */
+    .override-wrap textarea.override-reason {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+
+      height: 30px;
+      min-height: 30px;
+      padding: 4px 8px;
+      font-size: 12px;
+      line-height: 1.2;
+
+      resize: none;
+      overflow: hidden;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* Prevent iOS zoom on textarea */
+    @media (max-width: 767px) {
+      .override-wrap textarea.override-reason {
+        font-size: 16px;
+      }
+    }
+
 /* =========================
    iPHONE / SMALL SCREEN TIGHT MODE
    ========================= */
@@ -716,6 +766,16 @@
         height: 28px;
         padding: 3px 6px;
         font-size: 12px; /* ok here because not a primary form field; if it zooms, bump to 16 */
+      }
+
+      /* PATCH: keep textarea consistent in tight mode */
+      .override-wrap textarea.override-reason {
+        min-height: 32px;
+        font-size: 16px; /* keep iOS from zooming */
+      }
+
+      td.reason-cell .fit-text {
+        line-height: 1.1;
       }
     }
   </style>
@@ -857,14 +917,15 @@
 <footer>
   Developed by <a href="/cdn-cgi/l/email-protection#9ceee5fdf2b2f2b2f2f5eaf9eefdb2f1f5f0dce9efb2f2fdeae5b2f1f5f0a3efe9fef6f9ffe8a1ddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eebcb1bccfe9ececf3eee8bccef9ede9f9efe8bafef3f8e5a1d4f9f0f0f3bccfc8dbadb4cfcbb5bcd2f5eaf9eefdb0bccee5fdf2b0b9acd8b9acddb9acd8b9acddd5bcf4fdeaf9bcfdbcede9f9efe8f5f3f2bcfdfef3e9e8bce8f4f9bcddc8dbcfd8bccff9fdbcccfde5bccceef3fff9efeff3eea6b9acd8b9acddb9acd8b9acdd">STG1(SW) Nivera, Ryan</a> | ATGSD Sea Pay Processor © 2025
 </footer>
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script>
+<script>
   const $ = (id) => document.getElementById(id);
   
   let lastStatus = null;
   let pendingOverrides = {};
   let lastSelectedMember = "";
   let lastSelectedSheet = "";
-  
+
   function safeText(v) {
     if (v === null || v === undefined) return "";
     if (typeof v === "object") return JSON.stringify(v);
@@ -877,6 +938,63 @@
     }
     return fallback;
   }
+
+  /* =========================
+     PATCH: Fit text to box (min font 6px) + Auto-grow textarea
+     ========================= */
+
+  function fitFontToBox(el, opts = {}) {
+    const minPx = (opts.minPx ?? 6);
+    const maxPx = (opts.maxPx ?? null); // if null, uses current computed font size
+    const mode  = (opts.mode ?? "width"); // "width" or "both"
+
+    if (!el) return;
+
+    const cs = window.getComputedStyle(el);
+    const current = parseFloat(cs.fontSize) || 12;
+    let start = maxPx ? maxPx : current;
+
+    if (el.clientWidth <= 0) return;
+
+    el.style.fontSize = start + "px";
+
+    const overflows = () => {
+      const w = el.scrollWidth > el.clientWidth + 1;
+      if (mode === "width") return w;
+      const h = el.scrollHeight > el.clientHeight + 1;
+      return w || h;
+    };
+
+    let size = start;
+    while (size > minPx && overflows()) {
+      size -= 0.5;
+      el.style.fontSize = size + "px";
+    }
+
+    if (size < minPx) el.style.fontSize = minPx + "px";
+  }
+
+  function autoGrowTextarea(ta) {
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = Math.max(ta.scrollHeight, 30) + "px";
+  }
+
+  function patchFitAllReasonCells() {
+    document.querySelectorAll("td.reason-cell .fit-text").forEach((el) => {
+      fitFontToBox(el, { minPx: 6, mode: "width" });
+    });
+
+    document.querySelectorAll("textarea.override-reason").forEach((ta) => {
+      autoGrowTextarea(ta);
+      fitFontToBox(ta, { minPx: 6, mode: "width" });
+    });
+  }
+
+  window.addEventListener("resize", () => {
+    patchFitAllReasonCells();
+  });
+
   async function jget(url) {
     const r = await fetch(url, {cache:"no-store"});
     if (!r.ok) throw new Error("GET " + url + " -> " + r.status);
@@ -1035,8 +1153,10 @@
     }
     sel.value = currentStatus || "";
     
-    const reason = document.createElement("input");
-    reason.type = "text";
+    // PATCH: textarea auto-grows + can be auto-fit
+    const reason = document.createElement("textarea");
+    reason.className = "override-reason";
+    reason.rows = 1;
     reason.placeholder = "Optional reason for override...";
     reason.value = currentReason || "";
     
@@ -1053,8 +1173,16 @@
       };
     }
     
-    sel.addEventListener("change", markDirty);
-    reason.addEventListener("input", markDirty);
+    sel.addEventListener("change", () => {
+      markDirty();
+      patchFitAllReasonCells();
+    });
+
+    reason.addEventListener("input", () => {
+      autoGrowTextarea(reason);
+      markDirty();
+      fitFontToBox(reason, { minPx: 6, mode: "width" });
+    });
     
     if (source === "override") {
       wrap.classList.add("dirty");
@@ -1062,6 +1190,13 @@
     
     wrap.appendChild(sel);
     wrap.appendChild(reason);
+
+    // Initial sizing on render
+    setTimeout(() => {
+      autoGrowTextarea(reason);
+      fitFontToBox(reason, { minPx: 6, mode: "width" });
+    }, 0);
+
     return wrap;
   }
   
@@ -1117,8 +1252,13 @@
           )
         );
         
+        // PATCH: reason uses fit wrapper
         const tdReason = document.createElement("td");
-        tdReason.textContent = safeText(row.reason);
+        tdReason.className = "reason-cell";
+        const reasonWrap = document.createElement("div");
+        reasonWrap.className = "fit-text";
+        reasonWrap.textContent = safeText(row.reason);
+        tdReason.appendChild(reasonWrap);
         
         tr.appendChild(tdDate);
         tr.appendChild(tdShip);
@@ -1158,8 +1298,13 @@
           )
         );
         
+        // PATCH: reason uses fit wrapper
         const tdReason = document.createElement("td");
-        tdReason.textContent = safeText(row.reason);
+        tdReason.className = "reason-cell";
+        const reasonWrap = document.createElement("div");
+        reasonWrap.className = "fit-text";
+        reasonWrap.textContent = safeText(row.reason);
+        tdReason.appendChild(reasonWrap);
         
         tr.appendChild(tdDate);
         tr.appendChild(tdShip);
@@ -1170,6 +1315,11 @@
         
         invalidBody.appendChild(tr);
       }
+
+      // After render, fit everything
+      setTimeout(() => {
+        patchFitAllReasonCells();
+      }, 0);
       
     } catch (err) {
       $("reviewHint").textContent = "Error loading events: " + err.message;
