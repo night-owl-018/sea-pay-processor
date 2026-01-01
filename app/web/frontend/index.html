@@ -682,6 +682,41 @@
         height: 32px;
         font-size: 13px;
       }
+
+      /* =========================
+         PATCH: Mobile Compact Typography + Denser Layout (NO iOS zoom on inputs)
+         ========================= */
+      body { font-size: 13px; }
+      label { font-size: 12px; margin-bottom: 6px; }
+      .small { font-size: 11px; }
+      .status { font-size: 12px; padding: 6px 10px; }
+      .card h3 { font-size: 12px; }
+      .section-header { font-size: 12px; }
+      table { font-size: 12px; line-height: 1.1; }
+      th { font-size: 10px; }
+      th, td { padding: 5px 6px; }
+
+      /* Keep form fields at 16px to prevent iPhone Safari zoom */
+      select,
+      input[type="text"],
+      input[type="file"] {
+        font-size: 16px;
+      }
+
+      /* Slightly tighter overall spacing */
+      .wrap { padding: 10px; }
+      .card .body { padding: 10px; }
+      .stack > * + * { margin-top: 10px; }
+      button { font-size: 14px; padding: 10px 12px; }
+
+      /* Make override controls smaller without breaking usability */
+      .override-wrap { gap: 4px; }
+      .override-wrap select,
+      .override-wrap input {
+        height: 28px;
+        padding: 3px 6px;
+        font-size: 12px; /* ok here because not a primary form field; if it zooms, bump to 16 */
+      }
     }
   </style>
 </head>
