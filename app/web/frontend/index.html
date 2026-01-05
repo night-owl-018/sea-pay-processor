@@ -1052,6 +1052,25 @@
     return ta;
   }
 
+  /* =========================
+     PATCH: Read override status/reason from BOTH shapes:
+       - row.override_status / row.override_reason (old)
+       - row.override.status / row.override.reason (current backend)
+     ========================= */
+  function getOverrideStatus(row) {
+    const direct = (row && row.override_status !== undefined && row.override_status !== null) ? String(row.override_status) : "";
+    if (direct !== "") return direct;
+    const nested = (row && row.override && row.override.status !== undefined && row.override.status !== null) ? String(row.override.status) : "";
+    return nested || "";
+  }
+
+  function getOverrideReason(row) {
+    const direct = (row && row.override_reason !== undefined && row.override_reason !== null) ? String(row.override_reason) : "";
+    if (direct.trim() !== "") return direct;
+    const nested = (row && row.override && row.override.reason !== undefined && row.override.reason !== null) ? String(row.override.reason) : "";
+    return nested || "";
+  }
+
   async function loadEventTableForSheet(memberKey, sheetFile) {
     $("validBody").innerHTML = "";
     $("invalidBody").innerHTML = "";
@@ -1098,7 +1117,7 @@
             memberKey,
             sheetFile,
             row.event_index,
-            row.override_status || "",
+            getOverrideStatus(row),  <!-- PATCH HERE -->
             row.source
           )
         );
@@ -1111,7 +1130,7 @@
             sheetFile,
             row.event_index,
             safeText(row.reason),
-            row.override_reason || ""
+            getOverrideReason(row)   <!-- PATCH HERE -->
           )
         );
 
@@ -1147,7 +1166,7 @@
             memberKey,
             sheetFile,
             row.event_index,
-            row.override_status || "",
+            getOverrideStatus(row),  <!-- PATCH HERE -->
             row.source
           )
         );
@@ -1160,7 +1179,7 @@
             sheetFile,
             row.event_index,
             safeText(row.reason),
-            row.override_reason || ""
+            getOverrideReason(row)   <!-- PATCH HERE -->
           )
         );
 
