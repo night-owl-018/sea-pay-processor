@@ -259,7 +259,11 @@ def api_override_batch():
         reason = (payload.get("reason") or "").strip()
 
         # If status and reason are empty, it's a delete action. Otherwise, it's a save/update.
-        if (status is None or status == "") and reason == "":
+        status = status or ""
+        reason = (reason or "").strip()
+        
+        # Only delete if BOTH are empty
+        if status == "" and reason == "":
             _delete_single_override(
                 member_key=payload.get("member_key"),
                 sheet_file=payload.get("sheet_file"),
@@ -270,8 +274,8 @@ def api_override_batch():
                 member_key=payload.get("member_key"),
                 sheet_file=payload.get("sheet_file"),
                 event_index=payload.get("event_index"),
-                status=status,
-                reason=reason,
+                status=status or None,   # Auto stays Auto
+                reason=reason,           # Reason is preserved
                 source=payload.get("source", "manual"),
             )
 
@@ -388,3 +392,4 @@ def reset():
     reset_progress()
     log("RESET COMPLETE (files cleared)")
     return jsonify({"status": "reset"})
+
