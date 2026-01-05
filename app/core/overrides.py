@@ -21,8 +21,31 @@ def _make_event_signature(event):
     ship = str(event.get("ship", ""))
     raw = str(event.get("raw", ""))
     occ_idx = str(event.get("occ_idx", ""))
-    
+
     return f"{date}|{ship}|{occ_idx}|{raw}"
+
+
+def _norm_status(v):
+    """
+    Normalize override status to what the UI expects.
+    UI dropdown values: "", "valid", "invalid"
+    """
+    if v is None:
+        return ""
+    v = str(v).strip().lower()
+    if v in ("valid", "invalid"):
+        return v
+    return ""
+
+
+def _stamp_ui_fields(evt, status, reason, source="override"):
+    """
+    CRITICAL: these fields are what your FRONTEND reads back after reload.
+    If these are missing, dropdown snaps to Auto and reason looks unsaved.
+    """
+    evt["override_status"] = status or ""
+    evt["override_reason"] = reason or ""
+    evt["source"] = source or "override"
 
 
 # -----------------------------------------------------------
@@ -53,8 +76,8 @@ def save_override(member_key, sheet_file, event_index, status, reason, source):
     new_override = {
         "sheet_file": sheet_file,
         "event_index": event_index,
-        "override_status": status,
-        "override_reason": reason,
+        "override_status": _norm_status(status),
+        "override_reason": reason or "",
         "source": source,
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
@@ -86,84 +109,86 @@ def clear_overrides(member_key):
 # -----------------------------------------------------------
 def apply_overrides(member_key, review_state_member):
     """
-    Apply overrides by matching events based on their content signature.
-    
-    CRITICAL FIX: Build signature maps FIRST, then find events by signature
-    regardless of their current location (valid or invalid array).
-    """
+    Apply overrides by matching events in a way that matches your UI behavior.
 
+    FIX:
+    - Find events by event_index across BOTH arrays (valid + invalid)
+      because that is what the UI sends back to backend.
+    - ALWAYS stamp override_status/override_reason onto returned rows
+      so dropdown and reason textbox persist after reload.
+    """
     overrides = load_overrides(member_key).get("overrides", [])
     if not overrides:
         return review_state_member
 
+    # Build quick lookup: sheet_file -> list of overrides
+    by_sheet = {}
+    for ov in overrides:
+        sf = ov.get("sheet_file")
+        if not sf:
+            continue
+        by_sheet.setdefault(sf, []).append(ov)
+
     for sheet in review_state_member.get("sheets", []):
         sheet_file = sheet.get("source_file")
-        
-        # Filter overrides for this sheet
-        sheet_overrides = [ov for ov in overrides if ov.get("sheet_file") == sheet_file]
+        if not sheet_file:
+            continue
+
+        sheet_overrides = by_sheet.get(sheet_file, [])
         if not sheet_overrides:
             continue
 
         valid_rows = sheet.get("rows", [])
         invalid_events = sheet.get("invalid_events", [])
-        
-        # STEP 1: Build signature maps for ALL events in BOTH arrays
-        # This lets us find events regardless of where they currently are
-        all_events = {}  # signature -> (event, location, index)
-        
-        for idx, row in enumerate(valid_rows):
-            sig = _make_event_signature(row)
-            all_events[sig] = (row, "valid", idx)
-        
-        for idx, event in enumerate(invalid_events):
-            sig = _make_event_signature(event)
-            all_events[sig] = (event, "invalid", idx)
-        
-        # STEP 2: For each override, find the event by its ORIGINAL position first,
-        # then use signature to track it if it moved
-        moves_to_invalid = []  # (current_idx, new_invalid_entry)
-        moves_to_valid = []    # (current_idx, new_valid_entry)
-        
-        for ov in sheet_overrides:
-            original_idx = ov["event_index"]
-            status = ov["override_status"]
-            reason = ov["override_reason"]
-            source = ov.get("source")
 
-            # Try to find event at original position
+        # Build event_index maps (THIS is the real fix)
+        valid_by_eidx = {}
+        for i, row in enumerate(valid_rows):
+            if isinstance(row, dict) and "event_index" in row:
+                valid_by_eidx[row["event_index"]] = (i, row)
+
+        invalid_by_eidx = {}
+        for i, ev in enumerate(invalid_events):
+            if isinstance(ev, dict) and "event_index" in ev:
+                invalid_by_eidx[ev["event_index"]] = (i, ev)
+
+        moves_to_invalid = []  # (valid_idx, new_invalid_entry)
+        moves_to_valid = []    # (invalid_idx, new_valid_entry)
+
+        for ov in sheet_overrides:
+            event_index = ov.get("event_index")
+            status = _norm_status(ov.get("override_status"))
+            reason = ov.get("override_reason") or ""
+            source = ov.get("source") or "manual"
+
+            # 1) Find the event where it CURRENTLY lives (valid or invalid)
             target_event = None
             current_location = None
             current_idx = None
-            event_sig = None
 
-            # Check original position first
-            if original_idx >= 0 and original_idx < len(valid_rows):
-                target_event = valid_rows[original_idx]
+            if event_index in valid_by_eidx:
+                current_idx, target_event = valid_by_eidx[event_index]
                 current_location = "valid"
-                current_idx = original_idx
-                event_sig = _make_event_signature(target_event)
-            elif original_idx < 0:
-                invalid_index = -original_idx - 1
-                if invalid_index < len(invalid_events):
-                    target_event = invalid_events[invalid_index]
-                    current_location = "invalid"
-                    current_idx = invalid_index
-                    event_sig = _make_event_signature(target_event)
-
-            # CRITICAL: If not at original position, search by signature across ALL events
-            if target_event is None or event_sig is None:
-                # Event has moved or doesn't exist - skip this override
-                continue
-            
-            # Check if event moved by looking it up in signature map
-            if event_sig in all_events:
-                # Event found - update its current location
-                target_event, current_location, current_idx = all_events[event_sig]
+            elif event_index in invalid_by_eidx:
+                current_idx, target_event = invalid_by_eidx[event_index]
+                current_location = "invalid"
             else:
-                # Event not found anywhere - skip
+                # Fallback: signature scan (optional)
+                # If your event_index is missing for some reason, try signature lookup.
+                # This will NOT break anything; it just gives you a second chance.
+                sig_map = {}
+                for i, row in enumerate(valid_rows):
+                    if isinstance(row, dict):
+                        sig_map[_make_event_signature(row)] = ("valid", i, row)
+                for i, ev in enumerate(invalid_events):
+                    if isinstance(ev, dict):
+                        sig_map[_make_event_signature(ev)] = ("invalid", i, ev)
+
+                # We cannot build signature from override record, so we cannot match.
+                # If it gets here, the override won't apply.
                 continue
 
-            # STEP 3: Apply the override based on current location and desired status
+            # 2) Apply behavior based on where it is now and desired status
             if current_location == "valid":
                 if status == "invalid":
                     # Move valid → invalid
@@ -184,11 +209,12 @@ def apply_overrides(member_key, review_state_member):
                             "source": "override",
                         },
                         "status": "invalid",
-                        "status_reason": reason,
+                        "status_reason": reason or "Forced invalid by override",
                     })
+                    _stamp_ui_fields(new_invalid, status, reason, "override")
                     moves_to_invalid.append((current_idx, new_invalid))
                 else:
-                    # Update in place (keeping as valid)
+                    # Stay valid (status == "valid" OR Auto "")
                     if "override" not in target_event:
                         target_event["override"] = {}
                     target_event["override"].update({
@@ -201,13 +227,18 @@ def apply_overrides(member_key, review_state_member):
                     target_event["final_classification"].update({
                         "is_valid": True,
                         "reason": reason,
-                        "source": "override",
+                        "source": "override" if (status or reason) else target_event.get("final_classification", {}).get("source"),
                     })
-                    if "status" in target_event:
-                        target_event["status"] = status or "valid"
+
+                    # Keep actual status as valid if Auto, otherwise set to valid
+                    target_event["status"] = "valid"
+                    if reason:
                         target_event["status_reason"] = reason
 
-            else:  # Currently in invalid
+                    _stamp_ui_fields(target_event, status, reason, "override")
+
+            else:
+                # Currently invalid
                 if status == "valid":
                     # Move invalid → valid
                     new_row = dict(target_event)
@@ -226,16 +257,22 @@ def apply_overrides(member_key, review_state_member):
                             "source": "override",
                         },
                     })
-                    
+
                     # Ensure required fields exist
-                    for field, default in [("is_inport", False), ("inport_label", None), 
-                                          ("is_mission", False), ("label", None), ("confidence", 1.0)]:
+                    for field, default in [
+                        ("is_inport", False),
+                        ("inport_label", None),
+                        ("is_mission", False),
+                        ("label", None),
+                        ("confidence", 1.0),
+                    ]:
                         if field not in new_row:
                             new_row[field] = default
-                    
+
+                    _stamp_ui_fields(new_row, status, reason, "override")
                     moves_to_valid.append((current_idx, new_row))
                 else:
-                    # Update in place (keeping as invalid)
+                    # Stay invalid (status == "invalid" OR Auto "")
                     if "override" not in target_event:
                         target_event["override"] = {}
                     target_event["override"].update({
@@ -248,10 +285,17 @@ def apply_overrides(member_key, review_state_member):
                     target_event["final_classification"].update({
                         "is_valid": False,
                         "reason": reason,
-                        "source": "override",
+                        "source": "override" if (status or reason) else target_event.get("final_classification", {}).get("source"),
                     })
 
-        # STEP 4: Execute moves (highest index first to avoid shifting)
+                    # If Auto "", keep it invalid as-is; if invalid, force invalid
+                    target_event["status"] = "invalid"
+                    if reason:
+                        target_event["status_reason"] = reason
+
+                    _stamp_ui_fields(target_event, status, reason, "override")
+
+        # 3) Execute moves (highest index first to avoid shifting)
         moves_to_invalid.sort(reverse=True, key=lambda x: x[0])
         for idx, new_invalid in moves_to_invalid:
             invalid_events.append(new_invalid)
@@ -262,7 +306,6 @@ def apply_overrides(member_key, review_state_member):
             valid_rows.append(new_row)
             invalid_events.pop(idx)
 
-        # Update sheet
         sheet["rows"] = valid_rows
         sheet["invalid_events"] = invalid_events
 
