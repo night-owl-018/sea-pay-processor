@@ -650,12 +650,16 @@ def rebuild_outputs_from_review():
             # Only keep invalid events (force-valid ones already moved to rows)
             for e in sheet.get("invalid_events", []):
                 if not e.get("final_classification", {}).get("is_valid"):
+                    # ✅ FIX: Check for override reason first, then fall back to original
+                    override_reason = e.get("status_reason") or e.get("override", {}).get("reason")
+                    final_reason = override_reason if override_reason else e.get("reason", "")
+                    
                     invalid_entry = {
                         "date": e.get("date"),
                         "ship": e.get("ship"),
                         "occ_idx": e.get("occ_idx"),
                         "raw": e.get("raw", ""),
-                        "reason": e.get("reason", ""),
+                        "reason": final_reason,  # ✅ Use override reason if it exists
                         "category": e.get("category", ""),
                     }
                     final_invalid_events.append(invalid_entry)
@@ -733,3 +737,4 @@ def rebuild_outputs_from_review():
     )
 
     log("REBUILD OUTPUTS COMPLETE")
+
