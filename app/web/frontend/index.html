@@ -335,6 +335,22 @@
       box-shadow: 0 3px 6px rgba(16, 185, 129, 0.3);
     }
 
+    /* 🎨 COMPACT SAVE BUTTON - Matches Process/Reset size */
+    .btn-save-compact {
+      padding: 7px 12px;
+      background: linear-gradient(135deg, var(--success-dark) 0%, var(--success) 100%);
+      color: white;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+      min-width: 140px;
+    }
+    .btn-save-compact:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 3px 6px rgba(16, 185, 129, 0.3);
+    }
+
     .btn-rebuild {
       padding: 8px 12px;
       background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
@@ -345,6 +361,22 @@
       box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
     }
     .btn-rebuild:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 3px 6px rgba(14, 85, 120, 0.3);
+    }
+
+    /* 🎨 COMPACT REBUILD BUTTON - Matches Process/Reset size */
+    .btn-rebuild-compact {
+      padding: 7px 12px;
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+      color: white;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
+      min-width: 140px;
+    }
+    .btn-rebuild-compact:not(:disabled):hover {
       transform: translateY(-1px);
       box-shadow: 0 3px 6px rgba(14, 85, 120, 0.3);
     }
@@ -723,12 +755,12 @@
           Select a member and sheet to review events
         </div>
 
-        <!-- ACTION BUTTONS -->
-        <div class="action-row">
-          <button id="saveOverridesBtn" class="btn-save">
+        <!-- ACTION BUTTONS - COMPACT WRAPPED -->
+        <div style="display: flex; gap: 8px; justify-content: center; margin-top: 12px;">
+          <button id="saveOverridesBtn" class="btn-save-compact">
             <span class="emoji-sm">💾</span> Save Overrides
           </button>
-          <button id="rebuildBtn" class="btn-rebuild">
+          <button id="rebuildBtn" class="btn-rebuild-compact">
             <span class="emoji-sm">🔄</span> Rebuild Outputs
           </button>
         </div>
