@@ -1018,12 +1018,18 @@
     async function rebuildOutputs() {
       if (!confirm("🔄 Rebuild all output files using current overrides?")) return;
 
+      $("rebuildBtn").disabled = true;
       try {
         const resp = await jpost("/rebuild_outputs", {});
         alert("✅ Rebuild started. Check the processing log for progress.");
         pollProgress();
       } catch (err) {
+        console.error("Rebuild error:", err);
         alert("Error rebuilding outputs: " + err.message);
+      } finally {
+        setTimeout(() => {
+          $("rebuildBtn").disabled = false;
+        }, 1000);
       }
     }
 
