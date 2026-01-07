@@ -27,7 +27,6 @@
     }
 
     * { box-sizing: border-box; }
-    .grid * { min-width: 0; }
     img, svg, video, canvas { max-width: 100%; height: auto; }
     html, body { overflow-x: hidden; }
 
@@ -53,18 +52,18 @@
     .header-inner{
       max-width: 1600px;
       margin: 0 auto;
-      padding: 14px 20px;
+      padding: 12px 16px;
       width: 100%;
     }
 
     header h1 {
       margin: 0;
-      font-size: clamp(18px, 4vw, 22px);
+      font-size: clamp(16px, 3vw, 20px);
       font-weight: 700;
       letter-spacing: -0.025em;
     }
     header .subtitle {
-      font-size: clamp(11px, 2vw, 12px);
+      font-size: clamp(10px, 2vw, 11px);
       opacity: 0.88;
       margin-top: 2px;
     }
@@ -72,66 +71,42 @@
     .wrap {
       max-width: 1600px;
       margin: 0 auto;
-      padding: clamp(12px, 2.5vw, 20px);
+      padding: 12px 16px;
       width: 100%;
     }
 
-    /* TOP SECTION RESPONSIVE GRID */
-    .top-section {
+    /* COMPACT TOP GRID - 4 columns */
+    .top-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      margin-bottom: 14px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 10px;
     }
 
-    @media (max-width: 1024px) {
-      .top-section {
-        grid-template-columns: 1fr;
+    @media (max-width: 1200px) {
+      .top-grid {
+        grid-template-columns: repeat(2, 1fr);
       }
-    }
-
-    .downloads-system-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
     }
 
     @media (max-width: 640px) {
-      .downloads-system-grid {
+      .top-grid {
         grid-template-columns: 1fr;
       }
     }
 
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 14px;
-      align-items: start;
-      width: 100%;
-    }
-    @media (min-width: 768px) {
-      .grid { grid-template-columns: minmax(280px, 340px) 1fr; gap: 18px; }
-    }
-    @media (min-width: 1024px) {
-      .grid { grid-template-columns: minmax(320px, 380px) 1fr; gap: 20px; }
-    }
-
-    .stack > * + * { margin-top: 12px; }
-
-    /* CARD STYLES - More compact and refined */
+    /* CARD STYLES - Compact */
     .card {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 8px;
       box-shadow: var(--shadow-sm);
       overflow: hidden;
-      transition: all 0.2s ease;
     }
-    .card:hover { box-shadow: var(--shadow); }
 
     .card h3 {
       margin: 0;
-      padding: 7px 10px;
+      padding: 8px 12px;
       background: linear-gradient(to right, #f8fafc 0%, #ffffff 100%);
       border-bottom: 1px solid var(--border);
       font-size: 10px;
@@ -141,44 +116,26 @@
       text-transform: uppercase;
       line-height: 1;
     }
-    .card .body { padding: 12px 14px; }
-
-    @media (min-width: 768px) {
-      .card h3 { padding: 11px 16px; }
-      .card .body { padding: 14px 16px; }
-    }
+    .card .body { padding: 10px 12px; }
 
     /* LABEL STYLES */
     label {
       display: block;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
-      margin-bottom: 6px;
-      color: var(--text-primary);
-    }
-    
-    label.mini {
-      font-size: 10px;
       margin-bottom: 4px;
-      opacity: 0.8;
-      font-weight: 500;
+      color: var(--text-primary);
     }
 
     /* INPUT STYLES */
     input[type=file], select {
       width: 100%;
-      padding: 9px 11px;
+      padding: 6px 8px;
       border: 1px solid var(--border);
-      border-radius: 7px;
-      font-size: 13px;
+      border-radius: 5px;
+      font-size: 11px;
       background: white;
       transition: all 0.2s ease;
-    }
-    
-    input[type=file].mini, select.mini {
-      padding: 6px 9px;
-      font-size: 11px;
-      border-radius: 5px;
     }
     
     input[type=file]:hover, select:hover { border-color: var(--navy-light); }
@@ -197,214 +154,104 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 5px;
       font-family: inherit;
       white-space: nowrap;
     }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     button:not(:disabled):active { transform: scale(0.98); }
 
-    /* 🎨 PRIMARY ACTION BUTTON (Process Files) - Bold & Prominent */
-    .btn-process {
+    .btn-primary {
       width: 100%;
-      padding: 11px 16px;
-      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
-      color: white;
-      border-radius: 8px;
-      font-size: 13px;
-      box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
-    }
-    .btn-process:not(:disabled):hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(14, 85, 120, 0.25);
-    }
-
-    /* 🎨 COMPACT PROCESS BUTTON - Smaller for grouped layout */
-    .btn-process-compact {
-      width: 100%;
-      padding: 7px 10px;
+      padding: 8px 12px;
       background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
       color: white;
       border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      box-shadow: 0 1px 3px rgba(14, 85, 120, 0.2);
-    }
-    .btn-process-compact:not(:disabled):hover {
-      transform: translateY(-1px);
-      box-shadow: 0 2px 5px rgba(14, 85, 120, 0.3);
-    }
-
-    /* 🎨 INLINE COMPACT BUTTONS - For cards */
-    .btn-process-inline {
-      width: 100%;
-      padding: 7px 12px;
-      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
-      color: white;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 12px;
       box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
     }
-    .btn-process-inline:not(:disabled):hover {
+    .btn-primary:not(:disabled):hover {
       transform: translateY(-1px);
       box-shadow: 0 3px 6px rgba(14, 85, 120, 0.3);
     }
 
-    .btn-download-inline {
+    .btn-secondary {
       width: 100%;
       padding: 6px 10px;
       background: white;
       color: var(--text-primary);
       border: 1px solid var(--border);
       border-radius: 5px;
-      font-size: 10px;
-      font-weight: 500;
-    }
-    .btn-download-inline:not(:disabled):hover {
-      background: var(--bg);
-      border-color: var(--navy);
-      color: var(--navy);
-    }
-
-    .btn-danger-inline {
-      width: 100%;
-      padding: 6px 10px;
-      background: linear-gradient(135deg, var(--danger-dark) 0%, var(--danger) 100%);
-      color: white;
-      border-radius: 5px;
-      font-size: 10px;
-      font-weight: 600;
-    }
-    .btn-danger-inline:not(:disabled):hover {
-      transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
-    }
-
-    /* 🎨 SECONDARY BUTTONS (Downloads) - Subtle & Clean */
-    .btn-download {
-      width: 100%;
-      padding: 7px 11px;
-      background: white;
-      color: var(--text-primary);
-      border: 1px solid var(--border);
-      border-radius: 6px;
       font-size: 11px;
       font-weight: 500;
     }
-    .btn-download:not(:disabled):hover {
+    .btn-secondary:not(:disabled):hover {
       background: var(--bg);
       border-color: var(--navy);
       color: var(--navy);
     }
 
-    /* 🎨 DANGER BUTTON (Reset) - Compact & Warning */
     .btn-danger {
       width: 100%;
-      padding: 7px 11px;
+      padding: 6px 10px;
       background: linear-gradient(135deg, var(--danger-dark) 0%, var(--danger) 100%);
       color: white;
-      border-radius: 6px;
+      border-radius: 5px;
       font-size: 11px;
       font-weight: 600;
     }
     .btn-danger:not(:disabled):hover {
       transform: translateY(-1px);
-      box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+      box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
     }
 
-    /* 🎨 ACTION BUTTONS (Save & Rebuild) - Pill-style, Side-by-side */
-    .action-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-top: 14px;
-    }
-
-    .btn-save {
-      padding: 8px 12px;
-      background: linear-gradient(135deg, var(--success-dark) 0%, var(--success) 100%);
-      color: white;
-      border-radius: 20px; /* Pill shape */
-      font-size: 11px;
-      font-weight: 600;
-      box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
-    }
-    .btn-save:not(:disabled):hover {
-      transform: translateY(-1px);
-      box-shadow: 0 3px 6px rgba(16, 185, 129, 0.3);
-    }
-
-    /* 🎨 COMPACT SAVE BUTTON - Matches Process/Reset size */
-    .btn-save-compact {
-      padding: 7px 12px;
+    .btn-success {
+      padding: 8px 14px;
       background: linear-gradient(135deg, var(--success-dark) 0%, var(--success) 100%);
       color: white;
       border-radius: 6px;
       font-size: 11px;
       font-weight: 600;
       box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
-      min-width: 140px;
+      flex: 1;
     }
-    .btn-save-compact:not(:disabled):hover {
+    .btn-success:not(:disabled):hover {
       transform: translateY(-1px);
       box-shadow: 0 3px 6px rgba(16, 185, 129, 0.3);
     }
 
-    .btn-rebuild {
-      padding: 8px 12px;
-      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
-      color: white;
-      border-radius: 20px; /* Pill shape */
-      font-size: 11px;
-      font-weight: 600;
-      box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
-    }
-    .btn-rebuild:not(:disabled):hover {
-      transform: translateY(-1px);
-      box-shadow: 0 3px 6px rgba(14, 85, 120, 0.3);
-    }
-
-    /* 🎨 COMPACT REBUILD BUTTON - Matches Process/Reset size */
-    .btn-rebuild-compact {
-      padding: 7px 12px;
+    .btn-primary-action {
+      padding: 8px 14px;
       background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
       color: white;
       border-radius: 6px;
       font-size: 11px;
       font-weight: 600;
       box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
-      min-width: 140px;
+      flex: 1;
     }
-    .btn-rebuild-compact:not(:disabled):hover {
+    .btn-primary-action:not(:disabled):hover {
       transform: translateY(-1px);
       box-shadow: 0 3px 6px rgba(14, 85, 120, 0.3);
-    }
-
-    @media (max-width: 767px) {
-      .action-row { grid-template-columns: 1fr; gap: 7px; }
-      .btn-save, .btn-rebuild { 
-        padding: 9px 14px;
-        font-size: 12px;
-      }
     }
 
     /* STATUS BOX */
     .status {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      font-size: 13px;
+      gap: 6px;
+      font-size: 10px;
       font-weight: 600;
-      padding: 7px 12px;
-      border-radius: 7px;
+      padding: 5px 10px;
+      border-radius: 5px;
       background: var(--bg);
       border: 1px solid var(--border);
+      width: 100%;
     }
     .status::before {
       content: '';
-      width: 7px;
-      height: 7px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: var(--success);
       animation: pulse 2s ease-in-out infinite;
@@ -414,34 +261,48 @@
       50% { opacity: 0.5; }
     }
 
+    /* PROGRESS BAR */
+    .progress-bar {
+      width: 100%;
+      height: 5px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 5px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--navy) 0%, var(--accent) 100%);
+      transition: width 0.3s ease;
+      border-radius: 3px;
+    }
+
     /* LOG BOX */
     .logbox {
-      height: 220px;
+      height: 180px;
       overflow: auto;
       background: #0f172a;
       color: #10b981;
       font-family: var(--mono);
-      font-size: 11px;
-      line-height: 1.4;
-      padding: 11px;
-      border-radius: 7px;
+      font-size: 10px;
+      line-height: 1.3;
+      padding: 8px;
+      border-radius: 6px;
       white-space: pre;
       box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.3);
     }
-    @media (min-width: 768px) { .logbox { height: 260px; } }
-    @media (min-width: 1024px) { .logbox { height: 300px; } }
 
     /* TABLE STYLES */
     .table-wrapper {
       overflow-x: auto;
-      border-radius: 7px;
+      border-radius: 6px;
       border: 1px solid var(--border);
       background: white;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 12px;
+      font-size: 11px;
       min-width: 800px;
     }
     thead {
@@ -451,10 +312,10 @@
       z-index: 10;
     }
     th {
-      padding: 9px 11px;
+      padding: 8px 10px;
       text-align: left;
       font-weight: 700;
-      font-size: 10px;
+      font-size: 9px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--navy);
@@ -462,7 +323,7 @@
       white-space: nowrap;
     }
     td {
-      padding: 9px 11px;
+      padding: 7px 10px;
       border-bottom: 1px solid var(--border);
       vertical-align: middle;
     }
@@ -475,7 +336,7 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 3px 9px;
+      padding: 3px 8px;
       border-radius: 10px;
       font-size: 10px;
       font-weight: 600;
@@ -494,17 +355,17 @@
     }
     .override-wrap select {
       width: auto;
-      min-width: 85px;
-      padding: 5px 7px;
-      font-size: 11px;
-      border-radius: 5px;
+      min-width: 80px;
+      padding: 4px 6px;
+      font-size: 10px;
+      border-radius: 4px;
     }
     .override-wrap.dirty::after {
       content: '●';
       color: var(--warning);
-      font-size: 16px;
+      font-size: 14px;
       position: absolute;
-      right: -16px;
+      right: -14px;
       top: 50%;
       transform: translateY(-50%);
       animation: pulse 1.5s ease-in-out infinite;
@@ -512,12 +373,12 @@
 
     textarea.override-reason {
       width: 100%;
-      min-height: 30px;
-      padding: 5px 7px;
+      min-height: 28px;
+      padding: 4px 6px;
       border: 1px solid var(--border);
-      border-radius: 5px;
+      border-radius: 4px;
       font-family: inherit;
-      font-size: 11px;
+      font-size: 10px;
       resize: vertical;
       transition: all 0.2s ease;
     }
@@ -527,8 +388,8 @@
       box-shadow: 0 0 0 2px rgba(14, 85, 120, 0.1);
     }
     td.reason-cell {
-      max-width: 280px;
-      min-width: 180px;
+      max-width: 250px;
+      min-width: 150px;
     }
 
     .hint {
@@ -536,33 +397,14 @@
       color: var(--text-secondary);
       font-style: italic;
       text-align: center;
-      padding: 16px 8px 8px 8px;
+      padding: 12px 8px;
     }
 
-    /* PROGRESS BAR */
-    .progress-bar {
-      width: 100%;
-      height: 6px;
-      background: var(--border);
-      border-radius: 3px;
-      overflow: hidden;
-      margin-top: 7px;
-    }
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, var(--navy) 0%, var(--accent) 100%);
-      transition: width 0.3s ease;
-      border-radius: 3px;
-    }
-
-    /* UTILITY */
     .text-secondary { color: var(--text-secondary); }
-    .mt-1 { margin-top: 6px; }
-    .mt-2 { margin-top: 10px; }
-
-    /* EMOJI SIZING */
-    .emoji { font-size: 14px; }
-    .emoji-sm { font-size: 12px; }
+    .emoji { font-size: 12px; }
+    .emoji-sm { font-size: 11px; }
+    .mb-1 { margin-bottom: 5px; }
+    .mb-2 { margin-bottom: 8px; }
   </style>
 </head>
 
@@ -576,131 +418,96 @@
 
   <div class="wrap">
     
-    <!-- 🎯 TOP SECTION: SUPER TIGHT COMPACT CARDS - CENTERED -->
-    <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; align-items: flex-start; justify-content: center;">
+    <!-- TOP COMPACT GRID - 4 columns -->
+    <div class="top-grid">
       
-      <!-- INPUT FILES - TIGHT FIT -->
-      <div class="card" style="flex: 0 0 auto; width: 260px;">
+      <!-- INPUT FILES -->
+      <div class="card">
         <h3><span class="emoji-sm">📁</span> Input Files</h3>
-        <div class="body" style="padding: 8px;">
+        <div class="body">
+          <label>Sea Duty Cert (PDF)</label>
+          <input type="file" id="certFiles" multiple accept=".pdf" class="mb-1">
           
-          <label style="font-size: 10px; margin-bottom: 2px; font-weight: 600;">Sea Duty Cert (PDF)</label>
-          <input type="file" id="certFiles" multiple accept=".pdf" style="padding: 5px 7px; font-size: 10px; border-radius: 4px; margin-bottom: 5px;">
+          <label>Rate CSV</label>
+          <input type="file" id="rateFile" accept=".csv" class="mb-1">
           
-          <label class="mini" style="margin-bottom: 2px;">Rate CSV</label>
-          <input type="file" id="rateFile" class="mini" accept=".csv" style="margin-bottom: 5px;">
-          
-          <label class="mini" style="margin-bottom: 2px;">Template PDF</label>
-          <input type="file" id="templateFile" class="mini" accept=".pdf">
-          
+          <label>Template PDF</label>
+          <input type="file" id="templateFile" accept=".pdf">
         </div>
       </div>
 
-      <!-- STATUS + PROCESS - COMBINED CARD -->
-      <div class="card" style="flex: 0 0 auto; width: 220px;">
-        <h3><span class="emoji-sm">⚙️</span> Process</h3>
-        <div class="body" style="padding: 8px;">
-          
-          <!-- Status Section -->
-          <div style="margin-bottom: 8px;">
-            <div style="font-size: 9px; font-weight: 700; color: var(--navy); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">
-              <span class="emoji-sm">📊</span> Status
-            </div>
-            <div class="status" id="statusBox" style="font-size: 10px; padding: 4px 8px; margin-bottom: 4px;">
-              <span id="statusText">IDLE (0%)</span>
-            </div>
-            <div class="progress-bar" style="height: 4px; margin-bottom: 0;">
-              <div class="progress-fill" id="progressFill" style="width: 0%"></div>
-            </div>
-            <div class="text-secondary" style="font-size: 9px; line-height: 1.2; margin-top: 3px;" id="currentStep"></div>
+      <!-- PROCESS -->
+      <div class="card">
+        <h3><span class="emoji-sm">⚡</span> Process</h3>
+        <div class="body">
+          <label style="margin-bottom: 3px;"><span class="emoji-sm">📊</span> Status</label>
+          <div class="status" id="statusBox">
+            <span id="statusText">IDLE (0%)</span>
           </div>
+          <div class="progress-bar mb-2">
+            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+          </div>
+          <div class="text-secondary" style="font-size: 9px; line-height: 1.2; margin-bottom: 8px;" id="currentStep"></div>
 
-          <!-- Strikeout + Process Button -->
-          <label class="mini" style="margin-bottom: 2px;">Strikeout</label>
-          <select id="strikeColor" class="mini" style="width: 100%; margin-bottom: 6px;">
+          <label>Strikeout</label>
+          <select id="strikeColor" class="mb-1">
             <option value="black">Black</option>
             <option value="red">Red</option>
           </select>
 
-          <button id="processBtn" class="btn-process-inline">
+          <button id="processBtn" class="btn-primary">
             <span class="emoji-sm">⚡</span> Process
           </button>
         </div>
       </div>
 
-      <!-- SYSTEM + DOWNLOADS - COMBINED CARD -->
-      <div class="card" style="flex: 0 0 auto; width: 180px;">
+      <!-- SYSTEM -->
+      <div class="card">
         <h3><span class="emoji-sm">⚙️</span> System</h3>
-        <div class="body" style="padding: 8px;">
-          
-          <!-- Reset Button -->
-          <button id="resetBtn" class="btn-danger-inline" style="margin-bottom: 8px;">
+        <div class="body">
+          <button id="resetBtn" class="btn-danger mb-1">
             <span class="emoji-sm">🗑️</span> Reset
           </button>
-          <div style="font-size: 8px; color: var(--text-secondary); margin-bottom: 10px; text-align: center; line-height: 1.2;">
+          <div style="font-size: 9px; color: var(--text-secondary); margin-bottom: 10px; text-align: center; line-height: 1.2;">
             Clears all data
           </div>
 
-          <!-- Downloads Section -->
-          <div style="font-size: 9px; font-weight: 700; color: var(--navy); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">
+          <label style="margin-bottom: 4px;">
             <span class="emoji-sm">💾</span> Downloads
-          </div>
-          <button id="downloadMergedBtn" class="btn-download-inline" style="margin-bottom: 5px;">
+          </label>
+          <button id="downloadMergedBtn" class="btn-secondary mb-1">
             <span class="emoji-sm">📦</span> Package
           </button>
-          <button id="downloadAllBtn" class="btn-download-inline">
+          <button id="downloadAllBtn" class="btn-secondary">
             <span class="emoji-sm">📂</span> All
           </button>
         </div>
       </div>
 
-    </div>
-
-    <!-- Responsive behavior -->
-    <style>
-      @media (max-width: 800px) {
-        .wrap > div:first-child {
-          flex-direction: column !important;
-        }
-        .wrap > div:first-child > .card,
-        .wrap > div:first-child > div {
-          width: 100% !important;
-          max-width: 400px;
-        }
-        .wrap > div:first-child > div > .card {
-          width: 100% !important;
-        }
-      }
-    </style>
-
-    <!-- 🎯 MIDDLE SECTION: LIVE PROCESSING LOG -->
-    <div class="card" style="margin-bottom: 14px;">
-      <h3><span class="emoji-sm">📋</span> Live Processing Log</h3>
-      <div class="body">
-        <div class="logbox" id="logBox">[19:34:44] RESET COMPLETE (files cleared)</div>
+      <!-- MEMBER SELECTION -->
+      <div class="card">
+        <h3><span class="emoji-sm">👤</span> Member</h3>
+        <div class="body">
+          <label>Member</label>
+          <select id="memberSelect" class="mb-1">
+            <option value="">Select member</option>
+          </select>
+          
+          <label>Sheet</label>
+          <select id="sheetSelect" disabled>
+            <option value="">Select sheet</option>
+          </select>
+        </div>
       </div>
+
     </div>
 
-    <!-- 🎯 BOTTOM SECTION: REVIEW & OVERRIDE -->
-    <div class="card">
+    <!-- REVIEW & OVERRIDE -->
+    <div class="card" style="margin-bottom: 10px;">
       <h3><span class="emoji-sm">🔍</span> Review & Override</h3>
       <div class="body">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
-          <div>
-            <label><span class="emoji-sm">👤</span> Member</label>
-            <select id="memberSelect">
-              <option value="">Select member</option>
-            </select>
-          </div>
-          <div>
-            <label><span class="emoji-sm">📄</span> Sheet</label>
-            <select id="sheetSelect" disabled>
-              <option value="">Select sheet</option>
-            </select>
-          </div>
-        </div>
-
-        <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
           <div class="badge valid">
             <span>✅ VALID:</span>
             <span id="validCount" style="font-weight: 700;">0</span>
@@ -712,10 +519,10 @@
         </div>
 
         <!-- VALID ROWS TABLE -->
-        <h4 style="margin: 0 0 7px 0; font-size: 12px; font-weight: 700; color: var(--navy);">
+        <h4 style="margin: 0 0 6px 0; font-size: 11px; font-weight: 700; color: var(--navy);">
           ✅ VALID ROWS
         </h4>
-        <div class="table-wrapper" style="margin-bottom: 16px;">
+        <div class="table-wrapper" style="margin-bottom: 12px;">
           <table>
             <thead>
               <tr>
@@ -732,7 +539,7 @@
         </div>
 
         <!-- INVALID EVENTS TABLE -->
-        <h4 style="margin: 0 0 7px 0; font-size: 12px; font-weight: 700; color: var(--navy);">
+        <h4 style="margin: 0 0 6px 0; font-size: 11px; font-weight: 700; color: var(--navy);">
           ❌ INVALID EVENTS
         </h4>
         <div class="table-wrapper">
@@ -755,16 +562,24 @@
           Select a member and sheet to review events
         </div>
 
-        <!-- ACTION BUTTONS - COMPACT WRAPPED -->
-        <div style="display: flex; gap: 8px; justify-content: center; margin-top: 12px;">
-          <button id="saveOverridesBtn" class="btn-save-compact">
+        <!-- ACTION BUTTONS -->
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+          <button id="saveOverridesBtn" class="btn-success">
             <span class="emoji-sm">💾</span> Save Overrides
           </button>
-          <button id="rebuildBtn" class="btn-rebuild-compact">
+          <button id="rebuildBtn" class="btn-primary-action">
             <span class="emoji-sm">🔄</span> Rebuild Outputs
           </button>
         </div>
 
+      </div>
+    </div>
+
+    <!-- LIVE PROCESSING LOG -->
+    <div class="card">
+      <h3><span class="emoji-sm">📋</span> Live Processing Log</h3>
+      <div class="body">
+        <div class="logbox" id="logBox">[19:34:44] RESET COMPLETE (files cleared)</div>
       </div>
     </div>
 
