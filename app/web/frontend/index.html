@@ -161,7 +161,7 @@
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     button:not(:disabled):active { transform: scale(0.98); }
 
-    .btn-primary {
+    .primary, button.primary {
       width: 100%;
       padding: 8px 12px;
       background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
@@ -170,12 +170,12 @@
       font-size: 12px;
       box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
     }
-    .btn-primary:not(:disabled):hover {
+    .primary:not(:disabled):hover, button.primary:not(:disabled):hover {
       transform: translateY(-1px);
       box-shadow: 0 3px 6px rgba(14, 85, 120, 0.3);
     }
 
-    .btn-secondary {
+    .secondary, button.secondary {
       width: 100%;
       padding: 6px 10px;
       background: white;
@@ -185,13 +185,13 @@
       font-size: 11px;
       font-weight: 500;
     }
-    .btn-secondary:not(:disabled):hover {
+    .secondary:not(:disabled):hover, button.secondary:not(:disabled):hover {
       background: var(--bg);
       border-color: var(--navy);
       color: var(--navy);
     }
 
-    .btn-danger {
+    .danger, button.danger {
       width: 100%;
       padding: 6px 10px;
       background: linear-gradient(135deg, var(--danger-dark) 0%, var(--danger) 100%);
@@ -200,12 +200,12 @@
       font-size: 11px;
       font-weight: 600;
     }
-    .btn-danger:not(:disabled):hover {
+    .danger:not(:disabled):hover, button.danger:not(:disabled):hover {
       transform: translateY(-1px);
       box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
     }
 
-    .btn-success {
+    .success, button.success {
       padding: 8px 14px;
       background: linear-gradient(135deg, var(--success-dark) 0%, var(--success) 100%);
       color: white;
@@ -215,24 +215,9 @@
       box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
       flex: 1;
     }
-    .btn-success:not(:disabled):hover {
+    .success:not(:disabled):hover, button.success:not(:disabled):hover {
       transform: translateY(-1px);
       box-shadow: 0 3px 6px rgba(16, 185, 129, 0.3);
-    }
-
-    .btn-primary-action {
-      padding: 8px 14px;
-      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
-      color: white;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
-      flex: 1;
-    }
-    .btn-primary-action:not(:disabled):hover {
-      transform: translateY(-1px);
-      box-shadow: 0 3px 6px rgba(14, 85, 120, 0.3);
     }
 
     /* STATUS BOX */
@@ -261,22 +246,6 @@
       50% { opacity: 0.5; }
     }
 
-    /* PROGRESS BAR */
-    .progress-bar {
-      width: 100%;
-      height: 5px;
-      background: var(--border);
-      border-radius: 3px;
-      overflow: hidden;
-      margin-top: 5px;
-    }
-    .progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, var(--navy) 0%, var(--accent) 100%);
-      transition: width 0.3s ease;
-      border-radius: 3px;
-    }
-
     /* LOG BOX */
     .logbox {
       height: 180px;
@@ -293,11 +262,12 @@
     }
 
     /* TABLE STYLES */
-    .table-wrapper {
+    .table-wrapper, .table-container {
       overflow-x: auto;
       border-radius: 6px;
       border: 1px solid var(--border);
       background: white;
+      margin-top: 10px;
     }
     table {
       width: 100%;
@@ -331,21 +301,6 @@
     tr.valid { background: #f0fdf4; }
     tr.invalid { background: #fef2f2; }
     tr:hover { background: #f9fafb; }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 3px 8px;
-      border-radius: 10px;
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      white-space: nowrap;
-    }
-    .badge.valid { background: #d1fae5; color: #065f46; }
-    .badge.invalid { background: #fee2e2; color: #991b1b; }
 
     .override-wrap {
       display: flex;
@@ -400,9 +355,65 @@
       padding: 12px 8px;
     }
 
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 11px;
+      margin: 16px 0 6px;
+      color: var(--navy);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .review-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    @media (max-width: 640px) {
+      .review-controls { grid-template-columns: 1fr; }
+    }
+
+    .review-stats {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      padding: 0 4px 12px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .stat-item { font-size: 12px; font-weight: 600; }
+    .stat-item span {
+      font-size: 14px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-left: 6px;
+    }
+    .stat-item .valid-count { background: var(--success); color: white; }
+    .stat-item .invalid-count { background: var(--danger); color: white; }
+
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .small {
+      font-size: 10px;
+      color: var(--text-secondary);
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    .stack > * + * { margin-top: 10px; }
+
     .text-secondary { color: var(--text-secondary); }
-    .emoji { font-size: 12px; }
-    .emoji-sm { font-size: 11px; }
     .mb-1 { margin-bottom: 5px; }
     .mb-2 { margin-bottom: 8px; }
   </style>
@@ -411,8 +422,8 @@
 <body>
   <header>
     <div class="header-inner">
-      <h1><span class="emoji">⚓</span> ATGSD Sea Pay Processor</h1>
-      <div class="subtitle">Automated TORIS Processing & Review System</div>
+      <h1>⚓ ATGSD Sea Pay Processor</h1>
+      <div class="subtitle">Automated Sea Duty Certification & PG-13 Generation System</div>
     </div>
   </header>
 
@@ -423,80 +434,50 @@
       
       <!-- INPUT FILES -->
       <div class="card">
-        <h3><span class="emoji-sm">📁</span> Input Files</h3>
+        <h3>📂 Input Files</h3>
         <div class="body">
-          <label>Sea Duty Cert (PDF)</label>
-          <input type="file" id="certFiles" multiple accept=".pdf" class="mb-1">
+          <label>Sea Duty Certification Sheets (PDF)</label>
+          <input id="pdfs" name="pdfs" type="file" accept="application/pdf" multiple required class="mb-1">
           
-          <label>Rate CSV</label>
-          <input type="file" id="rateFile" accept=".csv" class="mb-1">
+          <label>Rate CSV (Optional)</label>
+          <input id="ratesCsv" name="rates_csv" type="file" accept=".csv" class="mb-1">
           
-          <label>Template PDF</label>
-          <input type="file" id="templateFile" accept=".pdf">
+          <label>NAVPERS 1070/613 Template (Optional)</label>
+          <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf" class="mb-1">
+          
+          <label>Strikeout Color</label>
+          <select id="strikeColor" name="strikeout_color" class="mb-2">
+            <option value="Black" selected>⚫ Black</option>
+            <option value="Red">🔴 Red</option>
+          </select>
+
+          <button type="button" id="processBtn" class="primary">▶️ Process Files</button>
         </div>
       </div>
 
-      <!-- PROCESS -->
+      <!-- STATUS -->
       <div class="card">
-        <h3><span class="emoji-sm">⚡</span> Process</h3>
+        <h3>📊 Status</h3>
         <div class="body">
-          <label style="margin-bottom: 3px;"><span class="emoji-sm">📊</span> Status</label>
-          <div class="status" id="statusBox">
-            <span id="statusText">IDLE (0%)</span>
-          </div>
-          <div class="progress-bar mb-2">
-            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
-          </div>
-          <div class="text-secondary" style="font-size: 9px; line-height: 1.2; margin-bottom: 8px;" id="currentStep"></div>
+          <div class="status" id="statusText">Idle</div>
+        </div>
+      </div>
 
-          <label>Strikeout</label>
-          <select id="strikeColor" class="mb-1">
-            <option value="black">Black</option>
-            <option value="red">Red</option>
-          </select>
-
-          <button id="processBtn" class="btn-primary">
-            <span class="emoji-sm">⚡</span> Process
-          </button>
+      <!-- DOWNLOADS -->
+      <div class="card">
+        <h3>⬇️ Downloads</h3>
+        <div class="body">
+          <button class="secondary mb-1" type="button" id="btnMerged">📦 Package</button>
+          <button class="secondary mb-1" type="button" id="btnAll">📥 All</button>
+          <div class="small">Run PROCESS first</div>
         </div>
       </div>
 
       <!-- SYSTEM -->
       <div class="card">
-        <h3><span class="emoji-sm">⚙️</span> System</h3>
+        <h3>🔄 System</h3>
         <div class="body">
-          <button id="resetBtn" class="btn-danger mb-1">
-            <span class="emoji-sm">🗑️</span> Reset
-          </button>
-          <div style="font-size: 9px; color: var(--text-secondary); margin-bottom: 10px; text-align: center; line-height: 1.2;">
-            Clears all data
-          </div>
-
-          <label style="margin-bottom: 4px;">
-            <span class="emoji-sm">💾</span> Downloads
-          </label>
-          <button id="downloadMergedBtn" class="btn-secondary mb-1">
-            <span class="emoji-sm">📦</span> Package
-          </button>
-          <button id="downloadAllBtn" class="btn-secondary">
-            <span class="emoji-sm">📂</span> All
-          </button>
-        </div>
-      </div>
-
-      <!-- MEMBER SELECTION -->
-      <div class="card">
-        <h3><span class="emoji-sm">👤</span> Member</h3>
-        <div class="body">
-          <label>Member</label>
-          <select id="memberSelect" class="mb-1">
-            <option value="">Select member</option>
-          </select>
-          
-          <label>Sheet</label>
-          <select id="sheetSelect" disabled>
-            <option value="">Select sheet</option>
-          </select>
+          <button class="danger" type="button" id="btnReset">🗑️ Reset All Data</button>
         </div>
       </div>
 
@@ -504,260 +485,313 @@
 
     <!-- REVIEW & OVERRIDE -->
     <div class="card" style="margin-bottom: 10px;">
-      <h3><span class="emoji-sm">🔍</span> Review & Override</h3>
+      <h3>✏️ Review & Override</h3>
       <div class="body">
-        
-        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-          <div class="badge valid">
-            <span>✅ VALID:</span>
-            <span id="validCount" style="font-weight: 700;">0</span>
+        <div class="review-controls">
+          <div>
+            <label>👤 Member</label>
+            <select id="memberSelect">
+              <option value="">Select member</option>
+            </select>
           </div>
-          <div class="badge invalid">
-            <span>❌ INVALID:</span>
-            <span id="invalidCount" style="font-weight: 700;">0</span>
+          <div>
+            <label>📄 Sheet</label>
+            <select id="sheetSelect" disabled>
+              <option value="">Select sheet</option>
+            </select>
           </div>
         </div>
 
-        <!-- VALID ROWS TABLE -->
-        <h4 style="margin: 0 0 6px 0; font-size: 11px; font-weight: 700; color: var(--navy);">
-          ✅ VALID ROWS
-        </h4>
-        <div class="table-wrapper" style="margin-bottom: 12px;">
+        <div class="review-stats">
+          <div class="stat-item">VALID: <span id="validCount" class="valid-count">0</span></div>
+          <div class="stat-item">INVALID: <span id="invalidCount" class="invalid-count">0</span></div>
+        </div>
+
+        <div class="hint" id="reviewHint">
+          👆 Select a member and sheet to review and override validation results
+        </div>
+
+        <div class="section-header">✅ Valid Rows</div>
+        <div class="table-container">
           <table>
             <thead>
               <tr>
-                <th>DATE</th>
-                <th>SHIP</th>
-                <th>EVENT</th>
-                <th>STATUS</th>
-                <th>OVERRIDE</th>
-                <th>REASON</th>
+                <th>Date</th>
+                <th>Ship</th>
+                <th>Event</th>
+                <th>Status</th>
+                <th>Override</th>
+                <th>Reason</th>
               </tr>
             </thead>
             <tbody id="validBody"></tbody>
           </table>
         </div>
 
-        <!-- INVALID EVENTS TABLE -->
-        <h4 style="margin: 0 0 6px 0; font-size: 11px; font-weight: 700; color: var(--navy);">
-          ❌ INVALID EVENTS
-        </h4>
-        <div class="table-wrapper">
+        <div class="section-header">❌ Invalid Events</div>
+        <div class="table-container">
           <table>
             <thead>
               <tr>
-                <th>DATE</th>
-                <th>SHIP</th>
-                <th>EVENT</th>
-                <th>STATUS</th>
-                <th>OVERRIDE</th>
-                <th>REASON</th>
+                <th>Date</th>
+                <th>Ship</th>
+                <th>Event</th>
+                <th>Status</th>
+                <th>Override</th>
+                <th>Reason</th>
               </tr>
             </thead>
             <tbody id="invalidBody"></tbody>
           </table>
         </div>
 
-        <div class="hint" id="reviewHint">
-          Select a member and sheet to review events
-        </div>
-
-        <!-- ACTION BUTTONS -->
-        <div style="display: flex; gap: 8px; margin-top: 12px;">
-          <button id="saveOverridesBtn" class="btn-success">
-            <span class="emoji-sm">💾</span> Save Overrides
+        <div class="action-buttons">
+          <button id="saveOverridesBtn" type="button" class="success">
+            💾 Save Overrides
           </button>
-          <button id="rebuildBtn" class="btn-primary-action">
-            <span class="emoji-sm">🔄</span> Rebuild Outputs
+          <button id="rebuildBtn" class="primary" type="button">
+            🔄 Rebuild Outputs
           </button>
         </div>
-
       </div>
     </div>
 
     <!-- LIVE PROCESSING LOG -->
     <div class="card">
-      <h3><span class="emoji-sm">📋</span> Live Processing Log</h3>
+      <h3>📜 Live Processing Log</h3>
       <div class="body">
-        <div class="logbox" id="logBox">[19:34:44] RESET COMPLETE (files cleared)</div>
+        <div id="liveLog" class="logbox"></div>
       </div>
     </div>
 
   </div>
 
   <script>
-    const $ = id => document.getElementById(id);
+    const $ = (id) => document.getElementById(id);
+
+    let lastStatus = null;
     let pendingOverrides = {};
-    let lastSelectedMember = null;
-    let lastSelectedSheet = null;
+    let lastSelectedMember = "";
+    let lastSelectedSheet = "";
+
+    function safeText(v) {
+      if (v === null || v === undefined) return "";
+      if (typeof v === "object") return JSON.stringify(v);
+      return String(v);
+    }
+    function pick(obj, keys, fallback="") {
+      if (!obj) return fallback;
+      for (const k of keys) {
+        if (obj[k] !== undefined && obj[k] !== null && obj[k] !== "") return obj[k];
+      }
+      return fallback;
+    }
+
+    function fitFontToBox(el, opts = {}) {
+      const minPx = (opts.minPx ?? 6);
+      const maxPx = (opts.maxPx ?? null);
+      const mode  = (opts.mode ?? "width");
+
+      if (!el) return;
+
+      const cs = window.getComputedStyle(el);
+      const current = parseFloat(cs.fontSize) || 12;
+      let start = maxPx ? maxPx : current;
+
+      if (el.clientWidth <= 0) return;
+
+      el.style.fontSize = start + "px";
+
+      const overflows = () => {
+        const w = el.scrollWidth > el.clientWidth + 1;
+        if (mode === "width") return w;
+        const h = el.scrollHeight > el.clientHeight + 1;
+        return w || h;
+      };
+
+      let size = start;
+      while (size > minPx && overflows()) {
+        size -= 0.5;
+        el.style.fontSize = size + "px";
+      }
+
+      if (size < minPx) el.style.fontSize = minPx + "px";
+    }
+
+    function autoGrowTextarea(ta) {
+      if (!ta) return;
+      ta.style.height = "auto";
+      ta.style.height = Math.max(ta.scrollHeight, 30) + "px";
+    }
+
+    function patchFitAllReasonCells() {
+      document.querySelectorAll("textarea.override-reason").forEach((ta) => {
+        autoGrowTextarea(ta);
+        fitFontToBox(ta, { minPx: 6, mode: "width" });
+      });
+    }
+
+    window.addEventListener("resize", () => {
+      patchFitAllReasonCells();
+    });
 
     async function jget(url) {
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const r = await fetch(url, {cache:"no-store"});
+      if (!r.ok) throw new Error("GET " + url + " -> " + r.status);
       return await r.json();
     }
-    async function jpost(url, body) {
+    async function jpost(url, payload) {
       const r = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(payload)
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      if (!r.ok) {
+        const t = await r.text().catch(()=> "");
+        throw new Error("POST " + url + " -> " + r.status + " " + t);
+      }
       return await r.json();
     }
 
     async function pollProgress() {
       try {
         const data = await jget("/progress");
-        const { status, percent, log, current_step } = data;
-
-        $("statusText").textContent = `${status} (${percent}%)`;
-        $("progressFill").style.width = `${percent}%`;
-        $("currentStep").textContent = current_step || "";
-        $("logBox").textContent = log || "";
-        $("logBox").scrollTop = $("logBox").scrollHeight;
-
-        if (status === "COMPLETE" || status === "ERROR") {
-          setTimeout(loadMembers, 500);
-          return;
+        const pct = pick(data, ["percent","progress","pct"], null);
+        const status = pick(data, ["status","state","message"], "Idle");
+        const log = pick(data, ["log","lines","text"], "");
+        if (status === "COMPLETE" && lastStatus !== "COMPLETE") {
+          refreshReviewLists();
         }
+        lastStatus = status;
 
-        setTimeout(pollProgress, 500);
-      } catch (err) {
-        console.error("Poll error:", err);
-        setTimeout(pollProgress, 2000);
-      }
+        if (pct !== null && pct !== undefined) {
+          $("statusText").textContent = status + " (" + pct + "%)";
+        } else {
+          $("statusText").textContent = status;
+        }
+        if (typeof log === "string") {
+          const logBox = $("liveLog");
+          const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
+          logBox.textContent = log;
+          if (isAtBottom) {
+            logBox.scrollTop = logBox.scrollHeight;
+          }
+        }
+      } catch (e) {}
     }
 
+    setInterval(pollProgress, 1000);
+    pollProgress();
+
     $("processBtn").addEventListener("click", async () => {
-      const files = $("certFiles").files;
-      if (files.length === 0) {
-        alert("Please select at least one PDF file");
-        return;
-      }
-
-      const form = new FormData();
-      for (const f of files) form.append("files", f);
-
-      if ($("rateFile").files[0]) form.append("rates_csv", $("rateFile").files[0]);
-      if ($("templateFile").files[0]) form.append("template_pdf", $("templateFile").files[0]);
-      form.append("strikeout_color", $("strikeColor").value);
-
+      const fd = new FormData();
+      for (const f of $("pdfs").files) fd.append("pdfs", f);
+      if ($("ratesCsv").files[0]) fd.append("rates_csv", $("ratesCsv").files[0]);
+      if ($("templatePdf").files[0]) fd.append("template_pdf", $("templatePdf").files[0]);
+      fd.append("strikeout_color", $("strikeColor").value);
       $("processBtn").disabled = true;
       try {
-        await fetch("/process", { method: "POST", body: form });
-        pollProgress();
+        const r = await fetch("/process", {method:"POST", body: fd});
+        if (!r.ok) throw new Error("Process failed: " + r.status);
+        await refreshReviewLists();
       } catch (err) {
-        alert("Error starting process: " + err.message);
-        $("processBtn").disabled = false;
+        alert(err.message || String(err));
       } finally {
-        setTimeout(() => { $("processBtn").disabled = false; }, 1000);
+        $("processBtn").disabled = false;
       }
     });
 
-    async function loadMembers() {
+    $("btnMerged").addEventListener("click", () => { window.location = "/download_merged"; });
+    $("btnAll").addEventListener("click", () => { window.location = "/download_all"; });
+
+    $("btnReset").addEventListener("click", async () => {
+      if (!confirm("⚠️ Reset all output and overrides? This cannot be undone.")) return;
+      try {
+        const r = await fetch("/reset", {method:"POST"});
+        if (!r.ok) throw new Error("Reset failed: " + r.status);
+
+        $("memberSelect").innerHTML = '<option value="">Select member</option>';
+        $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
+        $("sheetSelect").disabled = true;
+        $("validBody").innerHTML = "";
+        $("invalidBody").innerHTML = "";
+        $("reviewHint").textContent = "👆 Select a member and sheet to review and override validation results";
+        pendingOverrides = {};
+
+        if($("validCount")) $("validCount").textContent = "0";
+        if($("invalidCount")) $("invalidCount").textContent = "0";
+
+        alert("✅ Reset complete!");
+      } catch (err) {
+        alert(err.message || String(err));
+      }
+    });
+
+    async function refreshReviewLists() {
       try {
         const members = await jget("/api/members");
-        $("memberSelect").innerHTML = '<option value="">Select member</option>';
-        members.forEach(m => {
+        const sel = $("memberSelect");
+        const current = sel.value;
+        sel.innerHTML = '<option value="">Select member</option>';
+        for (const m of members) {
           const opt = document.createElement("option");
           opt.value = m;
           opt.textContent = m;
-          $("memberSelect").appendChild(opt);
-        });
-      } catch (err) {
-        console.error("Load members error:", err);
-      }
+          sel.appendChild(opt);
+        }
+        if (current && members.includes(current)) {
+          sel.value = current;
+        }
+        lastSelectedMember = sel.value;
+      } catch (e) {}
     }
 
     async function loadSheetsForMember(memberKey) {
-      $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
       $("sheetSelect").disabled = true;
+      $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
       $("validBody").innerHTML = "";
       $("invalidBody").innerHTML = "";
-      $("reviewHint").style.display = "block";
-      $("reviewHint").textContent = "Select a sheet to review events";
-
-      if (!memberKey) return;
-
-      try {
-        const sheets = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheets");
-        sheets.forEach(s => {
-          const opt = document.createElement("option");
-          opt.value = s;
-          opt.textContent = s;
-          $("sheetSelect").appendChild(opt);
-        });
-        $("sheetSelect").disabled = false;
-      } catch (err) {
-        console.error("Load sheets error:", err);
+      if (!memberKey) {
+        if($("validCount")) $("validCount").textContent = "0";
+        if($("invalidCount")) $("invalidCount").textContent = "0";
+        return;
       }
-    }
-
-    function safeText(v) {
-      return (v === null || v === undefined || v === "") ? "" : String(v);
-    }
-
-    function autoGrowTextarea(ta) {
-      ta.style.height = 'auto';
-      ta.style.height = (ta.scrollHeight) + 'px';
-    }
-
-    function fitFontToBox(el, opts = {}) {
-      const minPx = opts.minPx || 6;
-      const maxPx = opts.maxPx || 14;
-      const mode = opts.mode || "width";
-
-      let fontSize = maxPx;
-      el.style.fontSize = fontSize + "px";
-
-      if (mode === "width") {
-        while (fontSize > minPx && el.scrollWidth > el.clientWidth) {
-          fontSize--;
-          el.style.fontSize = fontSize + "px";
-        }
-      } else {
-        while (fontSize > minPx && (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight)) {
-          fontSize--;
-          el.style.fontSize = fontSize + "px";
-        }
+      const sheets = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheets");
+      const sel = $("sheetSelect");
+      for (const s of sheets) {
+        const opt = document.createElement("option");
+        opt.value = s;
+        opt.textContent = s;
+        sel.appendChild(opt);
       }
+      sel.disabled = false;
+      lastSelectedSheet = sel.value;
     }
 
-    function patchFitAllReasonCells() {
-      document.querySelectorAll("textarea.override-reason").forEach(ta => {
-        autoGrowTextarea(ta);
-        fitFontToBox(ta, { minPx: 6, mode: "width" });
-      });
-    }
-
-    function buildOverrideSelect(memberKey, sheetFile, eventIndex, currentOverrideStatus, source) {
-      const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
-
+    function buildOverrideSelect(memberKey, sheetFile, eventIndex, currentStatus, source) {
       const wrap = document.createElement("div");
       wrap.className = "override-wrap";
+
+      const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
 
       const sel = document.createElement("select");
       sel.setAttribute("data-override-key", key);
 
-      const opts = [
-        { val: "", label: "Auto" },
-        { val: "valid", label: "Valid" },
-        { val: "invalid", label: "Invalid" }
+      const options = [
+        {v:"", t:"🔄 Auto"},
+        {v:"valid", t:"✅ Valid"},
+        {v:"invalid", t:"❌ Invalid"},
       ];
-
-      opts.forEach(o => {
+      for (const o of options) {
         const opt = document.createElement("option");
-        opt.value = o.val;
-        opt.textContent = o.label;
-        if (o.val === currentOverrideStatus) opt.selected = true;
+        opt.value = o.v;
+        opt.textContent = o.t;
         sel.appendChild(opt);
-      });
+      }
+      sel.value = currentStatus || "";
 
-      sel.addEventListener("change", () => {
-        const ta = document.querySelector(`textarea[data-override-key="${CSS.escape(key)}"]`);
-        const reasonText = ta ? ta.value : "";
-
+      function markDirty(reasonText) {
+        wrap.classList.add("dirty");
         pendingOverrides[key] = {
           member_key: memberKey,
           sheet_file: sheetFile,
@@ -765,8 +799,12 @@
           override_status: sel.value || null,
           override_reason: reasonText || null
         };
+      }
 
-        wrap.classList.add("dirty");
+      sel.addEventListener("change", () => {
+        const ta = document.querySelector(`textarea[data-override-key="${CSS.escape(key)}"]`);
+        const reasonText = ta ? ta.value : "";
+        markDirty(reasonText);
         patchFitAllReasonCells();
       });
 
@@ -983,7 +1021,7 @@
       await loadEventTableForSheet(lastSelectedMember, sheetFile);
     });
 
-    async function saveOverrides() {
+    $("saveOverridesBtn").addEventListener("click", async function() {
       const overrides = Object.values(pendingOverrides);
       if (overrides.length === 0) {
         alert("No changes to save");
@@ -1013,51 +1051,22 @@
       } finally {
         $("saveOverridesBtn").disabled = false;
       }
-    }
+    });
 
-    async function rebuildOutputs() {
+    $("rebuildBtn").addEventListener("click", async function() {
       if (!confirm("🔄 Rebuild all output files using current overrides?")) return;
 
       $("rebuildBtn").disabled = true;
       try {
         const resp = await jpost("/rebuild_outputs", {});
-        alert("✅ Rebuild started. Check the processing log for progress.");
-        pollProgress();
+        alert("✅ " + (resp.status || "Rebuild complete"));
       } catch (err) {
-        console.error("Rebuild error:", err);
-        alert("Error rebuilding outputs: " + err.message);
+        alert("Error rebuilding: " + err.message);
       } finally {
         setTimeout(() => {
           $("rebuildBtn").disabled = false;
         }, 1000);
       }
-    }
-
-    $("saveOverridesBtn").addEventListener("click", saveOverrides);
-    $("rebuildBtn").addEventListener("click", rebuildOutputs);
-
-    $("downloadMergedBtn").addEventListener("click", () => {
-      window.location.href = "/download_merged";
-    });
-
-    $("downloadAllBtn").addEventListener("click", () => {
-      window.location.href = "/download_all";
-    });
-
-    $("resetBtn").addEventListener("click", async () => {
-      if (!confirm("⚠️ Reset all data? This will clear all input files, outputs, and logs.")) return;
-      try {
-        await fetch("/reset", { method: "POST" });
-        alert("✅ Reset complete");
-        location.reload();
-      } catch (err) {
-        alert("Error resetting: " + err.message);
-      }
-    });
-
-    window.addEventListener("load", () => {
-      pollProgress();
-      loadMembers();
     });
   </script>
 </body>
