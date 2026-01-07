@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <!-- PATCH: allow native pinch-zoom on iPhone/iPad (no in-app zoom UI) -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=yes, maximum-scale=5"/>
   <title>ATGSD Sea Pay Processor</title>
   <style>
@@ -12,7 +11,9 @@
       --navy-light: #1a7ba8;
       --accent: #00d4ff;
       --success: #10b981;
+      --success-dark: #059669;
       --danger: #ef4444;
+      --danger-dark: #dc2626;
       --warning: #f59e0b;
       --border: #e5e7eb;
       --bg: #f9fafb;
@@ -23,11 +24,9 @@
       --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
       --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
       --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-
-      /* PATCH: minimum auto-fit font size */
-      --fit-min-font: 6;
     }
 
+    * { box-sizing: border-box; }
     .grid * { min-width: 0; }
     img, svg, video, canvas { max-width: 100%; height: auto; }
     html, body { overflow-x: hidden; }
@@ -41,9 +40,6 @@
       width: 100%;
     }
 
-    /* =========================
-       PATCH: Full-width header background + centered inner content
-       ========================= */
     header {
       background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 100%);
       color: white;
@@ -55,190 +51,328 @@
       width: 100%;
     }
     .header-inner{
-      max-width: 1600px;                 /* match .wrap max width */
-      margin: 0 auto;                    /* center inner content */
-      padding: 16px 20px;                /* same as your old header padding */
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 14px 20px;
       width: 100%;
-      box-sizing: border-box;
-    }
-    @media (max-width: 480px){
-      .header-inner{ padding: 12px 14px; }
     }
 
     header h1 {
       margin: 0;
-      font-size: clamp(18px, 4vw, 24px);
+      font-size: clamp(18px, 4vw, 22px);
       font-weight: 700;
       letter-spacing: -0.025em;
     }
     header .subtitle {
-      font-size: clamp(11px, 2vw, 13px);
-      opacity: 0.9;
+      font-size: clamp(11px, 2vw, 12px);
+      opacity: 0.88;
       margin-top: 2px;
     }
 
     .wrap {
       max-width: 1600px;
       margin: 0 auto;
-      padding: clamp(10px, 2.5vw, 24px);
+      padding: clamp(12px, 2.5vw, 20px);
       width: 100%;
-      overflow-x: hidden;
-      box-sizing: border-box;
     }
 
-    /* RESPONSIVE GRID */
+    /* TOP SECTION RESPONSIVE GRID */
+    .top-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    @media (max-width: 1024px) {
+      .top-section {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .downloads-system-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    @media (max-width: 640px) {
+      .downloads-system-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .grid {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 16px;
+      gap: 14px;
       align-items: start;
       width: 100%;
     }
     @media (min-width: 768px) {
-      .wrap { padding: 20px; }
-      .grid { grid-template-columns: minmax(280px, 360px) 1fr; gap: 20px; }
+      .grid { grid-template-columns: minmax(280px, 340px) 1fr; gap: 18px; }
     }
     @media (min-width: 1024px) {
-      .wrap { padding: 24px; }
-      .grid { grid-template-columns: minmax(340px, 420px) 1fr; gap: 24px; }
+      .grid { grid-template-columns: minmax(320px, 380px) 1fr; gap: 20px; }
     }
 
-    .stack > * + * { margin-top: 16px; }
+    .stack > * + * { margin-top: 12px; }
 
+    /* CARD STYLES - More compact and refined */
     .card {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 10px;
       box-shadow: var(--shadow-sm);
       overflow: hidden;
-      transition: box-shadow 0.2s ease, transform 0.2s ease;
-      max-width: 100%;
-      width: 100%;
+      transition: all 0.2s ease;
     }
     .card:hover { box-shadow: var(--shadow); }
 
     .card h3 {
       margin: 0;
-      padding: 12px 14px;
+      padding: 7px 10px;
       background: linear-gradient(to right, #f8fafc 0%, #ffffff 100%);
       border-bottom: 1px solid var(--border);
-      font-size: clamp(11px, 2.5vw, 14px);
+      font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.025em;
+      letter-spacing: 0.05em;
       color: var(--navy);
       text-transform: uppercase;
+      line-height: 1;
     }
-    .card .body { padding: 14px; }
+    .card .body { padding: 12px 14px; }
 
     @media (min-width: 768px) {
-      .card h3 { padding: 14px 16px; font-size: clamp(12px, 2vw, 14px); }
-      .card .body { padding: 16px; }
-    }
-    @media (min-width: 1024px) {
-      .card h3 { padding: 16px 20px; }
-      .card .body { padding: 20px; }
+      .card h3 { padding: 11px 16px; }
+      .card .body { padding: 14px 16px; }
     }
 
+    /* LABEL STYLES */
     label {
       display: block;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       color: var(--text-primary);
     }
+    
+    label.mini {
+      font-size: 10px;
+      margin-bottom: 4px;
+      opacity: 0.8;
+      font-weight: 500;
+    }
 
+    /* INPUT STYLES */
     input[type=file], select {
       width: 100%;
-      max-width: 100%;
-      padding: 10px 12px;
-      border: 1.5px solid var(--border);
-      border-radius: 8px;
-      font-size: 14px;
+      padding: 9px 11px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 13px;
       background: white;
       transition: all 0.2s ease;
-      box-sizing: border-box;
     }
+    
+    input[type=file].mini, select.mini {
+      padding: 6px 9px;
+      font-size: 11px;
+      border-radius: 5px;
+    }
+    
     input[type=file]:hover, select:hover { border-color: var(--navy-light); }
     input[type=file]:focus, select:focus {
       outline: none;
       border-color: var(--navy);
-      box-shadow: 0 0 0 3px rgba(14, 85, 120, 0.1);
+      box-shadow: 0 0 0 2px rgba(14, 85, 120, 0.1);
     }
 
-    input[type=text] {
-      padding: 8px 12px;
-      border: 1.5px solid var(--border);
-      border-radius: 6px;
-      font-size: 13px;
-      transition: all 0.2s ease;
-      width: 100%;
-      box-sizing: border-box;
-    }
-    input[type=text]:focus {
-      outline: none;
-      border-color: var(--navy);
-      box-shadow: 0 0 0 3px rgba(14, 85, 120, 0.1);
-    }
-
-    /* Mobile: prevent zoom and larger touch targets */
-    @media (max-width: 767px) {
-      input[type=file], select { font-size: 16px; padding: 12px 14px; }
-      input[type=text] { font-size: 16px; padding: 10px 12px; }
-    }
-
+    /* BUTTON BASE */
     button {
-      width: 100%;
-      padding: 12px 16px;
       border: none;
-      border-radius: 8px;
-      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s ease;
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 6px;
+      font-family: inherit;
+      white-space: nowrap;
     }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
-    button:not(:disabled):hover { transform: translateY(-1px); box-shadow: var(--shadow); }
-    button:not(:disabled):active { transform: translateY(0); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button:not(:disabled):active { transform: scale(0.98); }
 
-    button.primary {
+    /* 🎨 PRIMARY ACTION BUTTON (Process Files) - Bold & Prominent */
+    .btn-process {
+      width: 100%;
+      padding: 11px 16px;
       background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
       color: white;
+      border-radius: 8px;
+      font-size: 13px;
+      box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
     }
-    button.secondary {
+    .btn-process:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(14, 85, 120, 0.25);
+    }
+
+    /* 🎨 COMPACT PROCESS BUTTON - Smaller for grouped layout */
+    .btn-process-compact {
+      width: 100%;
+      padding: 7px 10px;
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+      color: white;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(14, 85, 120, 0.2);
+    }
+    .btn-process-compact:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 5px rgba(14, 85, 120, 0.3);
+    }
+
+    /* 🎨 INLINE COMPACT BUTTONS - For cards */
+    .btn-process-inline {
+      width: 100%;
+      padding: 7px 12px;
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+      color: white;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
+    }
+    .btn-process-inline:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 3px 6px rgba(14, 85, 120, 0.3);
+    }
+
+    .btn-download-inline {
+      width: 100%;
+      padding: 6px 10px;
       background: white;
       color: var(--text-primary);
-      border: 1.5px solid var(--border);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 500;
     }
-    button.secondary:hover { background: var(--bg); border-color: var(--navy); }
-
-    button.danger {
-      background: linear-gradient(135deg, #dc2626 0%, var(--danger) 100%);
-      color: white;
-    }
-    button.success {
-      background: linear-gradient(135deg, #059669 0%, var(--success) 100%);
-      color: white;
+    .btn-download-inline:not(:disabled):hover {
+      background: var(--bg);
+      border-color: var(--navy);
+      color: var(--navy);
     }
 
+    .btn-danger-inline {
+      width: 100%;
+      padding: 6px 10px;
+      background: linear-gradient(135deg, var(--danger-dark) 0%, var(--danger) 100%);
+      color: white;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .btn-danger-inline:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+    }
+
+    /* 🎨 SECONDARY BUTTONS (Downloads) - Subtle & Clean */
+    .btn-download {
+      width: 100%;
+      padding: 7px 11px;
+      background: white;
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .btn-download:not(:disabled):hover {
+      background: var(--bg);
+      border-color: var(--navy);
+      color: var(--navy);
+    }
+
+    /* 🎨 DANGER BUTTON (Reset) - Compact & Warning */
+    .btn-danger {
+      width: 100%;
+      padding: 7px 11px;
+      background: linear-gradient(135deg, var(--danger-dark) 0%, var(--danger) 100%);
+      color: white;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .btn-danger:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+    }
+
+    /* 🎨 ACTION BUTTONS (Save & Rebuild) - Pill-style, Side-by-side */
+    .action-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .btn-save {
+      padding: 8px 12px;
+      background: linear-gradient(135deg, var(--success-dark) 0%, var(--success) 100%);
+      color: white;
+      border-radius: 20px; /* Pill shape */
+      font-size: 11px;
+      font-weight: 600;
+      box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+    }
+    .btn-save:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 3px 6px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-rebuild {
+      padding: 8px 12px;
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+      color: white;
+      border-radius: 20px; /* Pill shape */
+      font-size: 11px;
+      font-weight: 600;
+      box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
+    }
+    .btn-rebuild:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 3px 6px rgba(14, 85, 120, 0.3);
+    }
+
+    @media (max-width: 767px) {
+      .action-row { grid-template-columns: 1fr; gap: 7px; }
+      .btn-save, .btn-rebuild { 
+        padding: 9px 14px;
+        font-size: 12px;
+      }
+    }
+
+    /* STATUS BOX */
     .status {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
-      padding: 8px 14px;
-      border-radius: 8px;
+      padding: 7px 12px;
+      border-radius: 7px;
       background: var(--bg);
       border: 1px solid var(--border);
     }
     .status::before {
       content: '';
-      width: 8px;
-      height: 8px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
       background: var(--success);
       animation: pulse 2s ease-in-out infinite;
@@ -248,1019 +382,830 @@
       50% { opacity: 0.5; }
     }
 
+    /* LOG BOX */
     .logbox {
-      height: 240px;
+      height: 220px;
       overflow: auto;
       background: #0f172a;
       color: #10b981;
       font-family: var(--mono);
-      font-size: clamp(10px, 1.5vw, 12px);
-      line-height: 1.5;
-      padding: 12px;
-      border-radius: 8px;
+      font-size: 11px;
+      line-height: 1.4;
+      padding: 11px;
+      border-radius: 7px;
       white-space: pre;
       box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.3);
     }
-    @media (min-width: 768px) { .logbox { height: 280px; padding: 14px; } }
-    @media (min-width: 1024px) { .logbox { height: 320px; padding: 16px; } }
+    @media (min-width: 768px) { .logbox { height: 260px; } }
+    @media (min-width: 1024px) { .logbox { height: 300px; } }
 
-    .logbox::-webkit-scrollbar { width: 8px; }
-    .logbox::-webkit-scrollbar-track { background: #1e293b; border-radius: 4px; }
-    .logbox::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-    .logbox::-webkit-scrollbar-thumb:hover { background: #475569; }
-
-    /* RESPONSIVE REVIEW CONTROLS */
-    .review-controls {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-    @media (min-width: 640px) {
-      .review-controls { grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-    }
-    .review-controls select { height: 44px; }
-    .review-controls > div { min-width: 0; }
-    .review-controls select {
-      min-width: 0;
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    /* RESPONSIVE TABLE */
-    .table-container {
+    /* TABLE STYLES */
+    .table-wrapper {
       overflow-x: auto;
-      border-radius: 8px;
+      border-radius: 7px;
       border: 1px solid var(--border);
-      margin-top: 12px;
-      max-width: 100%;
-      -webkit-overflow-scrolling: touch;
+      background: white;
     }
-
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: clamp(10px, 1.8vw, 13px);
-      min-width: 0;
-      table-layout: fixed;
+      font-size: 12px;
+      min-width: 800px;
     }
-
-    th, td {
-      padding: 10px 12px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-    @media (min-width: 768px) { th, td { padding: 12px 16px; } }
-
-    table { table-layout: fixed; }
-
-    th, td {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    #validBody td:nth-child(3),
-    #invalidBody td:nth-child(3),
-    #validBody td:nth-child(6),
-    #invalidBody td:nth-child(6) {
-      white-space: normal;
-      overflow: visible;
-      text-overflow: unset;
-      word-break: break-word;
-    }
-
-    th {
-      background: #f8fafc;
-      font-weight: 700;
-      color: var(--navy);
-      text-transform: uppercase;
-      font-size: clamp(10px, 1.5vw, 11px);
-      letter-spacing: 0.05em;
+    thead {
+      background: linear-gradient(to bottom, #f8fafc 0%, #f1f5f9 100%);
       position: sticky;
       top: 0;
       z-index: 10;
     }
-
+    th {
+      padding: 9px 11px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--navy);
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 9px 11px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
     tr.valid { background: #f0fdf4; }
     tr.invalid { background: #fef2f2; }
     tr:hover { background: #f9fafb; }
-    tr.valid:hover { background: #dcfce7; }
-    tr.invalid:hover { background: #fee2e2; }
 
-    /* =========================
-       PATCH: Override column is dropdown only (Reason textarea moved to Reason column)
-       ========================= */
-    .override-wrap{
-      display: block;
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
     }
-    .override-wrap select{
-      width: 140px;
-      max-width: 140px;
-      min-width: 0;
-      height: 36px;
-      font-size: 13px;
-      box-sizing: border-box;
-      padding: 8px 10px;
-      border: 1.5px solid var(--border);
-      border-radius: 8px;
-      background: #fff;
-    }
-    @media (max-width: 640px){
-      .override-wrap select{ width: 100%; max-width: 100%; }
-    }
-    .override-wrap.dirty select{
-      border-color: var(--warning);
-      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
-    }
+    .badge.valid { background: #d1fae5; color: #065f46; }
+    .badge.invalid { background: #fee2e2; color: #991b1b; }
 
-    .section-header {
+    .override-wrap {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-weight: 700;
-      font-size: clamp(12px, 2vw, 13px);
-      margin: 20px 0 8px;
-      color: var(--navy);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      gap: 5px;
+      position: relative;
     }
-    .section-header::before {
-      content: '';
-      width: 4px;
-      height: 16px;
-      background: var(--navy);
-      border-radius: 2px;
+    .override-wrap select {
+      width: auto;
+      min-width: 85px;
+      padding: 5px 7px;
+      font-size: 11px;
+      border-radius: 5px;
+    }
+    .override-wrap.dirty::after {
+      content: '●';
+      color: var(--warning);
+      font-size: 16px;
+      position: absolute;
+      right: -16px;
+      top: 50%;
+      transform: translateY(-50%);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    textarea.override-reason {
+      width: 100%;
+      min-height: 30px;
+      padding: 5px 7px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-family: inherit;
+      font-size: 11px;
+      resize: vertical;
+      transition: all 0.2s ease;
+    }
+    textarea.override-reason:focus {
+      outline: none;
+      border-color: var(--navy);
+      box-shadow: 0 0 0 2px rgba(14, 85, 120, 0.1);
+    }
+    td.reason-cell {
+      max-width: 280px;
+      min-width: 180px;
     }
 
     .hint {
-      font-size: clamp(12px, 2vw, 13px);
-      color: var(--text-secondary);
-      padding: 12px 14px;
-      background: var(--bg);
-      border-radius: 8px;
-      border: 1px dashed var(--border);
-      text-align: center;
-    }
-    @media (min-width: 768px) { .hint { padding: 12px 16px; } }
-
-    .small {
-      font-size: 12px;
-      color: var(--text-secondary);
-      margin-top: 8px;
-    }
-
-    footer {
-      padding: 20px 16px;
-      text-align: center;
-      color: var(--text-secondary);
       font-size: 11px;
-      border-top: 1px solid var(--border);
-      margin-top: 32px;
-      background: white;
-    }
-    @media (min-width: 768px) {
-      footer { padding: 24px; font-size: 12px; margin-top: 40px; }
-    }
-    footer a {
-      color: var(--navy);
-      text-decoration: none;
-      font-weight: 700;
-      border-bottom: 2px solid transparent;
-      transition: border-color 0.2s ease;
-    }
-    footer a:hover { border-bottom-color: var(--navy); }
-
-    .action-buttons {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-      margin-top: 16px;
-    }
-    @media (min-width: 640px) { .action-buttons { grid-template-columns: 1fr 1fr; gap: 12px; } }
-
-    .divider { height: 1px; background: var(--border); margin: 16px 0; }
-
-    .review-stats {
-      display: flex;
-      justify-content: center;
-      gap: 12px;
-      padding: 0 4px 12px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 16px;
-      flex-wrap: wrap;
-    }
-    @media (min-width: 640px) {
-      .review-stats { justify-content: flex-end; gap: 16px; padding: 0 4px 16px; margin-bottom: 20px; }
+      color: var(--text-secondary);
+      font-style: italic;
+      text-align: center;
+      padding: 16px 8px 8px 8px;
     }
 
-    .stat-item { font-size: clamp(12px, 2vw, 14px); font-weight: 600; }
-    .stat-item span {
-      font-size: clamp(14px, 2vw, 16px);
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 6px;
-      margin-left: 6px;
-    }
-    .stat-item .valid-count { background: var(--success); color: white; }
-    .stat-item .invalid-count { background: var(--danger); color: white; }
-
-    table { line-height: 1.2; }
-    th, td { padding: 6px 10px; vertical-align: middle; }
-    th { padding: 8px 10px; }
-
-    td:nth-child(5){ padding-top: 4px; padding-bottom: 4px; }
-
-    td.reason-cell {
-      white-space: normal !important;
-      overflow: hidden;
-      text-overflow: unset;
-      word-break: break-word;
-    }
-
-    /* PATCH: Reason column becomes the editable textbox */
-    td.reason-cell textarea.override-reason {
+    /* PROGRESS BAR */
+    .progress-bar {
       width: 100%;
-      min-width: 0;
-      box-sizing: border-box;
-
-      border: 1.5px solid var(--border);
-      border-radius: 8px;
-      background: #fff;
-
-      height: 30px;
-      min-height: 30px;
-      padding: 4px 8px;
-      font-size: 12px;
-      line-height: 1.2;
-
-      resize: none;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
       overflow: hidden;
-      white-space: pre-wrap;
-      word-break: break-word;
+      margin-top: 7px;
     }
-    td.reason-cell textarea.override-reason:focus{
-      outline: none;
-      border-color: var(--navy);
-      box-shadow: 0 0 0 3px rgba(14, 85, 120, 0.1);
-    }
-    @media (max-width: 767px) {
-      td.reason-cell textarea.override-reason { font-size: 16px; }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--navy) 0%, var(--accent) 100%);
+      transition: width 0.3s ease;
+      border-radius: 3px;
     }
 
-    @media (max-width: 480px) {
-      header h1 { font-size: 18px; }
-      header .subtitle { font-size: 12px; }
+    /* UTILITY */
+    .text-secondary { color: var(--text-secondary); }
+    .mt-1 { margin-top: 6px; }
+    .mt-2 { margin-top: 10px; }
 
-      .stack > * + * { margin-top: 12px; }
-
-      .card { border-radius: 10px; }
-      .card h3 { padding: 10px 12px; }
-      .card .body { padding: 12px; }
-
-      button { padding: 12px 14px; font-size: 15px; }
-
-      .logbox { height: 200px; padding: 10px; font-size: 12px; }
-
-      .table-container { margin-top: 10px; }
-      table { table-layout: auto; }
-      th, td { padding: 6px 8px; }
-      th { font-size: 11px; }
-
-      table thead th { width: auto !important; }
-
-      #validBody td:nth-child(1),
-      #invalidBody td:nth-child(1) { width: 88px; }
-
-      #validBody td:nth-child(2),
-      #invalidBody td:nth-child(2) { width: 120px; }
-
-      #validBody td:nth-child(3),
-      #invalidBody td:nth-child(3),
-      #validBody td:nth-child(6),
-      #invalidBody td:nth-child(6) {
-        white-space: normal;
-        word-break: break-word;
-      }
-
-      .override-wrap select{
-        height: 32px;
-        font-size: 13px;
-      }
-
-      body { font-size: 13px; }
-      label { font-size: 12px; margin-bottom: 6px; }
-      .small { font-size: 11px; }
-      .status { font-size: 12px; padding: 6px 10px; }
-      .card h3 { font-size: 12px; }
-      .section-header { font-size: 12px; }
-      table { font-size: 12px; line-height: 1.1; }
-      th { font-size: 10px; }
-      th, td { padding: 5px 6px; }
-
-      select,
-      input[type="text"],
-      input[type="file"] {
-        font-size: 16px;
-      }
-
-      .wrap { padding: 10px; }
-      .card .body { padding: 10px; }
-      .stack > * + * { margin-top: 10px; }
-      button { font-size: 14px; padding: 10px 12px; }
-
-      .override-wrap select{
-        height: 28px;
-        padding: 3px 6px;
-        font-size: 12px;
-      }
-
-      td.reason-cell textarea.override-reason {
-        min-height: 32px;
-        font-size: 16px;
-      }
-    }
+    /* EMOJI SIZING */
+    .emoji { font-size: 14px; }
+    .emoji-sm { font-size: 12px; }
   </style>
 </head>
+
 <body>
-<header>
-  <!-- PATCH: centered inner header content -->
-  <div class="header-inner">
-    <h1>⚓ ATGSD Sea Pay Processor</h1>
-    <div class="subtitle">Automated Sea Duty Certification & PG-13 Generation System</div>
-  </div>
-</header>
+  <header>
+    <div class="header-inner">
+      <h1><span class="emoji">⚓</span> ATGSD Sea Pay Processor</h1>
+      <div class="subtitle">Automated TORIS Processing & Review System</div>
+    </div>
+  </header>
 
-<div class="wrap">
-  <div class="grid">
-    <div class="stack">
-      <div class="card">
-        <h3>📂 Input Files</h3>
-        <div class="body">
-          <form id="processForm" class="stack">
-            <div>
-              <label>Sea Duty Certification Sheets (PDF)</label>
-              <input id="pdfs" name="pdfs" type="file" accept="application/pdf" multiple required>
-            </div>
-            <div>
-              <label>Rate CSV (Optional)</label>
-              <input id="ratesCsv" name="rates_csv" type="file" accept=".csv">
-            </div>
-            <div>
-              <label>NAVPERS 1070/613 Template (Optional)</label>
-              <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf">
-            </div>
-            <div>
-              <label>Strikeout Color</label>
-              <select id="strikeColor" name="strikeout_color">
-                <option value="Black" selected>⚫ Black</option>
-                <option value="Red">🔴 Red</option>
-              </select>
-            </div>
-            <button type="submit" id="processBtn" class="primary">▶️ Process Files</button>
-          </form>
+  <div class="wrap">
+    
+    <!-- 🎯 TOP SECTION: SUPER TIGHT COMPACT CARDS - CENTERED -->
+    <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; align-items: flex-start; justify-content: center;">
+      
+      <!-- INPUT FILES - TIGHT FIT -->
+      <div class="card" style="flex: 0 0 auto; width: 260px;">
+        <h3><span class="emoji-sm">📁</span> Input Files</h3>
+        <div class="body" style="padding: 8px;">
+          
+          <label style="font-size: 10px; margin-bottom: 2px; font-weight: 600;">Sea Duty Cert (PDF)</label>
+          <input type="file" id="certFiles" multiple accept=".pdf" style="padding: 5px 7px; font-size: 10px; border-radius: 4px; margin-bottom: 5px;">
+          
+          <label class="mini" style="margin-bottom: 2px;">Rate CSV</label>
+          <input type="file" id="rateFile" class="mini" accept=".csv" style="margin-bottom: 5px;">
+          
+          <label class="mini" style="margin-bottom: 2px;">Template PDF</label>
+          <input type="file" id="templateFile" class="mini" accept=".pdf">
+          
         </div>
       </div>
-      <div class="card">
-        <h3>📊 Status</h3>
-        <div class="body">
-          <div class="status" id="statusText">Idle</div>
+
+      <!-- STATUS + PROCESS - COMBINED CARD -->
+      <div class="card" style="flex: 0 0 auto; width: 220px;">
+        <h3><span class="emoji-sm">⚙️</span> Process</h3>
+        <div class="body" style="padding: 8px;">
+          
+          <!-- Status Section -->
+          <div style="margin-bottom: 8px;">
+            <div style="font-size: 9px; font-weight: 700; color: var(--navy); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">
+              <span class="emoji-sm">📊</span> Status
+            </div>
+            <div class="status" id="statusBox" style="font-size: 10px; padding: 4px 8px; margin-bottom: 4px;">
+              <span id="statusText">IDLE (0%)</span>
+            </div>
+            <div class="progress-bar" style="height: 4px; margin-bottom: 0;">
+              <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+            <div class="text-secondary" style="font-size: 9px; line-height: 1.2; margin-top: 3px;" id="currentStep"></div>
+          </div>
+
+          <!-- Strikeout + Process Button -->
+          <label class="mini" style="margin-bottom: 2px;">Strikeout</label>
+          <select id="strikeColor" class="mini" style="width: 100%; margin-bottom: 6px;">
+            <option value="black">Black</option>
+            <option value="red">Red</option>
+          </select>
+
+          <button id="processBtn" class="btn-process-inline">
+            <span class="emoji-sm">⚡</span> Process
+          </button>
         </div>
       </div>
-      <div class="card">
-        <h3>⬇️ Downloads</h3>
-        <div class="body stack">
-          <button class="secondary" type="button" id="btnMerged">📦 Merged Package</button>
-          <button class="secondary" type="button" id="btnAll">📥 Download All Outputs</button>
-          <div class="small">💡 Run PROCESS first if downloads are empty</div>
+
+      <!-- SYSTEM + DOWNLOADS - COMBINED CARD -->
+      <div class="card" style="flex: 0 0 auto; width: 180px;">
+        <h3><span class="emoji-sm">⚙️</span> System</h3>
+        <div class="body" style="padding: 8px;">
+          
+          <!-- Reset Button -->
+          <button id="resetBtn" class="btn-danger-inline" style="margin-bottom: 8px;">
+            <span class="emoji-sm">🗑️</span> Reset
+          </button>
+          <div style="font-size: 8px; color: var(--text-secondary); margin-bottom: 10px; text-align: center; line-height: 1.2;">
+            Clears all data
+          </div>
+
+          <!-- Downloads Section -->
+          <div style="font-size: 9px; font-weight: 700; color: var(--navy); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;">
+            <span class="emoji-sm">💾</span> Downloads
+          </div>
+          <button id="downloadMergedBtn" class="btn-download-inline" style="margin-bottom: 5px;">
+            <span class="emoji-sm">📦</span> Download Package
+          </button>
+          <button id="downloadAllBtn" class="btn-download-inline">
+            <span class="emoji-sm">📂</span> Download All
+          </button>
         </div>
       </div>
-      <div class="card">
-        <h3>🔄 System</h3>
-        <div class="body">
-          <button class="danger" type="button" id="btnReset">🗑️ Reset All Data</button>
-        </div>
-      </div>
+
     </div>
 
-    <div class="stack">
-      <div class="card">
-        <h3>📜 Live Processing Log</h3>
-        <div class="body">
-          <div id="liveLog" class="logbox"></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>✏️ Review & Override</h3>
-        <div class="body">
-          <div class="review-controls">
-            <div>
-              <label>👤 Member</label>
-              <select id="memberSelect">
-                <option value="">Select member</option>
-              </select>
-            </div>
-            <div>
-              <label>📄 Sheet</label>
-              <select id="sheetSelect" disabled>
-                <option value="">Select sheet</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="review-stats">
-            <div class="stat-item">VALID: <span id="validCount" class="valid-count">0</span></div>
-            <div class="stat-item">INVALID: <span id="invalidCount" class="invalid-count">0</span></div>
-          </div>
-
-          <div class="hint" id="reviewHint">
-            👆 Select a member and sheet to review and override validation results
-          </div>
-
-          <div class="section-header">✅ Valid Rows</div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:100px;">Date</th>
-                  <th style="width:140px;">Ship</th>
-                  <th style="width:200px;">Event</th>
-                  <th style="width:80px;">Status</th>
-                  <th style="min-width:300px;">Override</th>
-                  <th>Reason</th>
-                </tr>
-              </thead>
-              <tbody id="validBody"></tbody>
-            </table>
-          </div>
-
-          <div class="section-header">❌ Invalid Events</div>
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:100px;">Date</th>
-                  <th style="width:140px;">Ship</th>
-                  <th style="width:200px;">Event</th>
-                  <th style="width:80px;">Status</th>
-                  <th style="min-width:300px;">Override</th>
-                  <th>Reason</th>
-                </tr>
-              </thead>
-              <tbody id="invalidBody"></tbody>
-            </table>
-          </div>
-
-          <div class="action-buttons">
-            <button id="saveOverridesBtn" type="button" class="success" onclick="saveOverrides()">
-              💾 Save Overrides
-            </button>
-            <button class="primary" type="button" onclick="rebuildOutputs()">
-              🔄 Rebuild Outputs
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<footer>
-  Developed by <a href="mailto:ryan.nivera@navy.mil">STG1(SW) Nivera, Ryan</a> | ATGSD Sea Pay Processor © 2025
-</footer>
-
-<script>
-  const $ = (id) => document.getElementById(id);
-
-  let lastStatus = null;
-  let pendingOverrides = {};
-  let lastSelectedMember = "";
-  let lastSelectedSheet = "";
-
-  function safeText(v) {
-    if (v === null || v === undefined) return "";
-    if (typeof v === "object") return JSON.stringify(v);
-    return String(v);
-  }
-  function pick(obj, keys, fallback="") {
-    if (!obj) return fallback;
-    for (const k of keys) {
-      if (obj[k] !== undefined && obj[k] !== null && obj[k] !== "") return obj[k];
-    }
-    return fallback;
-  }
-
-  /* =========================
-     Fit text to box (min font 6px) + Auto-grow textarea
-     ========================= */
-
-  function fitFontToBox(el, opts = {}) {
-    const minPx = (opts.minPx ?? 6);
-    const maxPx = (opts.maxPx ?? null);
-    const mode  = (opts.mode ?? "width");
-
-    if (!el) return;
-
-    const cs = window.getComputedStyle(el);
-    const current = parseFloat(cs.fontSize) || 12;
-    let start = maxPx ? maxPx : current;
-
-    if (el.clientWidth <= 0) return;
-
-    el.style.fontSize = start + "px";
-
-    const overflows = () => {
-      const w = el.scrollWidth > el.clientWidth + 1;
-      if (mode === "width") return w;
-      const h = el.scrollHeight > el.clientHeight + 1;
-      return w || h;
-    };
-
-    let size = start;
-    while (size > minPx && overflows()) {
-      size -= 0.5;
-      el.style.fontSize = size + "px";
-    }
-
-    if (size < minPx) el.style.fontSize = minPx + "px";
-  }
-
-  function autoGrowTextarea(ta) {
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = Math.max(ta.scrollHeight, 30) + "px";
-  }
-
-  /* =========================
-     PATCH: only fit/grow the editable Reason textareas now
-     ========================= */
-  function patchFitAllReasonCells() {
-    document.querySelectorAll("textarea.override-reason").forEach((ta) => {
-      autoGrowTextarea(ta);
-      fitFontToBox(ta, { minPx: 6, mode: "width" });
-    });
-  }
-
-  window.addEventListener("resize", () => {
-    patchFitAllReasonCells();
-  });
-
-  async function jget(url) {
-    const r = await fetch(url, {cache:"no-store"});
-    if (!r.ok) throw new Error("GET " + url + " -> " + r.status);
-    return await r.json();
-  }
-  async function jpost(url, payload) {
-    const r = await fetch(url, {
-      method:"POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(payload)
-    });
-    if (!r.ok) {
-      const t = await r.text().catch(()=> "");
-      throw new Error("POST " + url + " -> " + r.status + " " + t);
-    }
-    return await r.json();
-  }
-  async function jdel(url, payload) {
-    const r = await fetch(url, {
-      method:"DELETE",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(payload)
-    });
-    if (!r.ok) {
-      const t = await r.text().catch(()=> "");
-      throw new Error("DELETE " + url + " -> " + r.status + " " + t);
-    }
-    return await r.json();
-  }
-
-  async function pollProgress() {
-    try {
-      const data = await jget("/progress");
-      const pct = pick(data, ["percent","progress","pct"], null);
-      const status = pick(data, ["status","state","message"], "Idle");
-      const log = pick(data, ["log","lines","text"], "");
-      if (status === "COMPLETE" && lastStatus !== "COMPLETE") {
-        refreshReviewLists();
-      }
-      lastStatus = status;
-
-      if (pct !== null && pct !== undefined) {
-        $("statusText").textContent = status + " (" + pct + "%)";
-      } else {
-        $("statusText").textContent = status;
-      }
-      if (typeof log === "string") {
-        const logBox = $("liveLog");
-        const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
-        logBox.textContent = log;
-        if (isAtBottom) {
-          logBox.scrollTop = logBox.scrollHeight;
+    <!-- Responsive behavior -->
+    <style>
+      @media (max-width: 800px) {
+        .wrap > div:first-child {
+          flex-direction: column !important;
+        }
+        .wrap > div:first-child > .card,
+        .wrap > div:first-child > div {
+          width: 100% !important;
+          max-width: 400px;
+        }
+        .wrap > div:first-child > div > .card {
+          width: 100% !important;
         }
       }
-    } catch (e) {}
-  }
+    </style>
 
-  setInterval(pollProgress, 1000);
-  pollProgress();
+    <!-- 🎯 MIDDLE SECTION: LIVE PROCESSING LOG -->
+    <div class="card" style="margin-bottom: 14px;">
+      <h3><span class="emoji-sm">📋</span> Live Processing Log</h3>
+      <div class="body">
+        <div class="logbox" id="logBox">[19:34:44] RESET COMPLETE (files cleared)</div>
+      </div>
+    </div>
 
-  $("processForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const fd = new FormData();
-    for (const f of $("pdfs").files) fd.append("pdfs", f);
-    if ($("ratesCsv").files[0]) fd.append("rates_csv", $("ratesCsv").files[0]);
-    if ($("templatePdf").files[0]) fd.append("template_pdf", $("templatePdf").files[0]);
-    fd.append("strikeout_color", $("strikeColor").value);
-    $("processBtn").disabled = true;
-    try {
-      const r = await fetch("/process", {method:"POST", body: fd});
-      if (!r.ok) throw new Error("Process failed: " + r.status);
-      await refreshReviewLists();
-    } catch (err) {
-      alert(err.message || String(err));
-    } finally {
-      $("processBtn").disabled = false;
+    <!-- 🎯 BOTTOM SECTION: REVIEW & OVERRIDE -->
+    <div class="card">
+      <h3><span class="emoji-sm">🔍</span> Review & Override</h3>
+      <div class="body">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+          <div>
+            <label><span class="emoji-sm">👤</span> Member</label>
+            <select id="memberSelect">
+              <option value="">Select member</option>
+            </select>
+          </div>
+          <div>
+            <label><span class="emoji-sm">📄</span> Sheet</label>
+            <select id="sheetSelect" disabled>
+              <option value="">Select sheet</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+          <div class="badge valid">
+            <span>✅ VALID:</span>
+            <span id="validCount" style="font-weight: 700;">0</span>
+          </div>
+          <div class="badge invalid">
+            <span>❌ INVALID:</span>
+            <span id="invalidCount" style="font-weight: 700;">0</span>
+          </div>
+        </div>
+
+        <!-- VALID ROWS TABLE -->
+        <h4 style="margin: 0 0 7px 0; font-size: 12px; font-weight: 700; color: var(--navy);">
+          ✅ VALID ROWS
+        </h4>
+        <div class="table-wrapper" style="margin-bottom: 16px;">
+          <table>
+            <thead>
+              <tr>
+                <th>DATE</th>
+                <th>SHIP</th>
+                <th>EVENT</th>
+                <th>STATUS</th>
+                <th>OVERRIDE</th>
+                <th>REASON</th>
+              </tr>
+            </thead>
+            <tbody id="validBody"></tbody>
+          </table>
+        </div>
+
+        <!-- INVALID EVENTS TABLE -->
+        <h4 style="margin: 0 0 7px 0; font-size: 12px; font-weight: 700; color: var(--navy);">
+          ❌ INVALID EVENTS
+        </h4>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>DATE</th>
+                <th>SHIP</th>
+                <th>EVENT</th>
+                <th>STATUS</th>
+                <th>OVERRIDE</th>
+                <th>REASON</th>
+              </tr>
+            </thead>
+            <tbody id="invalidBody"></tbody>
+          </table>
+        </div>
+
+        <div class="hint" id="reviewHint">
+          Select a member and sheet to review events
+        </div>
+
+        <!-- ACTION BUTTONS -->
+        <div class="action-row">
+          <button id="saveOverridesBtn" class="btn-save">
+            <span class="emoji-sm">💾</span> Save Overrides
+          </button>
+          <button id="rebuildBtn" class="btn-rebuild">
+            <span class="emoji-sm">🔄</span> Rebuild Outputs
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    let pendingOverrides = {};
+    let lastSelectedMember = null;
+    let lastSelectedSheet = null;
+
+    async function jget(url) {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.json();
     }
-  });
+    async function jpost(url, body) {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.json();
+    }
 
-  $("btnMerged").addEventListener("click", () => { window.location = "/download_merged"; });
-  $("btnAll").addEventListener("click", () => { window.location = "/download_all"; });
+    async function pollProgress() {
+      try {
+        const data = await jget("/progress");
+        const { status, percent, log, current_step } = data;
 
-  $("btnReset").addEventListener("click", async () => {
-    if (!confirm("⚠️ Reset all output and overrides? This cannot be undone.")) return;
-    try {
-      const r = await fetch("/reset", {method:"POST"});
-      if (!r.ok) throw new Error("Reset failed: " + r.status);
+        $("statusText").textContent = `${status} (${percent}%)`;
+        $("progressFill").style.width = `${percent}%`;
+        $("currentStep").textContent = current_step || "";
+        $("logBox").textContent = log || "";
+        $("logBox").scrollTop = $("logBox").scrollHeight;
 
-      $("processForm").reset();
-      $("memberSelect").innerHTML = '<option value="">Select member</option>';
+        if (status === "COMPLETE" || status === "ERROR") {
+          setTimeout(loadMembers, 500);
+          return;
+        }
+
+        setTimeout(pollProgress, 500);
+      } catch (err) {
+        console.error("Poll error:", err);
+        setTimeout(pollProgress, 2000);
+      }
+    }
+
+    $("processBtn").addEventListener("click", async () => {
+      const files = $("certFiles").files;
+      if (files.length === 0) {
+        alert("Please select at least one PDF file");
+        return;
+      }
+
+      const form = new FormData();
+      for (const f of files) form.append("files", f);
+
+      if ($("rateFile").files[0]) form.append("rates_csv", $("rateFile").files[0]);
+      if ($("templateFile").files[0]) form.append("template_pdf", $("templateFile").files[0]);
+      form.append("strikeout_color", $("strikeColor").value);
+
+      $("processBtn").disabled = true;
+      try {
+        await fetch("/process", { method: "POST", body: form });
+        pollProgress();
+      } catch (err) {
+        alert("Error starting process: " + err.message);
+        $("processBtn").disabled = false;
+      } finally {
+        setTimeout(() => { $("processBtn").disabled = false; }, 1000);
+      }
+    });
+
+    async function loadMembers() {
+      try {
+        const members = await jget("/api/members");
+        $("memberSelect").innerHTML = '<option value="">Select member</option>';
+        members.forEach(m => {
+          const opt = document.createElement("option");
+          opt.value = m;
+          opt.textContent = m;
+          $("memberSelect").appendChild(opt);
+        });
+      } catch (err) {
+        console.error("Load members error:", err);
+      }
+    }
+
+    async function loadSheetsForMember(memberKey) {
       $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
       $("sheetSelect").disabled = true;
       $("validBody").innerHTML = "";
       $("invalidBody").innerHTML = "";
-      $("reviewHint").textContent = "👆 Select a member and sheet to review and override validation results";
-      pendingOverrides = {};
+      $("reviewHint").style.display = "block";
+      $("reviewHint").textContent = "Select a sheet to review events";
 
-      if($("validCount")) $("validCount").textContent = "0";
-      if($("invalidCount")) $("invalidCount").textContent = "0";
+      if (!memberKey) return;
 
-      alert("✅ Reset complete!");
-    } catch (err) {
-      alert(err.message || String(err));
+      try {
+        const sheets = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheets");
+        sheets.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s;
+          opt.textContent = s;
+          $("sheetSelect").appendChild(opt);
+        });
+        $("sheetSelect").disabled = false;
+      } catch (err) {
+        console.error("Load sheets error:", err);
+      }
     }
-  });
 
-  async function refreshReviewLists() {
-    try {
-      const members = await jget("/api/members");
-      const sel = $("memberSelect");
-      const current = sel.value;
-      sel.innerHTML = '<option value="">Select member</option>';
-      for (const m of members) {
+    function safeText(v) {
+      return (v === null || v === undefined || v === "") ? "" : String(v);
+    }
+
+    function autoGrowTextarea(ta) {
+      ta.style.height = 'auto';
+      ta.style.height = (ta.scrollHeight) + 'px';
+    }
+
+    function fitFontToBox(el, opts = {}) {
+      const minPx = opts.minPx || 6;
+      const maxPx = opts.maxPx || 14;
+      const mode = opts.mode || "width";
+
+      let fontSize = maxPx;
+      el.style.fontSize = fontSize + "px";
+
+      if (mode === "width") {
+        while (fontSize > minPx && el.scrollWidth > el.clientWidth) {
+          fontSize--;
+          el.style.fontSize = fontSize + "px";
+        }
+      } else {
+        while (fontSize > minPx && (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight)) {
+          fontSize--;
+          el.style.fontSize = fontSize + "px";
+        }
+      }
+    }
+
+    function patchFitAllReasonCells() {
+      document.querySelectorAll("textarea.override-reason").forEach(ta => {
+        autoGrowTextarea(ta);
+        fitFontToBox(ta, { minPx: 6, mode: "width" });
+      });
+    }
+
+    function buildOverrideSelect(memberKey, sheetFile, eventIndex, currentOverrideStatus, source) {
+      const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
+
+      const wrap = document.createElement("div");
+      wrap.className = "override-wrap";
+
+      const sel = document.createElement("select");
+      sel.setAttribute("data-override-key", key);
+
+      const opts = [
+        { val: "", label: "Auto" },
+        { val: "valid", label: "Valid" },
+        { val: "invalid", label: "Invalid" }
+      ];
+
+      opts.forEach(o => {
         const opt = document.createElement("option");
-        opt.value = m;
-        opt.textContent = m;
+        opt.value = o.val;
+        opt.textContent = o.label;
+        if (o.val === currentOverrideStatus) opt.selected = true;
         sel.appendChild(opt);
+      });
+
+      sel.addEventListener("change", () => {
+        const ta = document.querySelector(`textarea[data-override-key="${CSS.escape(key)}"]`);
+        const reasonText = ta ? ta.value : "";
+
+        pendingOverrides[key] = {
+          member_key: memberKey,
+          sheet_file: sheetFile,
+          event_index: eventIndex,
+          override_status: sel.value || null,
+          override_reason: reasonText || null
+        };
+
+        wrap.classList.add("dirty");
+        patchFitAllReasonCells();
+      });
+
+      if (source === "override") {
+        wrap.classList.add("dirty");
       }
-      if (current && members.includes(current)) {
-        sel.value = current;
+
+      wrap.appendChild(sel);
+      return wrap;
+    }
+
+    function buildReasonTextarea(memberKey, sheetFile, eventIndex, initialText, currentOverrideReason) {
+      const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
+
+      const ta = document.createElement("textarea");
+      ta.className = "override-reason";
+      ta.rows = 1;
+
+      ta.value = (currentOverrideReason && currentOverrideReason.trim() !== "")
+        ? currentOverrideReason
+        : (initialText || "");
+
+      ta.placeholder = "Optional...";
+      ta.setAttribute("data-override-key", key);
+
+      function markDirty() {
+        const sel = document.querySelector(`select[data-override-key="${CSS.escape(key)}"]`);
+        const statusVal = sel ? sel.value : "";
+
+        pendingOverrides[key] = {
+          member_key: memberKey,
+          sheet_file: sheetFile,
+          event_index: eventIndex,
+          override_status: statusVal || null,
+          override_reason: ta.value || null
+        };
+
+        const wrap = sel ? sel.closest(".override-wrap") : null;
+        if (wrap) wrap.classList.add("dirty");
       }
-      lastSelectedMember = sel.value;
-    } catch (e) {}
-  }
 
-  async function loadSheetsForMember(memberKey) {
-    $("sheetSelect").disabled = true;
-    $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
-    $("validBody").innerHTML = "";
-    $("invalidBody").innerHTML = "";
-    if (!memberKey) {
-      if($("validCount")) $("validCount").textContent = "0";
-      if($("invalidCount")) $("invalidCount").textContent = "0";
-      return;
-    }
-    const sheets = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheets");
-    const sel = $("sheetSelect");
-    for (const s of sheets) {
-      const opt = document.createElement("option");
-      opt.value = s;
-      opt.textContent = s;
-      sel.appendChild(opt);
-    }
-    sel.disabled = false;
-    lastSelectedSheet = sel.value;
-  }
+      ta.addEventListener("input", () => {
+        autoGrowTextarea(ta);
+        markDirty();
+        fitFontToBox(ta, { minPx: 6, mode: "width" });
+      });
 
-  /* =========================
-     PATCH: Override dropdown only + Reason textbox in Reason column
-     ========================= */
+      setTimeout(() => {
+        autoGrowTextarea(ta);
+        fitFontToBox(ta, { minPx: 6, mode: "width" });
+      }, 0);
 
-  function buildOverrideSelect(memberKey, sheetFile, eventIndex, currentStatus, source) {
-    const wrap = document.createElement("div");
-    wrap.className = "override-wrap";
-
-    const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
-
-    const sel = document.createElement("select");
-    sel.setAttribute("data-override-key", key);
-
-    const options = [
-      {v:"", t:"🔄 Auto"},
-      {v:"valid", t:"✅ Force Valid"},
-      {v:"invalid", t:"❌ Force Invalid"},
-    ];
-    for (const o of options) {
-      const opt = document.createElement("option");
-      opt.value = o.v;
-      opt.textContent = o.t;
-      sel.appendChild(opt);
-    }
-    sel.value = currentStatus || "";
-
-    function markDirty(reasonText) {
-      wrap.classList.add("dirty");
-      pendingOverrides[key] = {
-        member_key: memberKey,
-        sheet_file: sheetFile,
-        event_index: eventIndex,
-        override_status: sel.value || null,
-        override_reason: reasonText || null
-      };
+      return ta;
     }
 
-    sel.addEventListener("change", () => {
-      const ta = document.querySelector(`textarea[data-override-key="${CSS.escape(key)}"]`);
-      const reasonText = ta ? ta.value : "";
-      markDirty(reasonText);
-      patchFitAllReasonCells();
+    function getOverrideStatus(row) {
+      const direct = (row && row.override_status !== undefined && row.override_status !== null) ? String(row.override_status) : "";
+      if (direct !== "") return direct;
+      const nested = (row && row.override && row.override.status !== undefined && row.override.status !== null) ? String(row.override.status) : "";
+      return nested || "";
+    }
+
+    function getOverrideReason(row) {
+      const direct = (row && row.override_reason !== undefined && row.override_reason !== null) ? String(row.override_reason) : "";
+      if (direct.trim() !== "") return direct;
+      const nested = (row && row.override && row.override.reason !== undefined && row.override.reason !== null) ? String(row.override.reason) : "";
+      return nested || "";
+    }
+
+    async function loadEventTableForSheet(memberKey, sheetFile) {
+      $("validBody").innerHTML = "";
+      $("invalidBody").innerHTML = "";
+      $("reviewHint").textContent = "Loading events...";
+
+      try {
+        const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile));
+
+        const validRows = data.valid_rows || [];
+        const invalidRows = data.invalid_events || [];
+
+        if($("validCount")) $("validCount").textContent = String(validRows.length);
+        if($("invalidCount")) $("invalidCount").textContent = String(invalidRows.length);
+
+        const validBody = $("validBody");
+        const invalidBody = $("invalidBody");
+
+        if (validRows.length === 0 && invalidRows.length === 0) {
+          $("reviewHint").textContent = "No events found for this sheet";
+          return;
+        }
+
+        $("reviewHint").style.display = "none";
+
+        for (const row of validRows) {
+          const tr = document.createElement("tr");
+          tr.className = "valid";
+
+          const tdDate = document.createElement("td");
+          tdDate.textContent = safeText(row.date);
+
+          const tdShip = document.createElement("td");
+          tdShip.textContent = safeText(row.ship);
+
+          const tdEvent = document.createElement("td");
+          tdEvent.textContent = safeText(row.event);
+
+          const tdStatus = document.createElement("td");
+          tdStatus.textContent = row.source === "override" ? "Override" : "Valid";
+
+          const tdOverride = document.createElement("td");
+          tdOverride.appendChild(
+            buildOverrideSelect(
+              memberKey,
+              sheetFile,
+              row.event_index,
+              getOverrideStatus(row),
+              row.source
+            )
+          );
+
+          const tdReason = document.createElement("td");
+          tdReason.className = "reason-cell";
+          tdReason.appendChild(
+            buildReasonTextarea(
+              memberKey,
+              sheetFile,
+              row.event_index,
+              safeText(row.status_reason),
+              getOverrideReason(row)
+            )
+          );
+
+          tr.appendChild(tdDate);
+          tr.appendChild(tdShip);
+          tr.appendChild(tdEvent);
+          tr.appendChild(tdStatus);
+          tr.appendChild(tdOverride);
+          tr.appendChild(tdReason);
+
+          validBody.appendChild(tr);
+        }
+
+        for (const row of invalidRows) {
+          const tr = document.createElement("tr");
+          tr.className = "invalid";
+
+          const tdDate = document.createElement("td");
+          tdDate.textContent = safeText(row.date);
+
+          const tdShip = document.createElement("td");
+          tdShip.textContent = safeText(row.ship);
+
+          const tdEvent = document.createElement("td");
+          tdEvent.textContent = safeText(row.event);
+
+          const tdStatus = document.createElement("td");
+          tdStatus.textContent = row.source === "override" ? "Override" : "Invalid";
+
+          const tdOverride = document.createElement("td");
+          tdOverride.appendChild(
+            buildOverrideSelect(
+              memberKey,
+              sheetFile,
+              row.event_index,
+              getOverrideStatus(row),
+              row.source
+            )
+          );
+
+          const tdReason = document.createElement("td");
+          tdReason.className = "reason-cell";
+          tdReason.appendChild(
+            buildReasonTextarea(
+              memberKey,
+              sheetFile,
+              row.event_index,
+              safeText(row.reason),
+              getOverrideReason(row)
+            )
+          );
+
+          tr.appendChild(tdDate);
+          tr.appendChild(tdShip);
+          tr.appendChild(tdEvent);
+          tr.appendChild(tdStatus);
+          tr.appendChild(tdOverride);
+          tr.appendChild(tdReason);
+
+          invalidBody.appendChild(tr);
+        }
+
+        setTimeout(() => {
+          patchFitAllReasonCells();
+        }, 0);
+
+      } catch (err) {
+        $("reviewHint").textContent = "Error loading events: " + err.message;
+        $("reviewHint").style.display = "block";
+      }
+    }
+
+    $("memberSelect").addEventListener("change", async (e) => {
+      const memberKey = e.target.value;
+      lastSelectedMember = memberKey;
+      pendingOverrides = {};
+      await loadSheetsForMember(memberKey);
     });
 
-    if (source === "override") {
-      wrap.classList.add("dirty");
-    }
-
-    wrap.appendChild(sel);
-    return wrap;
-  }
-
-  function buildReasonTextarea(memberKey, sheetFile, eventIndex, initialText, currentOverrideReason) {
-    const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
-
-    const ta = document.createElement("textarea");
-    ta.className = "override-reason";
-    ta.rows = 1;
-
-    ta.value = (currentOverrideReason && currentOverrideReason.trim() !== "")
-      ? currentOverrideReason
-      : (initialText || "");
-
-    ta.placeholder = "Optional...";
-    ta.setAttribute("data-override-key", key);
-
-    function markDirty() {
-      const sel = document.querySelector(`select[data-override-key="${CSS.escape(key)}"]`);
-      const statusVal = sel ? sel.value : "";
-
-      pendingOverrides[key] = {
-        member_key: memberKey,
-        sheet_file: sheetFile,
-        event_index: eventIndex,
-        override_status: statusVal || null,
-        override_reason: ta.value || null
-      };
-
-      const wrap = sel ? sel.closest(".override-wrap") : null;
-      if (wrap) wrap.classList.add("dirty");
-    }
-
-    ta.addEventListener("input", () => {
-      autoGrowTextarea(ta);
-      markDirty();
-      fitFontToBox(ta, { minPx: 6, mode: "width" });
+    $("sheetSelect").addEventListener("change", async (e) => {
+      const sheetFile = e.target.value;
+      lastSelectedSheet = sheetFile;
+      pendingOverrides = {};
+      if (!sheetFile || !lastSelectedMember) return;
+      await loadEventTableForSheet(lastSelectedMember, sheetFile);
     });
 
-    setTimeout(() => {
-      autoGrowTextarea(ta);
-      fitFontToBox(ta, { minPx: 6, mode: "width" });
-    }, 0);
-
-    return ta;
-  }
-
-  /* =========================
-     PATCH: Read override status/reason from BOTH shapes:
-       - row.override_status / row.override_reason (old)
-       - row.override.status / row.override.reason (current backend)
-     ========================= */
-  function getOverrideStatus(row) {
-    const direct = (row && row.override_status !== undefined && row.override_status !== null) ? String(row.override_status) : "";
-    if (direct !== "") return direct;
-    const nested = (row && row.override && row.override.status !== undefined && row.override.status !== null) ? String(row.override.status) : "";
-    return nested || "";
-  }
-
-  function getOverrideReason(row) {
-    const direct = (row && row.override_reason !== undefined && row.override_reason !== null) ? String(row.override_reason) : "";
-    if (direct.trim() !== "") return direct;
-    const nested = (row && row.override && row.override.reason !== undefined && row.override.reason !== null) ? String(row.override.reason) : "";
-    return nested || "";
-  }
-
-  async function loadEventTableForSheet(memberKey, sheetFile) {
-    $("validBody").innerHTML = "";
-    $("invalidBody").innerHTML = "";
-    $("reviewHint").textContent = "Loading events...";
-
-    try {
-      const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile));
-
-      const validRows = data.valid_rows || [];
-      const invalidRows = data.invalid_events || [];
-
-      if($("validCount")) $("validCount").textContent = String(validRows.length);
-      if($("invalidCount")) $("invalidCount").textContent = String(invalidRows.length);
-
-      const validBody = $("validBody");
-      const invalidBody = $("invalidBody");
-
-      if (validRows.length === 0 && invalidRows.length === 0) {
-        $("reviewHint").textContent = "No events found for this sheet";
+    async function saveOverrides() {
+      const overrides = Object.values(pendingOverrides);
+      if (overrides.length === 0) {
+        alert("No changes to save");
         return;
       }
 
-      $("reviewHint").style.display = "none";
+      const transformedOverrides = overrides.map(override => ({
+        member_key: override.member_key,
+        sheet_file: override.sheet_file,
+        event_index: override.event_index,
+        status: override.override_status || "",
+        reason: override.override_reason || "",
+        source: "manual"
+      }));
 
-      // ✅ CRITICAL PATCH: Valid rows use status_reason (not reason)
-      for (const row of validRows) {
-        const tr = document.createElement("tr");
-        tr.className = "valid";
+      $("saveOverridesBtn").disabled = true;
+      try {
+        await jpost("/api/overrides/batch", transformedOverrides);
+        alert(`✅ Saved ${overrides.length} override(s)`);
+        pendingOverrides = {};
 
-        const tdDate = document.createElement("td");
-        tdDate.textContent = safeText(row.date);
-
-        const tdShip = document.createElement("td");
-        tdShip.textContent = safeText(row.ship);
-
-        const tdEvent = document.createElement("td");
-        tdEvent.textContent = safeText(row.event);
-
-        const tdStatus = document.createElement("td");
-        tdStatus.textContent = row.source === "override" ? "Override" : "Valid";
-
-        const tdOverride = document.createElement("td");
-        tdOverride.appendChild(
-          buildOverrideSelect(
-            memberKey,
-            sheetFile,
-            row.event_index,
-            getOverrideStatus(row),
-            row.source
-          )
-        );
-
-        const tdReason = document.createElement("td");
-        tdReason.className = "reason-cell";
-        tdReason.appendChild(
-          buildReasonTextarea(
-            memberKey,
-            sheetFile,
-            row.event_index,
-            safeText(row.status_reason),  // ✅ FIXED: Use status_reason for valid rows
-            getOverrideReason(row)
-          )
-        );
-
-        tr.appendChild(tdDate);
-        tr.appendChild(tdShip);
-        tr.appendChild(tdEvent);
-        tr.appendChild(tdStatus);
-        tr.appendChild(tdOverride);
-        tr.appendChild(tdReason);
-
-        validBody.appendChild(tr);
+        if (lastSelectedMember && lastSelectedSheet) {
+          await loadEventTableForSheet(lastSelectedMember, lastSelectedSheet);
+        }
+      } catch (err) {
+        alert("Error saving overrides: " + err.message);
+      } finally {
+        $("saveOverridesBtn").disabled = false;
       }
+    }
 
-      // ✅ Invalid events use reason field (already correct)
-      for (const row of invalidRows) {
-        const tr = document.createElement("tr");
-        tr.className = "invalid";
+    async function rebuildOutputs() {
+      if (!confirm("🔄 Rebuild all output files using current overrides?")) return;
 
-        const tdDate = document.createElement("td");
-        tdDate.textContent = safeText(row.date);
-
-        const tdShip = document.createElement("td");
-        tdShip.textContent = safeText(row.ship);
-
-        const tdEvent = document.createElement("td");
-        tdEvent.textContent = safeText(row.event);
-
-        const tdStatus = document.createElement("td");
-        tdStatus.textContent = row.source === "override" ? "Override" : "Invalid";
-
-        const tdOverride = document.createElement("td");
-        tdOverride.appendChild(
-          buildOverrideSelect(
-            memberKey,
-            sheetFile,
-            row.event_index,
-            getOverrideStatus(row),
-            row.source
-          )
-        );
-
-        const tdReason = document.createElement("td");
-        tdReason.className = "reason-cell";
-        tdReason.appendChild(
-          buildReasonTextarea(
-            memberKey,
-            sheetFile,
-            row.event_index,
-            safeText(row.reason),  // ✅ CORRECT: Invalid events use reason field
-            getOverrideReason(row)
-          )
-        );
-
-        tr.appendChild(tdDate);
-        tr.appendChild(tdShip);
-        tr.appendChild(tdEvent);
-        tr.appendChild(tdStatus);
-        tr.appendChild(tdOverride);
-        tr.appendChild(tdReason);
-
-        invalidBody.appendChild(tr);
+      try {
+        const resp = await jpost("/rebuild_outputs", {});
+        alert("✅ Rebuild started. Check the processing log for progress.");
+        pollProgress();
+      } catch (err) {
+        alert("Error rebuilding outputs: " + err.message);
       }
-
-      setTimeout(() => {
-        patchFitAllReasonCells();
-      }, 0);
-
-    } catch (err) {
-      $("reviewHint").textContent = "Error loading events: " + err.message;
-      $("reviewHint").style.display = "block";
-    }
-  }
-
-  $("memberSelect").addEventListener("change", async (e) => {
-    const memberKey = e.target.value;
-    lastSelectedMember = memberKey;
-    pendingOverrides = {};
-    await loadSheetsForMember(memberKey);
-  });
-
-  $("sheetSelect").addEventListener("change", async (e) => {
-    const sheetFile = e.target.value;
-    lastSelectedSheet = sheetFile;
-    pendingOverrides = {};
-    if (!sheetFile || !lastSelectedMember) return;
-    await loadEventTableForSheet(lastSelectedMember, sheetFile);
-  });
-
-  async function saveOverrides() {
-    const overrides = Object.values(pendingOverrides);
-    if (overrides.length === 0) {
-      alert("No changes to save");
-      return;
     }
 
-    const transformedOverrides = overrides.map(override => ({
-      member_key: override.member_key,
-      sheet_file: override.sheet_file,
-      event_index: override.event_index,
-      status: override.override_status || "",
-      reason: override.override_reason || "",
-      source: "manual"
-    }));
+    $("saveOverridesBtn").addEventListener("click", saveOverrides);
+    $("rebuildBtn").addEventListener("click", rebuildOutputs);
 
-    $("saveOverridesBtn").disabled = true;
-    try {
-      await jpost("/api/overrides/batch", transformedOverrides);
-      alert(`✅ Saved ${overrides.length} override(s)`);
-      pendingOverrides = {};
+    $("downloadMergedBtn").addEventListener("click", () => {
+      window.location.href = "/download_merged";
+    });
 
-      if (lastSelectedMember && lastSelectedSheet) {
-        await loadEventTableForSheet(lastSelectedMember, lastSelectedSheet);
+    $("downloadAllBtn").addEventListener("click", () => {
+      window.location.href = "/download_all";
+    });
+
+    $("resetBtn").addEventListener("click", async () => {
+      if (!confirm("⚠️ Reset all data? This will clear all input files, outputs, and logs.")) return;
+      try {
+        await fetch("/reset", { method: "POST" });
+        alert("✅ Reset complete");
+        location.reload();
+      } catch (err) {
+        alert("Error resetting: " + err.message);
       }
-    } catch (err) {
-      alert("Error saving overrides: " + err.message);
-    } finally {
-      $("saveOverridesBtn").disabled = false;
-    }
-  }
+    });
 
-  async function rebuildOutputs() {
-    if (!confirm("🔄 Rebuild all output files using current overrides?")) return;
-
-    try {
-      const resp = await jpost("/rebuild_outputs", {});
-      alert("✅ " + (resp.status || "Rebuild complete"));
-    } catch (err) {
-      alert("Error rebuilding: " + err.message);
-    }
-  }
-</script>
+    window.addEventListener("load", () => {
+      pollProgress();
+      loadMembers();
+    });
+  </script>
 </body>
 </html>
