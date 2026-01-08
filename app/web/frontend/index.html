@@ -8,7 +8,6 @@
     :root {
       /* =========================
          PATCH: Dark “glass” theme
-         (matches your screenshot)
          ========================= */
       --navy-dark: #0a3854;
       --navy: #0e5578;
@@ -23,8 +22,8 @@
 
       --border: rgba(255,255,255,0.10);
 
-      --bg: #070b14;            /* page background (dark, not too dark) */
-      --panel: rgba(20, 28, 48, 0.72); /* glass panel */
+      --bg: #070b14;
+      --panel: rgba(20, 28, 48, 0.72);
       --panel-2: rgba(20, 28, 48, 0.55);
 
       --text-primary: rgba(245,248,255,0.92);
@@ -57,9 +56,6 @@
       width: 100%;
     }
 
-    /* =========================
-       Header (glass bar)
-       ========================= */
     header {
       background: linear-gradient(90deg, rgba(24,34,58,0.78), rgba(10,14,28,0.78));
       color: white;
@@ -79,7 +75,6 @@
       width: 100%;
       position: relative;
     }
-    /* subtle glow line under header */
     .header-inner::after{
       content:"";
       position:absolute;
@@ -88,7 +83,6 @@
       bottom:-1px;
       height: 3px;
       background: linear-gradient(90deg, transparent, rgba(120,190,255,0.75), transparent);
-      filter: blur(0.2px);
       opacity: 0.55;
       pointer-events:none;
     }
@@ -116,7 +110,6 @@
       width: 100%;
     }
 
-    /* TOP GRID */
     .top-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -124,15 +117,9 @@
       margin-bottom: 14px;
     }
     @media (max-width: 1024px) {
-      .top-grid {
-        grid-template-columns: 1fr;
-        gap: 12px;
-      }
+      .top-grid { grid-template-columns: 1fr; gap: 12px; }
     }
 
-    /* =========================
-       Cards (glass panels)
-       ========================= */
     .card {
       background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
       border: 1px solid var(--border);
@@ -164,12 +151,10 @@
       font-weight: 750;
       letter-spacing: 0.02em;
       color: rgba(245,248,255,0.92);
-      text-transform: none;
       line-height: 1.2;
     }
     .card .body { padding: 14px; }
 
-    /* LABELS */
     label {
       display: block;
       font-size: 12px;
@@ -178,7 +163,6 @@
       color: var(--text-secondary);
     }
 
-    /* INPUTS */
     input[type=file], select {
       width: 100%;
       padding: 10px 10px;
@@ -211,7 +195,6 @@
       box-shadow: 0 0 0 3px rgba(120,190,255,0.18);
     }
 
-    /* BUTTON BASE */
     button {
       border: 1px solid transparent;
       font-weight: 750;
@@ -269,6 +252,7 @@
     }
 
     .success, button.success {
+      width: 100%;
       background: linear-gradient(135deg, rgba(22,199,132,0.28), rgba(255,255,255,0.05));
       color: var(--text-primary);
       border-color: rgba(22,199,132,0.30);
@@ -280,7 +264,6 @@
       box-shadow: 0 14px 30px rgba(0,0,0,0.45);
     }
 
-    /* STATUS BOX */
     .status {
       display: inline-flex;
       align-items: center;
@@ -293,6 +276,10 @@
       border: 1px solid rgba(255,255,255,0.12);
       width: 100%;
       color: var(--text-primary);
+
+      /* ===== PATCH: Status progress bar behind text ===== */
+      position: relative;
+      overflow: hidden;
     }
     .status::before {
       content: '';
@@ -302,13 +289,39 @@
       background: var(--success);
       box-shadow: 0 0 0 4px rgba(22,199,132,0.16);
       animation: pulse 2s ease-in-out infinite;
+      position: relative;
+      z-index: 1;
     }
+
+    /* ===== PATCH: Status progress bar fill (behind text) ===== */
+    .status::after{
+      content: "";
+      position: absolute;
+      inset: 0;
+      width: var(--pct, 0%);
+      background: linear-gradient(
+        90deg,
+        rgba(111,183,255,0.22),
+        rgba(22,199,132,0.22)
+      );
+      opacity: 0;
+      transition: width 250ms ease, opacity 200ms ease;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .status[data-has-pct="1"]::after{ opacity: 1; }
+
+    /* ensure status text stays above bar */
+    #statusText{
+      position: relative;
+      z-index: 1;
+    }
+
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.55; transform: scale(0.92); }
     }
 
-    /* LOG BOX */
     .logbox {
       height: 240px;
       overflow: auto;
@@ -324,7 +337,6 @@
       box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
     }
 
-    /* TABLE STYLES */
     .table-wrapper, .table-container {
       overflow-x: auto;
       border-radius: 14px;
@@ -416,7 +428,6 @@
     .hint {
       font-size: 13px;
       color: rgba(245,248,255,0.55);
-      font-style: normal;
       text-align: center;
       padding: 10px 8px;
       border-radius: 14px;
@@ -436,23 +447,10 @@
       letter-spacing: 0.10em;
     }
 
-    .small {
-      font-size: 11px;
-      color: var(--text-secondary);
-      margin-top: 8px;
-      text-align: center;
-    }
-
-    .stack > * + * { margin-top: 10px; }
-
     .text-secondary { color: var(--text-secondary); }
     .mb-1 { margin-bottom: 10px; }
-    .mb-2 { margin-bottom: 14px; }
 
-    /* =========================
-       PATCH: “even” buttons rows
-       (visual only)
-       ========================= */
+    /* ===== PATCH: Even 2-up button wrapper ===== */
     .btn-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -464,29 +462,24 @@
       table { min-width: 860px; }
     }
 
-    /* Center action buttons and keep them not “long” */
-    .action-bar{
-      display:flex;
-      gap: 12px;
-      justify-content:center;
-      align-items:center;
-      flex-wrap: wrap;
-      margin: 6px 0 14px;
+    /* ===== PATCH: System actions (Process/Reset + Save/Rebuild) in ONE wrapper ===== */
+    .system-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
     }
-    .action-bar button{
-      width:auto !important;          /* override inline styles */
-      min-width: 220px;
-      padding: 11px 16px !important;
-      border-radius: 14px !important;
+    .system-actions > button {
+      width: 100%;
+      padding: 10px 12px !important;
+      border-radius: 12px !important;
       font-size: 13px !important;
     }
-    @media (max-width: 640px){
-      .action-bar button{ min-width: 100%; }
+    @media (max-width: 640px) {
+      .system-actions { grid-template-columns: 1fr; }
     }
 
-    /* =========================
-       PATCH: Footer
-       ========================= */
+    /* Footer */
     footer.app-footer{
       max-width: 1600px;
       margin: 16px auto 22px;
@@ -508,37 +501,6 @@
       text-decoration: none;
     }
     footer.app-footer a:hover{ text-decoration: underline; }
-
-    /* =========================================================
-       PATCH: Desktop font boost (keeps iPhone/mobile as-is)
-       ========================================================= */
-    @media (min-width: 1025px) {
-      header h1 { font-size: 22px; }
-      header .subtitle { font-size: 12px; }
-
-      .card h3 { font-size: 13px; }
-      label { font-size: 12px; }
-
-      input[type=file], select { font-size: 13px; padding: 10px 10px; }
-
-      .primary, button.primary { font-size: 13px; padding: 10px 12px; }
-      .secondary, button.secondary { font-size: 13px; padding: 10px 12px; }
-      .danger, button.danger { font-size: 13px; padding: 10px 12px; }
-      .success, button.success { font-size: 13px; }
-
-      .status { font-size: 13px; padding: 10px 12px; }
-
-      table { font-size: 13px; }
-      th { font-size: 11px; padding: 12px 12px; }
-      td { padding: 10px 12px; }
-
-      textarea.override-reason { font-size: 13px; padding: 9px 10px; }
-
-      .hint { font-size: 13px; }
-      .section-header { font-size: 12px; }
-
-      .logbox { font-size: 12px; }
-    }
   </style>
 </head>
 
@@ -551,8 +513,6 @@
   </header>
 
   <div class="wrap">
-
-    <!-- TOP GRID - 3 columns -->
     <div class="top-grid">
 
       <!-- INPUT FILES -->
@@ -574,19 +534,28 @@
       <div class="card">
         <h3>⚙️ System</h3>
         <div class="body">
-          <label style="margin-bottom: 6px;">Status</label>
-          <div class="status" id="statusText" style="margin-bottom: 12px;">Idle</div>
+          <label>Status</label>
+          <div class="status" id="statusText">Idle</div>
+
+          <div style="height:12px;"></div>
 
           <label>Strikeout</label>
-          <select id="strikeColor" name="strikeout_color" class="mb-1">
+          <select id="strikeColor" name="strikeout_color">
             <option value="Black" selected>⚫ Black</option>
             <option value="Red">🔴 Red</option>
           </select>
 
-          <!-- PATCH: even 2-up buttons like your screenshot (visual only) -->
-          <div class="btn-row">
+          <!-- PATCH: ALL FOUR buttons in ONE wrapper (2x2 grid) -->
+          <div class="system-actions">
             <button type="button" id="processBtn" class="primary">▶️ Process</button>
             <button class="danger" type="button" id="btnReset">🗑️ Reset</button>
+
+            <button id="saveOverridesBtn" type="button" class="success">
+              💾 Save Overrides
+            </button>
+            <button id="rebuildBtn" class="primary" type="button">
+              🔄 Rebuild Outputs
+            </button>
           </div>
         </div>
       </div>
@@ -595,7 +564,6 @@
       <div class="card">
         <h3>📥 Downloads & Member</h3>
         <div class="body">
-          <!-- PATCH: even 2-up buttons like your screenshot (visual only) -->
           <div class="btn-row" style="margin-top:0; margin-bottom: 12px;">
             <button class="secondary" type="button" id="btnMerged">📦 Package</button>
             <button class="secondary" type="button" id="btnAll">📂 All</button>
@@ -622,16 +590,6 @@
         </div>
       </div>
 
-    </div>
-
-    <!-- ACTION BUTTONS -->
-    <div class="action-bar">
-      <button id="saveOverridesBtn" type="button" class="success" style="width: auto; min-width: 180px; padding: 7px 16px; font-size: 11px; border-radius: 6px;">
-        💾 Save Overrides
-      </button>
-      <button id="rebuildBtn" class="primary" type="button" style="width: auto; min-width: 180px; padding: 7px 16px; font-size: 11px; border-radius: 6px;">
-        🔄 Rebuild Outputs
-      </button>
     </div>
 
     <!-- REVIEW & OVERRIDE -->
@@ -689,7 +647,6 @@
 
   </div>
 
-  <!-- PATCH: Professional footer -->
   <footer class="app-footer">
     <div class="footer-inner">
       Developed by
@@ -796,11 +753,19 @@
         }
         lastStatus = status;
 
-        if (pct !== null && pct !== undefined) {
-          $("statusText").textContent = status + " (" + pct + "%)";
+        /* ===== PATCH: Progress bar behind status text ===== */
+        const st = $("statusText");
+        if (pct !== null && pct !== undefined && pct !== "") {
+          const p = Math.max(0, Math.min(100, Number(pct)));
+          st.textContent = status + " (" + p + "%)";
+          st.style.setProperty("--pct", p + "%");
+          st.setAttribute("data-has-pct", "1");
         } else {
-          $("statusText").textContent = status;
+          st.textContent = status;
+          st.style.setProperty("--pct", "0%");
+          st.removeAttribute("data-has-pct");
         }
+
         if (typeof log === "string") {
           const logBox = $("liveLog");
           const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
@@ -1203,7 +1168,6 @@
       }
     });
 
-    /* PATCH: auto-year */
     if ($("yearNow")) $("yearNow").textContent = new Date().getFullYear();
   </script>
 </body>
