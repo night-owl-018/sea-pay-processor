@@ -52,46 +52,41 @@
     .header-inner{
       max-width: 1600px;
       margin: 0 auto;
-      padding: 12px 16px;
+      padding: 10px 14px;
       width: 100%;
     }
 
     header h1 {
       margin: 0;
-      font-size: clamp(16px, 3vw, 20px);
+      font-size: clamp(15px, 3vw, 18px);
       font-weight: 700;
       letter-spacing: -0.025em;
     }
     header .subtitle {
-      font-size: clamp(10px, 2vw, 11px);
+      font-size: clamp(9px, 2vw, 10px);
       opacity: 0.88;
-      margin-top: 2px;
+      margin-top: 1px;
     }
 
     .wrap {
       max-width: 1600px;
       margin: 0 auto;
-      padding: 12px 16px;
+      padding: 8px 12px;
       width: 100%;
     }
 
-    /* COMPACT TOP GRID - 4 columns */
+    /* COMPACT TOP GRID - 3 columns */
     .top-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-      margin-bottom: 10px;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 8px;
     }
 
-    @media (max-width: 1200px) {
-      .top-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-
-    @media (max-width: 640px) {
+    @media (max-width: 1024px) {
       .top-grid {
         grid-template-columns: 1fr;
+        gap: 8px;
       }
     }
 
@@ -99,41 +94,41 @@
     .card {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 6px;
       box-shadow: var(--shadow-sm);
       overflow: hidden;
     }
 
     .card h3 {
       margin: 0;
-      padding: 8px 12px;
+      padding: 6px 10px;
       background: linear-gradient(to right, #f8fafc 0%, #ffffff 100%);
       border-bottom: 1px solid var(--border);
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 700;
       letter-spacing: 0.05em;
       color: var(--navy);
       text-transform: uppercase;
       line-height: 1;
     }
-    .card .body { padding: 10px 12px; }
+    .card .body { padding: 8px 10px; }
 
     /* LABEL STYLES */
     label {
       display: block;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 600;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
       color: var(--text-primary);
     }
 
     /* INPUT STYLES */
     input[type=file], select {
       width: 100%;
-      padding: 6px 8px;
+      padding: 5px 7px;
       border: 1px solid var(--border);
-      border-radius: 5px;
-      font-size: 11px;
+      border-radius: 4px;
+      font-size: 10px;
       background: white;
       transition: all 0.2s ease;
     }
@@ -154,7 +149,7 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 5px;
+      gap: 3px;
       font-family: inherit;
       white-space: nowrap;
     }
@@ -163,26 +158,37 @@
 
     .primary, button.primary {
       width: 100%;
-      padding: 8px 12px;
+      padding: 5px 8px;
       background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
       color: white;
-      border-radius: 6px;
-      font-size: 12px;
-      box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
+      border-radius: 4px;
+      font-size: 10px;
+      box-shadow: 0 1px 3px rgba(14, 85, 120, 0.2);
     }
     .primary:not(:disabled):hover, button.primary:not(:disabled):hover {
       transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(14, 85, 120, 0.3);
+    }
+
+    /* Action buttons variant - larger for Save/Rebuild */
+    .primary.action-btn, button.primary.action-btn {
+      padding: 7px 16px;
+      font-size: 11px;
+      border-radius: 6px;
+      box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
+    }
+    .primary.action-btn:not(:disabled):hover, button.primary.action-btn:not(:disabled):hover {
       box-shadow: 0 3px 6px rgba(14, 85, 120, 0.3);
     }
 
     .secondary, button.secondary {
       width: 100%;
-      padding: 6px 10px;
+      padding: 4px 6px;
       background: white;
       color: var(--text-primary);
       border: 1px solid var(--border);
-      border-radius: 5px;
-      font-size: 11px;
+      border-radius: 4px;
+      font-size: 9px;
       font-weight: 500;
     }
     .secondary:not(:disabled):hover, button.secondary:not(:disabled):hover {
@@ -193,27 +199,26 @@
 
     .danger, button.danger {
       width: 100%;
-      padding: 6px 10px;
+      padding: 4px 6px;
       background: linear-gradient(135deg, var(--danger-dark) 0%, var(--danger) 100%);
       color: white;
-      border-radius: 5px;
-      font-size: 11px;
+      border-radius: 4px;
+      font-size: 9px;
       font-weight: 600;
     }
     .danger:not(:disabled):hover, button.danger:not(:disabled):hover {
       transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+      box-shadow: 0 1px 3px rgba(239, 68, 68, 0.3);
     }
 
     .success, button.success {
-      padding: 8px 14px;
+      padding: 7px 16px;
       background: linear-gradient(135deg, var(--success-dark) 0%, var(--success) 100%);
       color: white;
       border-radius: 6px;
       font-size: 11px;
       font-weight: 600;
       box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
-      flex: 1;
     }
     .success:not(:disabled):hover, button.success:not(:disabled):hover {
       transform: translateY(-1px);
@@ -224,19 +229,19 @@
     .status {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      font-size: 10px;
+      gap: 5px;
+      font-size: 9px;
       font-weight: 600;
-      padding: 5px 10px;
-      border-radius: 5px;
+      padding: 4px 8px;
+      border-radius: 4px;
       background: var(--bg);
       border: 1px solid var(--border);
       width: 100%;
     }
     .status::before {
       content: '';
-      width: 6px;
-      height: 6px;
+      width: 5px;
+      height: 5px;
       border-radius: 50%;
       background: var(--success);
       animation: pulse 2s ease-in-out infinite;
@@ -248,15 +253,15 @@
 
     /* LOG BOX */
     .logbox {
-      height: 180px;
+      height: 160px;
       overflow: auto;
       background: #0f172a;
       color: #10b981;
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 9px;
       line-height: 1.3;
       padding: 8px;
-      border-radius: 6px;
+      border-radius: 5px;
       white-space: pre;
       box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.3);
     }
@@ -264,15 +269,15 @@
     /* TABLE STYLES */
     .table-wrapper, .table-container {
       overflow-x: auto;
-      border-radius: 6px;
+      border-radius: 5px;
       border: 1px solid var(--border);
       background: white;
-      margin-top: 10px;
+      margin-top: 5px;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 11px;
+      font-size: 10px;
       min-width: 800px;
     }
     thead {
@@ -282,10 +287,10 @@
       z-index: 10;
     }
     th {
-      padding: 8px 10px;
+      padding: 6px 8px;
       text-align: left;
       font-weight: 700;
-      font-size: 9px;
+      font-size: 8px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--navy);
@@ -293,7 +298,7 @@
       white-space: nowrap;
     }
     td {
-      padding: 7px 10px;
+      padding: 5px 8px;
       border-bottom: 1px solid var(--border);
       vertical-align: middle;
     }
@@ -310,17 +315,17 @@
     }
     .override-wrap select {
       width: auto;
-      min-width: 80px;
-      padding: 4px 6px;
-      font-size: 10px;
-      border-radius: 4px;
+      min-width: 75px;
+      padding: 3px 5px;
+      font-size: 9px;
+      border-radius: 3px;
     }
     .override-wrap.dirty::after {
       content: '●';
       color: var(--warning);
-      font-size: 14px;
+      font-size: 12px;
       position: absolute;
-      right: -14px;
+      right: -12px;
       top: 50%;
       transform: translateY(-50%);
       animation: pulse 1.5s ease-in-out infinite;
@@ -328,12 +333,12 @@
 
     textarea.override-reason {
       width: 100%;
-      min-height: 28px;
-      padding: 4px 6px;
+      min-height: 24px;
+      padding: 3px 5px;
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 3px;
       font-family: inherit;
-      font-size: 10px;
+      font-size: 9px;
       resize: vertical;
       transition: all 0.2s ease;
     }
@@ -343,79 +348,42 @@
       box-shadow: 0 0 0 2px rgba(14, 85, 120, 0.1);
     }
     td.reason-cell {
-      max-width: 250px;
-      min-width: 150px;
+      max-width: 240px;
+      min-width: 140px;
     }
 
     .hint {
-      font-size: 11px;
+      font-size: 9px;
       color: var(--text-secondary);
       font-style: italic;
       text-align: center;
-      padding: 12px 8px;
+      padding: 6px 5px;
     }
 
     .section-header {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 6px;
       font-weight: 700;
-      font-size: 11px;
-      margin: 16px 0 6px;
+      font-size: 9px;
+      margin: 10px 0 4px;
       color: var(--navy);
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
 
-    .review-controls {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-    @media (max-width: 640px) {
-      .review-controls { grid-template-columns: 1fr; }
-    }
-
-    .review-stats {
-      display: flex;
-      justify-content: center;
-      gap: 12px;
-      padding: 0 4px 12px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 12px;
-      flex-wrap: wrap;
-    }
-
-    .stat-item { font-size: 12px; font-weight: 600; }
-    .stat-item span {
-      font-size: 14px;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 6px;
-      margin-left: 6px;
-    }
-    .stat-item .valid-count { background: var(--success); color: white; }
-    .stat-item .invalid-count { background: var(--danger); color: white; }
-
-    .action-buttons {
-      display: flex;
-      gap: 8px;
-      margin-top: 12px;
-    }
-
     .small {
-      font-size: 10px;
+      font-size: 8px;
       color: var(--text-secondary);
-      margin-top: 6px;
+      margin-top: 3px;
       text-align: center;
     }
 
-    .stack > * + * { margin-top: 10px; }
+    .stack > * + * { margin-top: 4px; }
 
     .text-secondary { color: var(--text-secondary); }
-    .mb-1 { margin-bottom: 5px; }
-    .mb-2 { margin-bottom: 8px; }
+    .mb-1 { margin-bottom: 3px; }
+    .mb-2 { margin-bottom: 5px; }
   </style>
 </head>
 
@@ -429,86 +397,91 @@
 
   <div class="wrap">
     
-    <!-- TOP COMPACT GRID - 4 columns -->
+    <!-- TOP COMPACT GRID - 3 columns -->
     <div class="top-grid">
       
       <!-- INPUT FILES -->
       <div class="card">
         <h3>📂 Input Files</h3>
         <div class="body">
-          <label>Sea Duty Certification Sheets (PDF)</label>
+          <label>Sea Duty Cert (PDF)</label>
           <input id="pdfs" name="pdfs" type="file" accept="application/pdf" multiple required class="mb-1">
           
-          <label>Rate CSV (Optional)</label>
+          <label>Rate CSV</label>
           <input id="ratesCsv" name="rates_csv" type="file" accept=".csv" class="mb-1">
           
-          <label>NAVPERS 1070/613 Template (Optional)</label>
-          <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf" class="mb-1">
+          <label>Template PDF</label>
+          <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf">
+        </div>
+      </div>
+
+      <!-- SYSTEM: STATUS + STRIKEOUT + RESET -->
+      <div class="card">
+        <h3>⚙️ System</h3>
+        <div class="body">
+          <label style="margin-bottom: 2px;">Status</label>
+          <div class="status" id="statusText" style="margin-bottom: 6px;">Idle</div>
           
-          <label>Strikeout Color</label>
-          <select id="strikeColor" name="strikeout_color" class="mb-2">
+          <label>Strikeout</label>
+          <select id="strikeColor" name="strikeout_color" class="mb-1">
             <option value="Black" selected>⚫ Black</option>
             <option value="Red">🔴 Red</option>
           </select>
 
-          <button type="button" id="processBtn" class="primary">▶️ Process Files</button>
+          <button type="button" id="processBtn" class="primary mb-1">▶️ Process</button>
+          <button class="danger" type="button" id="btnReset">🗑️ Reset</button>
         </div>
       </div>
 
-      <!-- STATUS -->
+      <!-- DOWNLOADS + MEMBER & STATS -->
       <div class="card">
-        <h3>📊 Status</h3>
+        <h3>📥 Downloads & Member</h3>
         <div class="body">
-          <div class="status" id="statusText">Idle</div>
-        </div>
-      </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 6px;">
+            <button class="secondary" type="button" id="btnMerged">📦 Package</button>
+            <button class="secondary" type="button" id="btnAll">📂 All</button>
+          </div>
 
-      <!-- DOWNLOADS -->
-      <div class="card">
-        <h3>⬇️ Downloads</h3>
-        <div class="body">
-          <button class="secondary mb-1" type="button" id="btnMerged">📦 Package</button>
-          <button class="secondary mb-1" type="button" id="btnAll">📥 All</button>
-          <div class="small">Run PROCESS first</div>
-        </div>
-      </div>
+          <label>Member</label>
+          <select id="memberSelect" class="mb-1">
+            <option value="">Select member</option>
+          </select>
+          
+          <label>Sheet</label>
+          <select id="sheetSelect" disabled class="mb-1">
+            <option value="">Select sheet</option>
+          </select>
 
-      <!-- SYSTEM -->
-      <div class="card">
-        <h3>🔄 System</h3>
-        <div class="body">
-          <button class="danger" type="button" id="btnReset">🗑️ Reset All Data</button>
+          <div style="display: flex; gap: 5px; justify-content: space-between;">
+            <div style="flex: 1; text-align: center; padding: 3px 4px; background: #d1fae5; color: #065f46; border-radius: 4px; font-size: 9px; font-weight: 700;">
+              ✅ <span id="validCount">0</span>
+            </div>
+            <div style="flex: 1; text-align: center; padding: 3px 4px; background: #fee2e2; color: #991b1b; border-radius: 4px; font-size: 9px; font-weight: 700;">
+              ❌ <span id="invalidCount">0</span>
+            </div>
+          </div>
         </div>
       </div>
 
     </div>
 
+    <!-- ACTION BUTTONS - Centered above Review -->
+    <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; max-width: 480px; margin-left: auto; margin-right: auto;">
+      <button id="saveOverridesBtn" type="button" class="success" style="width: auto; min-width: 180px; padding: 7px 16px; font-size: 11px; border-radius: 6px;">
+        💾 Save Overrides
+      </button>
+      <button id="rebuildBtn" class="primary" type="button" style="width: auto; min-width: 180px; padding: 7px 16px; font-size: 11px; border-radius: 6px;">
+        🔄 Rebuild Outputs
+      </button>
+    </div>
+
     <!-- REVIEW & OVERRIDE -->
-    <div class="card" style="margin-bottom: 10px;">
+    <div class="card" style="margin-bottom: 8px;">
       <h3>✏️ Review & Override</h3>
       <div class="body">
-        <div class="review-controls">
-          <div>
-            <label>👤 Member</label>
-            <select id="memberSelect">
-              <option value="">Select member</option>
-            </select>
-          </div>
-          <div>
-            <label>📄 Sheet</label>
-            <select id="sheetSelect" disabled>
-              <option value="">Select sheet</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="review-stats">
-          <div class="stat-item">VALID: <span id="validCount" class="valid-count">0</span></div>
-          <div class="stat-item">INVALID: <span id="invalidCount" class="invalid-count">0</span></div>
-        </div>
 
         <div class="hint" id="reviewHint">
-          👆 Select a member and sheet to review and override validation results
+          👆 Select a member and sheet above to review and override validation results
         </div>
 
         <div class="section-header">✅ Valid Rows</div>
@@ -715,7 +688,7 @@
         $("sheetSelect").disabled = true;
         $("validBody").innerHTML = "";
         $("invalidBody").innerHTML = "";
-        $("reviewHint").textContent = "👆 Select a member and sheet to review and override validation results";
+        $("reviewHint").textContent = "👆 Select a member and sheet above to review and override validation results";
         pendingOverrides = {};
 
         if($("validCount")) $("validCount").textContent = "0";
@@ -751,6 +724,8 @@
       $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
       $("validBody").innerHTML = "";
       $("invalidBody").innerHTML = "";
+      $("reviewHint").style.display = "block";
+      $("reviewHint").textContent = "Select a sheet above to review events";
       if (!memberKey) {
         if($("validCount")) $("validCount").textContent = "0";
         if($("invalidCount")) $("invalidCount").textContent = "0";
