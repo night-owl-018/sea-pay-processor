@@ -6,24 +6,38 @@
   <title>ATGSD Sea Pay Processor</title>
   <style>
     :root {
+      /* =========================
+         PATCH: Dark “glass” theme
+         (matches your screenshot)
+         ========================= */
       --navy-dark: #0a3854;
       --navy: #0e5578;
       --navy-light: #1a7ba8;
-      --accent: #00d4ff;
-      --success: #10b981;
-      --success-dark: #059669;
-      --danger: #ef4444;
-      --danger-dark: #dc2626;
-      --warning: #f59e0b;
-      --border: #e5e7eb;
-      --bg: #f9fafb;
-      --panel: #ffffff;
-      --text-primary: #111827;
-      --text-secondary: #6b7280;
-      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+      --accent: #6fb7ff;
+
+      --success: #16c784;
+      --success-dark: #0ea371;
+      --danger: #ff5b6b;
+      --danger-dark: #d64552;
+      --warning: #f5c451;
+
+      --border: rgba(255,255,255,0.10);
+
+      --bg: #070b14;            /* page background (dark, not too dark) */
+      --panel: rgba(20, 28, 48, 0.72); /* glass panel */
+      --panel-2: rgba(20, 28, 48, 0.55);
+
+      --text-primary: rgba(245,248,255,0.92);
+      --text-secondary: rgba(245,248,255,0.62);
+
+      --shadow-sm: 0 10px 26px rgba(0,0,0,0.35);
+      --shadow: 0 18px 50px rgba(0,0,0,0.45);
+      --shadow-lg: 0 28px 70px rgba(0,0,0,0.55);
+
       --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+      --r: 14px;
+      --r-sm: 10px;
     }
 
     * { box-sizing: border-box; }
@@ -33,299 +47,344 @@
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      background: var(--bg);
+      background:
+        radial-gradient(900px 380px at 50% -60px, rgba(90,160,255,0.22), transparent 60%),
+        radial-gradient(700px 340px at 18% 18%, rgba(22,199,132,0.10), transparent 55%),
+        radial-gradient(700px 340px at 85% 22%, rgba(255,91,107,0.10), transparent 55%),
+        linear-gradient(180deg, #040714 0%, #070b14 45%, #040714 100%);
       color: var(--text-primary);
       line-height: 1.5;
       width: 100%;
     }
 
+    /* =========================
+       Header (glass bar)
+       ========================= */
     header {
-      background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 100%);
+      background: linear-gradient(90deg, rgba(24,34,58,0.78), rgba(10,14,28,0.78));
       color: white;
-      box-shadow: var(--shadow-lg);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.45);
       position: sticky;
       top: 0;
       z-index: 100;
-      backdrop-filter: blur(10px);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
       width: 100%;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
     .header-inner{
       max-width: 1600px;
       margin: 0 auto;
-      padding: 10px 14px;
+      padding: 14px 16px;
       width: 100%;
+      position: relative;
+    }
+    /* subtle glow line under header */
+    .header-inner::after{
+      content:"";
+      position:absolute;
+      left:16px;
+      right:16px;
+      bottom:-1px;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, rgba(120,190,255,0.75), transparent);
+      filter: blur(0.2px);
+      opacity: 0.55;
+      pointer-events:none;
     }
 
     header h1 {
       margin: 0;
-      font-size: clamp(15px, 3vw, 18px);
-      font-weight: 700;
-      letter-spacing: -0.025em;
+      font-size: clamp(16px, 2.2vw, 22px);
+      font-weight: 750;
+      letter-spacing: -0.02em;
+      display:flex;
+      gap:10px;
+      align-items:center;
     }
     header .subtitle {
-      font-size: clamp(9px, 2vw, 10px);
+      font-size: clamp(11px, 1.6vw, 13px);
       opacity: 0.88;
-      margin-top: 1px;
+      margin-top: 2px;
+      color: rgba(245,248,255,0.72);
     }
 
     .wrap {
       max-width: 1600px;
       margin: 0 auto;
-      padding: 8px 12px;
+      padding: 18px 16px 10px;
       width: 100%;
     }
 
-    /* COMPACT TOP GRID - 3 columns */
+    /* TOP GRID */
     .top-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-bottom: 8px;
+      gap: 14px;
+      margin-bottom: 14px;
     }
-
     @media (max-width: 1024px) {
       .top-grid {
         grid-template-columns: 1fr;
-        gap: 8px;
+        gap: 12px;
       }
     }
 
-    /* CARD STYLES - Compact */
+    /* =========================
+       Cards (glass panels)
+       ========================= */
     .card {
-      background: var(--panel);
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: var(--r);
       box-shadow: var(--shadow-sm);
       overflow: hidden;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      position: relative;
     }
+    .card::before{
+      content:"";
+      position:absolute;
+      inset:-1px;
+      pointer-events:none;
+      background:
+        radial-gradient(520px 160px at 20% 0%, rgba(120,190,255,0.12), transparent 60%),
+        radial-gradient(420px 150px at 85% 10%, rgba(22,199,132,0.08), transparent 60%);
+      opacity: 0.8;
+    }
+    .card > * { position: relative; }
 
     .card h3 {
       margin: 0;
-      padding: 6px 10px;
-      background: linear-gradient(to right, #f8fafc 0%, #ffffff 100%);
-      border-bottom: 1px solid var(--border);
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      color: var(--navy);
-      text-transform: uppercase;
-      line-height: 1;
+      padding: 12px 14px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      font-size: 13px;
+      font-weight: 750;
+      letter-spacing: 0.02em;
+      color: rgba(245,248,255,0.92);
+      text-transform: none;
+      line-height: 1.2;
     }
-    .card .body { padding: 8px 10px; }
+    .card .body { padding: 14px; }
 
-    /* LABEL STYLES */
+    /* LABELS */
     label {
       display: block;
-      font-size: 10px;
-      font-weight: 600;
-      margin-bottom: 3px;
-      color: var(--text-primary);
+      font-size: 12px;
+      font-weight: 650;
+      margin-bottom: 6px;
+      color: var(--text-secondary);
     }
 
-    /* INPUT STYLES */
+    /* INPUTS */
     input[type=file], select {
       width: 100%;
-      padding: 5px 7px;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      font-size: 10px;
-      background: white;
-      transition: all 0.2s ease;
-    }
-    
-    input[type=file]:hover, select:hover { border-color: var(--navy-light); }
-    input[type=file]:focus, select:focus {
+      padding: 10px 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      font-size: 13px;
+      background: rgba(6,10,18,0.55);
+      color: var(--text-primary);
+      transition: all 0.18s ease;
       outline: none;
-      border-color: var(--navy);
-      box-shadow: 0 0 0 2px rgba(14, 85, 120, 0.1);
+    }
+    input[type=file]::file-selector-button{
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.06);
+      color: var(--text-primary);
+      border-radius: 10px;
+      padding: 7px 10px;
+      margin-right: 10px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    input[type=file]::file-selector-button:hover{
+      background: rgba(255,255,255,0.09);
+      border-color: rgba(120,190,255,0.30);
+      transform: translateY(-1px);
+    }
+    input[type=file]:hover, select:hover { border-color: rgba(120,190,255,0.35); }
+    input[type=file]:focus, select:focus {
+      border-color: rgba(120,190,255,0.55);
+      box-shadow: 0 0 0 3px rgba(120,190,255,0.18);
     }
 
     /* BUTTON BASE */
     button {
-      border: none;
-      font-weight: 600;
+      border: 1px solid transparent;
+      font-weight: 750;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: all 0.18s ease;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 3px;
+      gap: 8px;
       font-family: inherit;
       white-space: nowrap;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1;
     }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    button:not(:disabled):active { transform: scale(0.98); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    button:not(:disabled):active { transform: scale(0.99); }
 
     .primary, button.primary {
       width: 100%;
-      padding: 5px 8px;
-      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
-      color: white;
-      border-radius: 4px;
-      font-size: 10px;
-      box-shadow: 0 1px 3px rgba(14, 85, 120, 0.2);
+      background: linear-gradient(135deg, rgba(111,183,255,0.30), rgba(255,255,255,0.06));
+      color: var(--text-primary);
+      border-color: rgba(111,183,255,0.26);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.35);
     }
     .primary:not(:disabled):hover, button.primary:not(:disabled):hover {
       transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(14, 85, 120, 0.3);
-    }
-
-    /* Action buttons variant - larger for Save/Rebuild */
-    .primary.action-btn, button.primary.action-btn {
-      padding: 7px 16px;
-      font-size: 11px;
-      border-radius: 6px;
-      box-shadow: 0 2px 4px rgba(14, 85, 120, 0.2);
-    }
-    .primary.action-btn:not(:disabled):hover, button.primary.action-btn:not(:disabled):hover {
-      box-shadow: 0 3px 6px rgba(14, 85, 120, 0.3);
+      border-color: rgba(111,183,255,0.42);
+      box-shadow: 0 14px 30px rgba(0,0,0,0.45);
     }
 
     .secondary, button.secondary {
       width: 100%;
-      padding: 4px 6px;
-      background: white;
+      background: rgba(255,255,255,0.04);
       color: var(--text-primary);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      font-size: 9px;
-      font-weight: 500;
+      border-color: rgba(255,255,255,0.10);
     }
     .secondary:not(:disabled):hover, button.secondary:not(:disabled):hover {
-      background: var(--bg);
-      border-color: var(--navy);
-      color: var(--navy);
+      background: rgba(255,255,255,0.06);
+      border-color: rgba(111,183,255,0.24);
+      transform: translateY(-1px);
     }
 
     .danger, button.danger {
       width: 100%;
-      padding: 4px 6px;
-      background: linear-gradient(135deg, var(--danger-dark) 0%, var(--danger) 100%);
-      color: white;
-      border-radius: 4px;
-      font-size: 9px;
-      font-weight: 600;
+      background: linear-gradient(135deg, rgba(255,91,107,0.32), rgba(255,255,255,0.05));
+      color: var(--text-primary);
+      border-color: rgba(255,91,107,0.32);
     }
     .danger:not(:disabled):hover, button.danger:not(:disabled):hover {
       transform: translateY(-1px);
-      box-shadow: 0 1px 3px rgba(239, 68, 68, 0.3);
+      border-color: rgba(255,91,107,0.45);
+      box-shadow: 0 14px 30px rgba(0,0,0,0.45);
     }
 
     .success, button.success {
-      padding: 7px 16px;
-      background: linear-gradient(135deg, var(--success-dark) 0%, var(--success) 100%);
-      color: white;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+      background: linear-gradient(135deg, rgba(22,199,132,0.28), rgba(255,255,255,0.05));
+      color: var(--text-primary);
+      border-color: rgba(22,199,132,0.30);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.35);
     }
     .success:not(:disabled):hover, button.success:not(:disabled):hover {
       transform: translateY(-1px);
-      box-shadow: 0 3px 6px rgba(16, 185, 129, 0.3);
+      border-color: rgba(22,199,132,0.42);
+      box-shadow: 0 14px 30px rgba(0,0,0,0.45);
     }
 
     /* STATUS BOX */
     .status {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      font-size: 9px;
-      font-weight: 600;
-      padding: 4px 8px;
-      border-radius: 4px;
-      background: var(--bg);
-      border: 1px solid var(--border);
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 750;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(6,10,18,0.55);
+      border: 1px solid rgba(255,255,255,0.12);
       width: 100%;
+      color: var(--text-primary);
     }
     .status::before {
       content: '';
-      width: 5px;
-      height: 5px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
       background: var(--success);
+      box-shadow: 0 0 0 4px rgba(22,199,132,0.16);
       animation: pulse 2s ease-in-out infinite;
     }
     @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.55; transform: scale(0.92); }
     }
 
     /* LOG BOX */
     .logbox {
-      height: 160px;
+      height: 240px;
       overflow: auto;
-      background: #0f172a;
-      color: #10b981;
+      background: rgba(5,7,12,0.78);
+      color: rgba(22,199,132,0.95);
       font-family: var(--mono);
-      font-size: 9px;
-      line-height: 1.3;
-      padding: 8px;
-      border-radius: 5px;
+      font-size: 12px;
+      line-height: 1.35;
+      padding: 14px;
+      border-radius: 14px;
       white-space: pre;
-      box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.3);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
     }
 
     /* TABLE STYLES */
     .table-wrapper, .table-container {
       overflow-x: auto;
-      border-radius: 5px;
-      border: 1px solid var(--border);
-      background: white;
-      margin-top: 5px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(6,10,18,0.40);
+      margin-top: 10px;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 10px;
-      min-width: 800px;
+      font-size: 13px;
+      min-width: 900px;
+      color: var(--text-primary);
     }
     thead {
-      background: linear-gradient(to bottom, #f8fafc 0%, #f1f5f9 100%);
+      background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
       position: sticky;
       top: 0;
       z-index: 10;
     }
     th {
-      padding: 6px 8px;
+      padding: 12px 12px;
       text-align: left;
-      font-weight: 700;
-      font-size: 8px;
+      font-weight: 800;
+      font-size: 11px;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--navy);
-      border-bottom: 2px solid var(--border);
+      letter-spacing: 0.10em;
+      color: rgba(245,248,255,0.82);
+      border-bottom: 1px solid rgba(255,255,255,0.10);
       white-space: nowrap;
     }
     td {
-      padding: 5px 8px;
-      border-bottom: 1px solid var(--border);
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
       vertical-align: middle;
     }
     tr:last-child td { border-bottom: none; }
-    tr.valid { background: #f0fdf4; }
-    tr.invalid { background: #fef2f2; }
-    tr:hover { background: #f9fafb; }
+    tr.valid { background: rgba(22,199,132,0.09); }
+    tr.invalid { background: rgba(255,91,107,0.09); }
+    tr:hover { background: rgba(255,255,255,0.04); }
 
     .override-wrap {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 10px;
       position: relative;
     }
     .override-wrap select {
       width: auto;
-      min-width: 75px;
-      padding: 3px 5px;
-      font-size: 9px;
-      border-radius: 3px;
+      min-width: 140px;
+      padding: 8px 10px;
+      font-size: 13px;
+      border-radius: 12px;
     }
     .override-wrap.dirty::after {
       content: '●';
       color: var(--warning);
-      font-size: 12px;
+      font-size: 14px;
       position: absolute;
-      right: -12px;
+      right: -14px;
       top: 50%;
       transform: translateY(-50%);
       animation: pulse 1.5s ease-in-out infinite;
@@ -333,57 +392,122 @@
 
     textarea.override-reason {
       width: 100%;
-      min-height: 24px;
-      padding: 3px 5px;
-      border: 1px solid var(--border);
-      border-radius: 3px;
+      min-height: 34px;
+      padding: 9px 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
       font-family: inherit;
-      font-size: 9px;
+      font-size: 13px;
       resize: vertical;
-      transition: all 0.2s ease;
+      background: rgba(6,10,18,0.55);
+      color: var(--text-primary);
+      transition: all 0.18s ease;
     }
     textarea.override-reason:focus {
       outline: none;
-      border-color: var(--navy);
-      box-shadow: 0 0 0 2px rgba(14, 85, 120, 0.1);
+      border-color: rgba(111,183,255,0.55);
+      box-shadow: 0 0 0 3px rgba(111,183,255,0.18);
     }
     td.reason-cell {
-      max-width: 240px;
-      min-width: 140px;
+      max-width: 360px;
+      min-width: 220px;
     }
 
     .hint {
-      font-size: 9px;
-      color: var(--text-secondary);
-      font-style: italic;
+      font-size: 13px;
+      color: rgba(245,248,255,0.55);
+      font-style: normal;
       text-align: center;
-      padding: 6px 5px;
+      padding: 10px 8px;
+      border-radius: 14px;
+      border: 1px dashed rgba(255,255,255,0.14);
+      background: rgba(6,10,18,0.35);
     }
 
     .section-header {
       display: flex;
       align-items: center;
-      gap: 6px;
-      font-weight: 700;
-      font-size: 9px;
-      margin: 10px 0 4px;
-      color: var(--navy);
+      gap: 10px;
+      font-weight: 850;
+      font-size: 12px;
+      margin: 14px 0 8px;
+      color: rgba(245,248,255,0.86);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.10em;
     }
 
     .small {
-      font-size: 8px;
+      font-size: 11px;
       color: var(--text-secondary);
-      margin-top: 3px;
+      margin-top: 8px;
       text-align: center;
     }
 
-    .stack > * + * { margin-top: 4px; }
+    .stack > * + * { margin-top: 10px; }
 
     .text-secondary { color: var(--text-secondary); }
-    .mb-1 { margin-bottom: 3px; }
-    .mb-2 { margin-bottom: 5px; }
+    .mb-1 { margin-bottom: 10px; }
+    .mb-2 { margin-bottom: 14px; }
+
+    /* =========================
+       PATCH: “even” buttons rows
+       (visual only)
+       ========================= */
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    @media (max-width: 640px) {
+      .btn-row { grid-template-columns: 1fr; }
+      table { min-width: 860px; }
+    }
+
+    /* Center action buttons and keep them not “long” */
+    .action-bar{
+      display:flex;
+      gap: 12px;
+      justify-content:center;
+      align-items:center;
+      flex-wrap: wrap;
+      margin: 6px 0 14px;
+    }
+    .action-bar button{
+      width:auto !important;          /* override inline styles */
+      min-width: 220px;
+      padding: 11px 16px !important;
+      border-radius: 14px !important;
+      font-size: 13px !important;
+    }
+    @media (max-width: 640px){
+      .action-bar button{ min-width: 100%; }
+    }
+
+    /* =========================
+       PATCH: Footer
+       ========================= */
+    footer.app-footer{
+      max-width: 1600px;
+      margin: 16px auto 22px;
+      padding: 0 16px;
+    }
+    footer.app-footer .footer-inner{
+      padding: 12px 14px;
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.03);
+      box-shadow: var(--shadow-sm);
+      text-align:center;
+      color: rgba(245,248,255,0.55);
+      font-size: 12px;
+    }
+    footer.app-footer a{
+      color: rgba(170,205,255,0.95);
+      font-weight: 850;
+      text-decoration: none;
+    }
+    footer.app-footer a:hover{ text-decoration: underline; }
 
     /* =========================================================
        PATCH: Desktop font boost (keeps iPhone/mobile as-is)
@@ -392,33 +516,28 @@
       header h1 { font-size: 22px; }
       header .subtitle { font-size: 12px; }
 
-      .card h3 { font-size: 12px; }
+      .card h3 { font-size: 13px; }
       label { font-size: 12px; }
 
-      input[type=file], select { font-size: 12px; padding: 7px 10px; }
+      input[type=file], select { font-size: 13px; padding: 10px 10px; }
 
-      .primary, button.primary { font-size: 12px; padding: 7px 10px; }
-      .secondary, button.secondary { font-size: 11px; padding: 6px 8px; }
-      .danger, button.danger { font-size: 11px; padding: 6px 8px; }
-      .success, button.success { font-size: 12px; }
+      .primary, button.primary { font-size: 13px; padding: 10px 12px; }
+      .secondary, button.secondary { font-size: 13px; padding: 10px 12px; }
+      .danger, button.danger { font-size: 13px; padding: 10px 12px; }
+      .success, button.success { font-size: 13px; }
 
-      .status { font-size: 11px; padding: 6px 10px; }
+      .status { font-size: 13px; padding: 10px 12px; }
 
-      table { font-size: 12px; }
-      th { font-size: 10px; padding: 8px 10px; }
-      td { padding: 8px 10px; }
+      table { font-size: 13px; }
+      th { font-size: 11px; padding: 12px 12px; }
+      td { padding: 10px 12px; }
 
-      textarea.override-reason { font-size: 12px; padding: 6px 8px; }
+      textarea.override-reason { font-size: 13px; padding: 9px 10px; }
 
-      .hint { font-size: 11px; }
-      .section-header { font-size: 11px; }
+      .hint { font-size: 13px; }
+      .section-header { font-size: 12px; }
 
-      .logbox { font-size: 11px; }
-    }
-
-    /* Optional: big monitors get a tiny extra boost */
-    @media (min-width: 1600px) {
-      body { font-size: 16px; }
+      .logbox { font-size: 12px; }
     }
   </style>
 </head>
@@ -432,40 +551,43 @@
   </header>
 
   <div class="wrap">
-    
-    <!-- TOP COMPACT GRID - 3 columns -->
+
+    <!-- TOP GRID - 3 columns -->
     <div class="top-grid">
-      
+
       <!-- INPUT FILES -->
       <div class="card">
         <h3>📂 Input Files</h3>
         <div class="body">
           <label>Sea Duty Cert (PDF)</label>
           <input id="pdfs" name="pdfs" type="file" accept="application/pdf" multiple required class="mb-1">
-          
+
           <label>Rate CSV</label>
           <input id="ratesCsv" name="rates_csv" type="file" accept=".csv" class="mb-1">
-          
+
           <label>Template PDF</label>
           <input id="templatePdf" name="template_pdf" type="file" accept="application/pdf">
         </div>
       </div>
 
-      <!-- SYSTEM: STATUS + STRIKEOUT + RESET -->
+      <!-- SYSTEM -->
       <div class="card">
         <h3>⚙️ System</h3>
         <div class="body">
-          <label style="margin-bottom: 2px;">Status</label>
-          <div class="status" id="statusText" style="margin-bottom: 6px;">Idle</div>
-          
+          <label style="margin-bottom: 6px;">Status</label>
+          <div class="status" id="statusText" style="margin-bottom: 12px;">Idle</div>
+
           <label>Strikeout</label>
           <select id="strikeColor" name="strikeout_color" class="mb-1">
             <option value="Black" selected>⚫ Black</option>
             <option value="Red">🔴 Red</option>
           </select>
 
-          <button type="button" id="processBtn" class="primary mb-1">▶️ Process</button>
-          <button class="danger" type="button" id="btnReset">🗑️ Reset</button>
+          <!-- PATCH: even 2-up buttons like your screenshot (visual only) -->
+          <div class="btn-row">
+            <button type="button" id="processBtn" class="primary">▶️ Process</button>
+            <button class="danger" type="button" id="btnReset">🗑️ Reset</button>
+          </div>
         </div>
       </div>
 
@@ -473,7 +595,8 @@
       <div class="card">
         <h3>📥 Downloads & Member</h3>
         <div class="body">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 6px;">
+          <!-- PATCH: even 2-up buttons like your screenshot (visual only) -->
+          <div class="btn-row" style="margin-top:0; margin-bottom: 12px;">
             <button class="secondary" type="button" id="btnMerged">📦 Package</button>
             <button class="secondary" type="button" id="btnAll">📂 All</button>
           </div>
@@ -482,17 +605,17 @@
           <select id="memberSelect" class="mb-1">
             <option value="">Select member</option>
           </select>
-          
+
           <label>Sheet</label>
           <select id="sheetSelect" disabled class="mb-1">
             <option value="">Select sheet</option>
           </select>
 
-          <div style="display: flex; gap: 5px; justify-content: space-between;">
-            <div style="flex: 1; text-align: center; padding: 3px 4px; background: #d1fae5; color: #065f46; border-radius: 4px; font-size: 9px; font-weight: 700;">
+          <div class="btn-row" style="margin-top: 6px;">
+            <div style="text-align:center; padding: 10px 10px; background: rgba(22,199,132,0.14); color: rgba(245,248,255,0.92); border-radius: 14px; font-size: 13px; font-weight: 850; border: 1px solid rgba(22,199,132,0.22);">
               ✅ <span id="validCount">0</span>
             </div>
-            <div style="flex: 1; text-align: center; padding: 3px 4px; background: #fee2e2; color: #991b1b; border-radius: 4px; font-size: 9px; font-weight: 700;">
+            <div style="text-align:center; padding: 10px 10px; background: rgba(255,91,107,0.14); color: rgba(245,248,255,0.92); border-radius: 14px; font-size: 13px; font-weight: 850; border: 1px solid rgba(255,91,107,0.22);">
               ❌ <span id="invalidCount">0</span>
             </div>
           </div>
@@ -501,8 +624,8 @@
 
     </div>
 
-    <!-- ACTION BUTTONS - Centered above Review -->
-    <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; max-width: 480px; margin-left: auto; margin-right: auto;">
+    <!-- ACTION BUTTONS -->
+    <div class="action-bar">
       <button id="saveOverridesBtn" type="button" class="success" style="width: auto; min-width: 180px; padding: 7px 16px; font-size: 11px; border-radius: 6px;">
         💾 Save Overrides
       </button>
@@ -512,7 +635,7 @@
     </div>
 
     <!-- REVIEW & OVERRIDE -->
-    <div class="card" style="margin-bottom: 8px;">
+    <div class="card" style="margin-bottom: 14px;">
       <h3>✏️ Review & Override</h3>
       <div class="body">
 
@@ -565,6 +688,15 @@
     </div>
 
   </div>
+
+  <!-- PATCH: Professional footer -->
+  <footer class="app-footer">
+    <div class="footer-inner">
+      Developed by
+      <a href="mailto:ryan.n.nivera.mil@us.navy.mil">STG1(SW) Ryan Nivera</a>
+      © <span id="yearNow">2025</span>
+    </div>
+  </footer>
 
   <script>
     const $ = (id) => document.getElementById(id);
@@ -1070,6 +1202,9 @@
         }, 1000);
       }
     });
+
+    /* PATCH: auto-year */
+    if ($("yearNow")) $("yearNow").textContent = new Date().getFullYear();
   </script>
 </body>
 </html>
