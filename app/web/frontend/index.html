@@ -932,7 +932,7 @@
     refreshProgress();
 
     async function loadMembers() {
-      const data = await jget("/api/review/members");
+      const data = await jget("/api/members");
       const members = data.members || [];
       const sel = $("memberSelect");
       sel.innerHTML = `<option value="">Select member</option>`;
@@ -943,9 +943,9 @@
         sel.appendChild(opt);
       }
     }
-
+    
     async function loadSheetsForMember(memberKey) {
-      const data = await jget(`/api/review/sheets?member_key=${encodeURIComponent(memberKey)}`);
+      const data = await jget(`/api/member/${encodeURIComponent(memberKey)}/sheets`);
       const sheets = data.sheets || [];
       const sel = $("sheetSelect");
       sel.disabled = false;
@@ -957,66 +957,22 @@
         sel.appendChild(opt);
       }
     }
-
-    function setCounts(validN, invalidN) {
-      if ($("validCount")) $("validCount").textContent = String(validN || 0);
-      if ($("invalidCount")) $("invalidCount").textContent = String(invalidN || 0);
-    }
-
-    function statusBadge(ok) {
-      return ok
-        ? `<span class="badge ok">✅ VALID</span>`
-        : `<span class="badge bad">❌ INVALID</span>`;
-    }
-
-    function makeOverrideSelect(member_key, sheet_file, event_index, currentOverride) {
-      const sel = document.createElement("select");
-      sel.innerHTML = `
-        <option value="" ${currentOverride==="" ? "selected" : ""}>Auto</option>
-        <option value="valid" ${currentOverride==="valid" ? "selected" : ""}>Force Valid</option>
-        <option value="invalid" ${currentOverride==="invalid" ? "selected" : ""}>Force Invalid</option>
-      `;
-
-      sel.addEventListener("change", () => {
-        const key = `${sheet_file}::${event_index}`;
-        pendingOverrides[key] = pendingOverrides[key] || { member_key, sheet_file, event_index };
-        pendingOverrides[key].override_status = sel.value || "";
-      });
-
-      return sel;
-    }
-
-    function makeReasonBox(member_key, sheet_file, event_index, currentReason) {
-      const ta = document.createElement("textarea");
-      ta.className = "override-reason";
-      ta.placeholder = "Reason (optional)";
-      ta.value = currentReason || "";
-
-      ta.addEventListener("input", () => {
-        autoGrowTextarea(ta);
-        const key = `${sheet_file}::${event_index}`;
-        pendingOverrides[key] = pendingOverrides[key] || { member_key, sheet_file, event_index };
-        pendingOverrides[key].override_reason = ta.value || "";
-      });
-
-      setTimeout(() => autoGrowTextarea(ta), 0);
-      return ta;
-    }
-
+    
     async function loadEventTableForSheet(memberKey, sheetFile) {
       $("validBody").innerHTML = "";
       $("invalidBody").innerHTML = "";
       setCounts(0, 0);
-
+    
       try {
-        const data = await jget(`/api/review/events?member_key=${encodeURIComponent(memberKey)}&sheet_file=${encodeURIComponent(sheetFile)}`);
-
-        const validEvents = data.valid || [];
-        const invalidEvents = data.invalid || [];
+        const data = await jget(`/api/member/${encodeURIComponent(memberKey)}/sheet/${encodeURIComponent(sheetFile)}`);
+    
+        // backend uses these keys:
+        const validEvents = data.valid_rows || [];
+        const invalidEvents = data.invalid_events || [];
         setCounts(validEvents.length, invalidEvents.length);
-
+    
         $("reviewHint").style.display = "none";
-
+    
         for (const ev of validEvents) {
           const tr = document.createElement("tr");
           tr.innerHTML = `
@@ -1033,7 +989,7 @@
           tr.children[5].appendChild(rBox);
           $("validBody").appendChild(tr);
         }
-
+    
         for (const ev of invalidEvents) {
           const tr = document.createElement("tr");
           tr.innerHTML = `
@@ -1050,11 +1006,11 @@
           tr.children[5].appendChild(rBox);
           $("invalidBody").appendChild(tr);
         }
-
+    
         setTimeout(() => {
           patchFitAllReasonCells();
         }, 0);
-
+    
       } catch (err) {
         $("reviewHint").textContent = "Error loading events: " + err.message;
         $("reviewHint").style.display = "block";
