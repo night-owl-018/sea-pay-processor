@@ -281,18 +281,152 @@
       position: relative;
       overflow: hidden;
     }
-    .status::before{
-      content:"";
-      position:absolute;
-      inset:0;
-      width: var(--p, 0%);
-      background: linear-gradient(90deg, rgba(111,183,255,0.18), rgba(22,199,132,0.14));
-      pointer-events:none;
+    .status::before {
+      content: '';
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 4px rgba(22,199,132,0.16);
+      animation: pulse 2s ease-in-out infinite;
+      position: relative;
+      z-index: 1;
     }
-    .status > span{ position: relative; z-index: 1; }
+
+    /* ===== PATCH: Status progress bar fill (behind text) ===== */
+    .status::after{
+      content: "";
+      position: absolute;
+      inset: 0;
+      width: var(--pct, 0%);
+      background: linear-gradient(
+        90deg,
+        rgba(111,183,255,0.22),
+        rgba(22,199,132,0.22)
+      );
+      opacity: 0;
+      transition: width 250ms ease, opacity 200ms ease;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .status[data-has-pct="1"]::after{ opacity: 1; }
+
+    /* ensure status text stays above bar */
+    #statusText{
+      position: relative;
+      z-index: 1;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.55; transform: scale(0.92); }
+    }
+
+    .logbox {
+      height: 240px;
+      overflow: auto;
+      background: rgba(5,7,12,0.78);
+      color: rgba(22,199,132,0.95);
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.35;
+      padding: 14px;
+      border-radius: 14px;
+      white-space: pre;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+    }
+
+    .table-wrapper, .table-container {
+      overflow-x: auto;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(6,10,18,0.40);
+      margin-top: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 900px;
+      color: var(--text-primary);
+    }
+    thead {
+      background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    th {
+      padding: 12px 12px;
+      text-align: left;
+      font-weight: 800;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      color: rgba(245,248,255,0.82);
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+      white-space: nowrap;
+    }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr.valid { background: rgba(22,199,132,0.09); }
+    tr.invalid { background: rgba(255,91,107,0.09); }
+    tr:hover { background: rgba(255,255,255,0.04); }
+
+    .override-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+    }
+    .override-wrap select {
+      width: auto;
+      min-width: 140px;
+      padding: 8px 10px;
+      font-size: 13px;
+      border-radius: 12px;
+    }
+    .override-wrap.dirty::after {
+      content: '●';
+      color: var(--warning);
+      font-size: 14px;
+      position: absolute;
+      right: -14px;
+      top: 50%;
+      transform: translateY(-50%);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    textarea.override-reason {
+      width: 100%;
+      min-height: 34px;
+      padding: 9px 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 13px;
+      resize: vertical;
+      background: rgba(6,10,18,0.55);
+      color: var(--text-primary);
+      transition: all 0.18s ease;
+    }
+    textarea.override-reason:focus {
+      outline: none;
+      border-color: rgba(111,183,255,0.55);
+      box-shadow: 0 0 0 3px rgba(111,183,255,0.18);
+    }
+    td.reason-cell {
+      max-width: 360px;
+      min-width: 220px;
+    }
 
     .hint {
-      font-size: 12px;
+      font-size: 13px;
       color: rgba(245,248,255,0.55);
       text-align: center;
       padding: 10px 8px;
@@ -345,93 +479,6 @@
       .system-actions { grid-template-columns: 1fr; }
     }
 
-    /* Table */
-    .table-container {
-      width: 100%;
-      overflow-x: auto;
-      border: 1px solid rgba(255,255,255,0.10);
-      border-radius: var(--r);
-      background: rgba(6,10,18,0.35);
-      box-shadow: var(--shadow-sm);
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 980px;
-      font-size: 13px;
-    }
-    thead th {
-      position: sticky;
-      top: 0;
-      background: rgba(15, 22, 40, 0.95);
-      color: rgba(245,248,255,0.85);
-      text-align: left;
-      padding: 10px 10px;
-      border-bottom: 1px solid rgba(255,255,255,0.10);
-      font-size: 12px;
-      font-weight: 850;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      z-index: 1;
-    }
-    tbody td {
-      padding: 10px 10px;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      vertical-align: top;
-      color: rgba(245,248,255,0.82);
-    }
-    tbody tr:hover td { background: rgba(255,255,255,0.03); }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 9px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 900;
-      border: 1px solid rgba(255,255,255,0.10);
-      background: rgba(255,255,255,0.03);
-      white-space: nowrap;
-      color: rgba(245,248,255,0.86);
-    }
-    .badge.ok { border-color: rgba(22,199,132,0.22); background: rgba(22,199,132,0.10); }
-    .badge.bad { border-color: rgba(255,91,107,0.22); background: rgba(255,91,107,0.10); }
-
-    textarea.override-reason {
-      width: 100%;
-      min-height: 34px;
-      resize: vertical;
-      padding: 8px 10px;
-      border-radius: 12px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(6,10,18,0.55);
-      color: rgba(245,248,255,0.90);
-      font-size: 12px;
-      outline: none;
-      transition: all 0.18s ease;
-    }
-    textarea.override-reason:focus{
-      border-color: rgba(111,183,255,0.55);
-      box-shadow: 0 0 0 3px rgba(111,183,255,0.18);
-    }
-
-    .logbox {
-      width: 100%;
-      min-height: 220px;
-      max-height: 360px;
-      overflow: auto;
-      border-radius: var(--r);
-      border: 1px solid rgba(255,255,255,0.10);
-      background: rgba(6,10,18,0.55);
-      padding: 12px 12px;
-      font-family: var(--mono);
-      font-size: 11px;
-      color: rgba(245,248,255,0.75);
-      white-space: pre-wrap;
-      box-shadow: var(--shadow-sm);
-    }
-
     /* Footer */
     footer.app-footer{
       max-width: 1600px;
@@ -454,147 +501,6 @@
       text-decoration: none;
     }
     footer.app-footer a:hover{ text-decoration: underline; }
-
-    /* ===== HELP: Guide modal + floating help button ===== */
-    .header-help{
-      position:absolute;
-      right: 16px;
-      top: 14px;
-    }
-    .header-help button{
-      width: auto !important;
-      padding: 9px 12px !important;
-      border-radius: 999px !important;
-      border: 1px solid rgba(255,255,255,0.12) !important;
-      background: rgba(255,255,255,0.05) !important;
-      box-shadow: 0 14px 30px rgba(0,0,0,0.45);
-    }
-    .header-help button:hover{
-      border-color: rgba(111,183,255,0.28) !important;
-      background: rgba(255,255,255,0.07) !important;
-      transform: translateY(-1px);
-    }
-    @media (max-width: 640px){
-      .header-help{
-        position: fixed;
-        right: 14px;
-        bottom: 14px;
-        top: auto;
-        z-index: 1000;
-      }
-      .header-help button{
-        padding: 10px 14px !important;
-      }
-    }
-
-    .help-modal{
-      position: fixed;
-      inset: 0;
-      display: none;
-      z-index: 2000;
-    }
-    .help-modal.open{ display: block; }
-    .help-backdrop{
-      position:absolute;
-      inset:0;
-      background: rgba(0,0,0,0.65);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-    }
-    .help-panel{
-      position: relative;
-      max-width: 920px;
-      margin: 6vh auto;
-      background: linear-gradient(180deg, rgba(20,28,48,0.88), rgba(12,16,30,0.88));
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 16px;
-      box-shadow: var(--shadow-lg);
-      overflow: hidden;
-    }
-    .help-head{
-      display:flex;
-      align-items:flex-start;
-      justify-content: space-between;
-      gap: 14px;
-      padding: 14px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.10);
-      background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-    }
-    .help-title{
-      font-size: 14px;
-      font-weight: 900;
-      letter-spacing: 0.02em;
-      color: rgba(245,248,255,0.95);
-      margin: 0 0 4px;
-      text-transform: uppercase;
-    }
-    .help-sub{
-      font-size: 12px;
-      color: rgba(245,248,255,0.65);
-      margin: 0;
-      line-height: 1.35;
-    }
-    .help-close{
-      width: auto !important;
-      padding: 8px 10px !important;
-      border-radius: 12px !important;
-      font-weight: 900 !important;
-      line-height: 1 !important;
-    }
-    .help-body{
-      padding: 14px 16px 16px;
-      max-height: 70vh;
-      overflow: auto;
-    }
-    .help-body h4{
-      margin: 14px 0 8px;
-      font-size: 12px;
-      letter-spacing: 0.10em;
-      text-transform: uppercase;
-      color: rgba(245,248,255,0.86);
-    }
-    .help-steps{
-      margin: 10px 0 0;
-      padding-left: 18px;
-      color: rgba(245,248,255,0.86);
-      font-size: 13px;
-    }
-    .help-steps li{ margin: 8px 0; }
-    .help-kbd{
-      display:inline-block;
-      font-family: var(--mono);
-      font-size: 12px;
-      padding: 2px 6px;
-      border-radius: 8px;
-      border: 1px solid rgba(255,255,255,0.14);
-      background: rgba(6,10,18,0.45);
-      color: rgba(245,248,255,0.86);
-      vertical-align: middle;
-    }
-    .help-callout{
-      margin-top: 12px;
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 14px;
-      padding: 12px 12px;
-      background: rgba(255,255,255,0.03);
-      color: rgba(245,248,255,0.72);
-      font-size: 13px;
-    }
-    .help-callout strong{ color: rgba(245,248,255,0.92); }
-    .help-grid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 10px;
-    }
-    @media (max-width: 820px){
-      .help-panel{ margin: 4vh 14px; }
-    }
-    @media (max-width: 640px){
-      .help-grid{ grid-template-columns: 1fr; }
-      .help-body{ max-height: 72vh; }
-    }
-
   </style>
 </head>
 
@@ -603,10 +509,6 @@
     <div class="header-inner">
       <h1>⚓ ATGSD Sea Pay Processor</h1>
       <div class="subtitle">Automated Sea Duty Certification & PG-13 Generation System</div>
-
-      <div class="header-help">
-        <button id="helpBtn" class="secondary" type="button" title="Help / Pro Guide">❓ Help</button>
-      </div>
     </div>
   </header>
 
@@ -753,76 +655,6 @@
     </div>
   </footer>
 
-  <!-- HELP / GUIDE MODAL -->
-  <div class="help-modal" id="helpModal" aria-hidden="true">
-    <div class="help-backdrop" data-close="1"></div>
-
-    <div class="help-panel" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
-      <div class="help-head">
-        <div>
-          <div id="helpTitle" class="help-title">Guide</div>
-          <p class="help-sub">Step-by-step workflow for processing Sea Duty Cert sheets, fixing validations, and rebuilding clean outputs.</p>
-        </div>
-        <button type="button" class="secondary help-close" id="helpCloseBtn" title="Close">✖</button>
-      </div>
-
-      <div class="help-body">
-        <h4>1) Before you click Process</h4>
-        <ol class="help-steps">
-          <li><strong>Sea Duty Cert (PDF):</strong> Select the certification sheet PDFs (you can upload multiple).</li>
-          <li><strong>Rate CSV (optional but recommended):</strong> Upload the rates file if you need updated pay logic for the run.</li>
-          <li><strong>Template PDF (optional):</strong> Only upload if you want to override the default NAVPERS 1070/613 template used by the container.</li>
-          <li><strong>Strikeout color:</strong> Pick Black or Red. This controls the color used on strikeout PDFs for invalid/skipped items.</li>
-        </ol>
-
-        <h4>2) Run a batch </h4>
-        <ol class="help-steps">
-          <li>Click <strong>▶️ Process</strong> and watch <strong>Status</strong> + the <strong>Live Processing Log</strong>.</li>
-          <li>Do not start another run until Status shows <strong>COMPLETE</strong> (or <strong>ERROR</strong>).</li>
-          <li>If you uploaded the Rate CSV, the backend reloads rates for this run automatically.</li>
-        </ol>
-
-        <h4>3) Review, override, and keep your counts honest</h4>
-        <ol class="help-steps">
-          <li>In <strong>Downloads & Member</strong>, pick a <strong>Member</strong>, then a <strong>Sheet</strong>.</li>
-          <li>Use the tables under <strong>Review & Override</strong>:
-            <ul style="margin:8px 0 0; color: rgba(245,248,255,0.78);">
-              <li><strong>Override</strong> = force <em>Valid</em>, force <em>Invalid</em>, or leave <em>Auto</em>.</li>
-              <li><strong>Reason</strong> = type why you changed it (helps later when you audit your work).</li>
-            </ul>
-          </li>
-          <li>When you make edits, the UI tracks them as “pending” until you click <strong>💾 Save Overrides</strong>.</li>
-          <li>After saving, you can reload the sheet and your override should still be there.</li>
-        </ol>
-
-        <div class="help-grid">
-          <div class="help-callout">
-            <strong>Golden rule:</strong> Save overrides first, then rebuild outputs. If you rebuild without saving, you are rebuilding old data.
-          </div>
-          <div class="help-callout">
-            <strong>Counts:</strong> The ✅ and ❌ tiles reflect what the UI currently shows for the selected sheet. If you switch sheets, counts change with it.
-          </div>
-        </div>
-
-        <h4>4) Rebuild clean outputs</h4>
-        <ol class="help-steps">
-          <li>Click <strong>🔄 Rebuild Outputs</strong> to regenerate PDFs/summary using your saved overrides.</li>
-          <li>Use <strong>📦 Package</strong> for a single zip bundle, or <strong>📂 All</strong> for the full output set.</li>
-        </ol>
-
-        <h4>5) Reset, when you really mean it</h4>
-        <ol class="help-steps">
-          <li><strong>🗑️ Reset</strong> wipes output and overrides. Use it when you want a clean slate.</li>
-          <li>If something looks “stuck,” refresh the page first. Only reset if you truly want to start over.</li>
-        </ol>
-
-        <div class="help-callout">
-          <strong>Quick controls:</strong> Press <span class="help-kbd">Esc</span> to close this guide. Click outside the panel to close too.
-        </div>
-      </div>
-    </div>
-  </div>
-
   <script>
     const $ = (id) => document.getElementById(id);
 
@@ -888,167 +720,379 @@
       });
     }
 
+    window.addEventListener("resize", () => {
+      patchFitAllReasonCells();
+    });
+
     async function jget(url) {
-      const r = await fetch(url, { cache: "no-store" });
-      if (!r.ok) throw new Error(`${url} → HTTP ${r.status}`);
-      return r.json();
+      const r = await fetch(url, {cache:"no-store"});
+      if (!r.ok) throw new Error("GET " + url + " -> " + r.status);
+      return await r.json();
     }
-
-    async function jpost(url, bodyObj) {
+    async function jpost(url, payload) {
       const r = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bodyObj || {})
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(payload)
       });
-      if (!r.ok) throw new Error(`${url} → HTTP ${r.status}`);
-      return r.json();
+      if (!r.ok) {
+        const t = await r.text().catch(()=> "");
+        throw new Error("POST " + url + " -> " + r.status + " " + t);
+      }
+      return await r.json();
     }
 
-    function setStatusText(txt, percent=0) {
-      const el = $("statusText");
-      if (!el) return;
-      el.textContent = txt;
-      el.style.setProperty("--p", `${Math.max(0, Math.min(100, percent))}%`);
-    }
-
-    async function refreshProgress() {
+    async function pollProgress() {
       try {
-        const p = await jget("/progress");
-        const status = (p.status || "IDLE").toUpperCase();
-        const percent = Number(p.percent || 0);
-        const step = p.current_step ? ` • ${p.current_step}` : "";
-        setStatusText(`${status}${step}`, percent);
+        const data = await jget("/progress");
+        const pct = pick(data, ["percent","progress","pct"], null);
+        const status = pick(data, ["status","state","message"], "Idle");
+        const log = pick(data, ["log","lines","text"], "");
+        if (status === "COMPLETE" && lastStatus !== "COMPLETE") {
+          refreshReviewLists();
+        }
+        lastStatus = status;
 
-        const logText = (p.log || "");
-        if ($("liveLog")) $("liveLog").textContent = logText;
+        /* ===== PATCH: Progress bar behind status text ===== */
+        const st = $("statusText");
+        if (pct !== null && pct !== undefined && pct !== "") {
+          const p = Math.max(0, Math.min(100, Number(pct)));
+          st.textContent = status + " (" + p + "%)";
+          st.style.setProperty("--pct", p + "%");
+          st.setAttribute("data-has-pct", "1");
+        } else {
+          st.textContent = status;
+          st.style.setProperty("--pct", "0%");
+          st.removeAttribute("data-has-pct");
+        }
 
-        if (status !== lastStatus) lastStatus = status;
-      } catch (e) {
-        setStatusText("ERROR • cannot read /progress", 0);
-      }
+        if (typeof log === "string") {
+          const logBox = $("liveLog");
+          const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
+          logBox.textContent = log;
+          if (isAtBottom) {
+            logBox.scrollTop = logBox.scrollHeight;
+          }
+        }
+      } catch (e) {}
     }
 
-    setInterval(refreshProgress, 1200);
-    refreshProgress();
+    setInterval(pollProgress, 1000);
+    pollProgress();
 
-    async function loadMembers() {
-      const data = await jget("/api/review/members");
-      const members = data.members || [];
-      const sel = $("memberSelect");
-      sel.innerHTML = `<option value="">Select member</option>`;
-      for (const m of members) {
-        const opt = document.createElement("option");
-        opt.value = m.key;
-        opt.textContent = m.name || m.key;
-        sel.appendChild(opt);
+    $("processBtn").addEventListener("click", async () => {
+      const fd = new FormData();
+      for (const f of $("pdfs").files) fd.append("pdfs", f);
+      if ($("ratesCsv").files[0]) fd.append("rates_csv", $("ratesCsv").files[0]);
+      if ($("templatePdf").files[0]) fd.append("template_pdf", $("templatePdf").files[0]);
+      fd.append("strikeout_color", $("strikeColor").value);
+      $("processBtn").disabled = true;
+      try {
+        const r = await fetch("/process", {method:"POST", body: fd});
+        if (!r.ok) throw new Error("Process failed: " + r.status);
+        await refreshReviewLists();
+      } catch (err) {
+        alert(err.message || String(err));
+      } finally {
+        $("processBtn").disabled = false;
       }
+    });
+
+    $("btnMerged").addEventListener("click", () => { window.location = "/download_merged"; });
+    $("btnAll").addEventListener("click", () => { window.location = "/download_all"; });
+
+    $("btnReset").addEventListener("click", async () => {
+      if (!confirm("⚠️ Reset all output and overrides? This cannot be undone.")) return;
+      try {
+        const r = await fetch("/reset", {method:"POST"});
+        if (!r.ok) throw new Error("Reset failed: " + r.status);
+
+        $("memberSelect").innerHTML = '<option value="">Select member</option>';
+        $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
+        $("sheetSelect").disabled = true;
+        $("validBody").innerHTML = "";
+        $("invalidBody").innerHTML = "";
+        $("reviewHint").textContent = "👆 Select a member and sheet above to review and override validation results";
+        pendingOverrides = {};
+
+        if($("validCount")) $("validCount").textContent = "0";
+        if($("invalidCount")) $("invalidCount").textContent = "0";
+
+        alert("✅ Reset complete!");
+      } catch (err) {
+        alert(err.message || String(err));
+      }
+    });
+
+    async function refreshReviewLists() {
+      try {
+        const members = await jget("/api/members");
+        const sel = $("memberSelect");
+        const current = sel.value;
+        sel.innerHTML = '<option value="">Select member</option>';
+        for (const m of members) {
+          const opt = document.createElement("option");
+          opt.value = m;
+          opt.textContent = m;
+          sel.appendChild(opt);
+        }
+        if (current && members.includes(current)) {
+          sel.value = current;
+        }
+        lastSelectedMember = sel.value;
+      } catch (e) {}
     }
 
     async function loadSheetsForMember(memberKey) {
-      const data = await jget(`/api/review/sheets?member_key=${encodeURIComponent(memberKey)}`);
-      const sheets = data.sheets || [];
+      $("sheetSelect").disabled = true;
+      $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
+      $("validBody").innerHTML = "";
+      $("invalidBody").innerHTML = "";
+      $("reviewHint").style.display = "block";
+      $("reviewHint").textContent = "Select a sheet above to review events";
+      if (!memberKey) {
+        if($("validCount")) $("validCount").textContent = "0";
+        if($("invalidCount")) $("invalidCount").textContent = "0";
+        return;
+      }
+      const sheets = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheets");
       const sel = $("sheetSelect");
-      sel.disabled = false;
-      sel.innerHTML = `<option value="">Select sheet</option>`;
       for (const s of sheets) {
         const opt = document.createElement("option");
-        opt.value = s.file;
-        opt.textContent = s.label || s.file;
+        opt.value = s;
+        opt.textContent = s;
         sel.appendChild(opt);
       }
+      sel.disabled = false;
+      lastSelectedSheet = sel.value;
     }
 
-    function setCounts(validN, invalidN) {
-      if ($("validCount")) $("validCount").textContent = String(validN || 0);
-      if ($("invalidCount")) $("invalidCount").textContent = String(invalidN || 0);
-    }
+    function buildOverrideSelect(memberKey, sheetFile, eventIndex, currentStatus, source) {
+      const wrap = document.createElement("div");
+      wrap.className = "override-wrap";
 
-    function statusBadge(ok) {
-      return ok
-        ? `<span class="badge ok">✅ VALID</span>`
-        : `<span class="badge bad">❌ INVALID</span>`;
-    }
+      const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
 
-    function makeOverrideSelect(member_key, sheet_file, event_index, currentOverride) {
       const sel = document.createElement("select");
-      sel.innerHTML = `
-        <option value="" ${currentOverride==="" ? "selected" : ""}>Auto</option>
-        <option value="valid" ${currentOverride==="valid" ? "selected" : ""}>Force Valid</option>
-        <option value="invalid" ${currentOverride==="invalid" ? "selected" : ""}>Force Invalid</option>
-      `;
+      sel.setAttribute("data-override-key", key);
+
+      const options = [
+        {v:"", t:"🔄 Auto"},
+        {v:"valid", t:"✅ Valid"},
+        {v:"invalid", t:"❌ Invalid"},
+      ];
+      for (const o of options) {
+        const opt = document.createElement("option");
+        opt.value = o.v;
+        opt.textContent = o.t;
+        sel.appendChild(opt);
+      }
+      sel.value = currentStatus || "";
+
+      function markDirty(reasonText) {
+        wrap.classList.add("dirty");
+        pendingOverrides[key] = {
+          member_key: memberKey,
+          sheet_file: sheetFile,
+          event_index: eventIndex,
+          override_status: sel.value || null,
+          override_reason: reasonText || null
+        };
+      }
 
       sel.addEventListener("change", () => {
-        const key = `${sheet_file}::${event_index}`;
-        pendingOverrides[key] = pendingOverrides[key] || { member_key, sheet_file, event_index };
-        pendingOverrides[key].override_status = sel.value || "";
+        const ta = document.querySelector(`textarea[data-override-key="${CSS.escape(key)}"]`);
+        const reasonText = ta ? ta.value : "";
+        markDirty(reasonText);
+        patchFitAllReasonCells();
       });
 
-      return sel;
+      if (source === "override") {
+        wrap.classList.add("dirty");
+      }
+
+      wrap.appendChild(sel);
+      return wrap;
     }
 
-    function makeReasonBox(member_key, sheet_file, event_index, currentReason) {
+    function buildReasonTextarea(memberKey, sheetFile, eventIndex, initialText, currentOverrideReason) {
+      const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
+
       const ta = document.createElement("textarea");
       ta.className = "override-reason";
-      ta.placeholder = "Reason (optional)";
-      ta.value = currentReason || "";
+      ta.rows = 1;
+
+      ta.value = (currentOverrideReason && currentOverrideReason.trim() !== "")
+        ? currentOverrideReason
+        : (initialText || "");
+
+      ta.placeholder = "Optional...";
+      ta.setAttribute("data-override-key", key);
+
+      function markDirty() {
+        const sel = document.querySelector(`select[data-override-key="${CSS.escape(key)}"]`);
+        const statusVal = sel ? sel.value : "";
+
+        pendingOverrides[key] = {
+          member_key: memberKey,
+          sheet_file: sheetFile,
+          event_index: eventIndex,
+          override_status: statusVal || null,
+          override_reason: ta.value || null
+        };
+
+        const wrap = sel ? sel.closest(".override-wrap") : null;
+        if (wrap) wrap.classList.add("dirty");
+      }
 
       ta.addEventListener("input", () => {
         autoGrowTextarea(ta);
-        const key = `${sheet_file}::${event_index}`;
-        pendingOverrides[key] = pendingOverrides[key] || { member_key, sheet_file, event_index };
-        pendingOverrides[key].override_reason = ta.value || "";
+        markDirty();
+        fitFontToBox(ta, { minPx: 6, mode: "width" });
       });
 
-      setTimeout(() => autoGrowTextarea(ta), 0);
+      setTimeout(() => {
+        autoGrowTextarea(ta);
+        fitFontToBox(ta, { minPx: 6, mode: "width" });
+      }, 0);
+
       return ta;
+    }
+
+    function getOverrideStatus(row) {
+      const direct = (row && row.override_status !== undefined && row.override_status !== null) ? String(row.override_status) : "";
+      if (direct !== "") return direct;
+      const nested = (row && row.override && row.override.status !== undefined && row.override.status !== null) ? String(row.override.status) : "";
+      return nested || "";
+    }
+
+    function getOverrideReason(row) {
+      const direct = (row && row.override_reason !== undefined && row.override_reason !== null) ? String(row.override_reason) : "";
+      if (direct.trim() !== "") return direct;
+      const nested = (row && row.override && row.override.reason !== undefined && row.override.reason !== null) ? String(row.override.reason) : "";
+      return nested || "";
     }
 
     async function loadEventTableForSheet(memberKey, sheetFile) {
       $("validBody").innerHTML = "";
       $("invalidBody").innerHTML = "";
-      setCounts(0, 0);
+      $("reviewHint").textContent = "Loading events...";
 
       try {
-        const data = await jget(`/api/review/events?member_key=${encodeURIComponent(memberKey)}&sheet_file=${encodeURIComponent(sheetFile)}`);
+        const data = await jget("/api/member/" + encodeURIComponent(memberKey) + "/sheet/" + encodeURIComponent(sheetFile));
 
-        const validEvents = data.valid || [];
-        const invalidEvents = data.invalid || [];
-        setCounts(validEvents.length, invalidEvents.length);
+        const validRows = data.valid_rows || [];
+        const invalidRows = data.invalid_events || [];
+
+        if($("validCount")) $("validCount").textContent = String(validRows.length);
+        if($("invalidCount")) $("invalidCount").textContent = String(invalidRows.length);
+
+        const validBody = $("validBody");
+        const invalidBody = $("invalidBody");
+
+        if (validRows.length === 0 && invalidRows.length === 0) {
+          $("reviewHint").textContent = "No events found for this sheet";
+          return;
+        }
 
         $("reviewHint").style.display = "none";
 
-        for (const ev of validEvents) {
+        for (const row of validRows) {
           const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${safeText(pick(ev, ["date", "event_date", "Date"]))}</td>
-            <td>${safeText(pick(ev, ["ship", "Ship"]))}</td>
-            <td>${safeText(pick(ev, ["event", "Event"]))}</td>
-            <td>${statusBadge(true)}</td>
-            <td></td>
-            <td></td>
-          `;
-          const oSel = makeOverrideSelect(memberKey, sheetFile, ev.event_index, ev.override_status || "");
-          const rBox = makeReasonBox(memberKey, sheetFile, ev.event_index, ev.override_reason || "");
-          tr.children[4].appendChild(oSel);
-          tr.children[5].appendChild(rBox);
-          $("validBody").appendChild(tr);
+          tr.className = "valid";
+
+          const tdDate = document.createElement("td");
+          tdDate.textContent = safeText(row.date);
+
+          const tdShip = document.createElement("td");
+          tdShip.textContent = safeText(row.ship);
+
+          const tdEvent = document.createElement("td");
+          tdEvent.textContent = safeText(row.event);
+
+          const tdStatus = document.createElement("td");
+          tdStatus.textContent = row.source === "override" ? "Override" : "Valid";
+
+          const tdOverride = document.createElement("td");
+          tdOverride.appendChild(
+            buildOverrideSelect(
+              memberKey,
+              sheetFile,
+              row.event_index,
+              getOverrideStatus(row),
+              row.source
+            )
+          );
+
+          const tdReason = document.createElement("td");
+          tdReason.className = "reason-cell";
+          tdReason.appendChild(
+            buildReasonTextarea(
+              memberKey,
+              sheetFile,
+              row.event_index,
+              safeText(row.status_reason),
+              getOverrideReason(row)
+            )
+          );
+
+          tr.appendChild(tdDate);
+          tr.appendChild(tdShip);
+          tr.appendChild(tdEvent);
+          tr.appendChild(tdStatus);
+          tr.appendChild(tdOverride);
+          tr.appendChild(tdReason);
+
+          validBody.appendChild(tr);
         }
 
-        for (const ev of invalidEvents) {
+        for (const row of invalidRows) {
           const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td>${safeText(pick(ev, ["date", "event_date", "Date"]))}</td>
-            <td>${safeText(pick(ev, ["ship", "Ship"]))}</td>
-            <td>${safeText(pick(ev, ["event", "Event"]))}</td>
-            <td>${statusBadge(false)}</td>
-            <td></td>
-            <td></td>
-          `;
-          const oSel = makeOverrideSelect(memberKey, sheetFile, ev.event_index, ev.override_status || "");
-          const rBox = makeReasonBox(memberKey, sheetFile, ev.event_index, ev.override_reason || "");
-          tr.children[4].appendChild(oSel);
-          tr.children[5].appendChild(rBox);
-          $("invalidBody").appendChild(tr);
+          tr.className = "invalid";
+
+          const tdDate = document.createElement("td");
+          tdDate.textContent = safeText(row.date);
+
+          const tdShip = document.createElement("td");
+          tdShip.textContent = safeText(row.ship);
+
+          const tdEvent = document.createElement("td");
+          tdEvent.textContent = safeText(row.event);
+
+          const tdStatus = document.createElement("td");
+          tdStatus.textContent = row.source === "override" ? "Override" : "Invalid";
+
+          const tdOverride = document.createElement("td");
+          tdOverride.appendChild(
+            buildOverrideSelect(
+              memberKey,
+              sheetFile,
+              row.event_index,
+              getOverrideStatus(row),
+              row.source
+            )
+          );
+
+          const tdReason = document.createElement("td");
+          tdReason.className = "reason-cell";
+          tdReason.appendChild(
+            buildReasonTextarea(
+              memberKey,
+              sheetFile,
+              row.event_index,
+              safeText(row.reason),
+              getOverrideReason(row)
+            )
+          );
+
+          tr.appendChild(tdDate);
+          tr.appendChild(tdShip);
+          tr.appendChild(tdEvent);
+          tr.appendChild(tdStatus);
+          tr.appendChild(tdOverride);
+          tr.appendChild(tdReason);
+
+          invalidBody.appendChild(tr);
         }
 
         setTimeout(() => {
@@ -1060,65 +1104,6 @@
         $("reviewHint").style.display = "block";
       }
     }
-
-    $("processBtn").addEventListener("click", async () => {
-      const pdfs = $("pdfs").files;
-      if (!pdfs || pdfs.length === 0) {
-        alert("Please select at least one Sea Duty Cert PDF.");
-        return;
-      }
-
-      const form = new FormData();
-      for (const f of pdfs) form.append("pdfs", f);
-      if ($("ratesCsv").files && $("ratesCsv").files[0]) form.append("rates_csv", $("ratesCsv").files[0]);
-      if ($("templatePdf").files && $("templatePdf").files[0]) form.append("template_pdf", $("templatePdf").files[0]);
-      form.append("strikeout_color", $("strikeColor").value || "Black");
-
-      $("processBtn").disabled = true;
-      setStatusText("PROCESSING • starting...", 1);
-
-      try {
-        const r = await fetch("/process", { method: "POST", body: form });
-        if (!r.ok) throw new Error("Process failed: " + r.status);
-        await loadMembers();
-        alert("✅ Process started. Watch the log.");
-      } catch (e) {
-        alert("Error: " + e.message);
-      } finally {
-        setTimeout(() => { $("processBtn").disabled = false; }, 1200);
-      }
-    });
-
-    $("btnReset").addEventListener("click", async () => {
-      if (!confirm("⚠️ Reset all output and overrides? This cannot be undone.")) return;
-      $("btnReset").disabled = true;
-      try {
-        const r = await fetch("/reset", { method: "POST" });
-        if (!r.ok) throw new Error("Reset failed: " + r.status);
-        $("liveLog").textContent = "";
-        $("validBody").innerHTML = "";
-        $("invalidBody").innerHTML = "";
-        $("sheetSelect").innerHTML = `<option value="">Select sheet</option>`;
-        $("sheetSelect").disabled = true;
-        $("memberSelect").innerHTML = `<option value="">Select member</option>`;
-        setCounts(0, 0);
-        $("reviewHint").textContent = "👆 Select a member and sheet above to review and override validation results";
-        $("reviewHint").style.display = "block";
-        pendingOverrides = {};
-        lastSelectedMember = "";
-        lastSelectedSheet = "";
-        alert("✅ Reset complete!");
-      } catch (e) {
-        alert("Error: " + e.message);
-      } finally {
-        $("btnReset").disabled = false;
-      }
-    });
-
-    $("btnMerged").addEventListener("click", () => window.open("/download/merged", "_blank"));
-    $("btnAll").addEventListener("click", () => window.open("/download/all", "_blank"));
-
-    loadMembers().catch(() => {});
 
     $("memberSelect").addEventListener("change", async (e) => {
       const memberKey = e.target.value;
@@ -1182,39 +1167,6 @@
         }, 1000);
       }
     });
-
-    // ===== HELP MODAL =====
-    (function initHelpModal(){
-      const modal = $("helpModal");
-      const btn = $("helpBtn");
-      const closeBtn = $("helpCloseBtn");
-
-      if (!modal || !btn || !closeBtn) return;
-
-      function openHelp(){
-        modal.classList.add("open");
-        modal.setAttribute("aria-hidden", "false");
-        document.body.style.overflow = "hidden";
-        closeBtn.focus({ preventScroll: true });
-      }
-      function closeHelp(){
-        modal.classList.remove("open");
-        modal.setAttribute("aria-hidden", "true");
-        document.body.style.overflow = "";
-        btn.focus({ preventScroll: true });
-      }
-
-      btn.addEventListener("click", openHelp);
-      closeBtn.addEventListener("click", closeHelp);
-
-      modal.addEventListener("click", (e) => {
-        if (e.target && (e.target.dataset && e.target.dataset.close === "1")) closeHelp();
-      });
-
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && modal.classList.contains("open")) closeHelp();
-      });
-    })();
 
     if ($("yearNow")) $("yearNow").textContent = new Date().getFullYear();
   </script>
