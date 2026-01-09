@@ -825,18 +825,17 @@
 
   <script>
     const $ = (id) => document.getElementById(id);
-  
+
     let lastStatus = null;
     let pendingOverrides = {};
     let lastSelectedMember = "";
     let lastSelectedSheet = "";
-  
+
     function safeText(v) {
       if (v === null || v === undefined) return "";
       if (typeof v === "object") return JSON.stringify(v);
       return String(v);
     }
-    
     function pick(obj, keys, fallback="") {
       if (!obj) return fallback;
       for (const k of keys) {
@@ -844,47 +843,74 @@
       }
       return fallback;
     }
-  
+
+    function fitFontToBox(el, opts = {}) {
+      const minPx = (opts.minPx ?? 6);
+      const maxPx = (opts.maxPx ?? null);
+      const mode  = (opts.mode ?? "width");
+
+      if (!el) return;
+
+      const cs = window.getComputedStyle(el);
+      const current = parseFloat(cs.fontSize) || 12;
+      let start = maxPx ? maxPx : current;
+
+      if (el.clientWidth <= 0) return;
+
+      el.style.fontSize = start + "px";
+
+      const overflows = () => {
+        const w = el.scrollWidth > el.clientWidth + 1;
+        if (mode === "width") return w;
+        const h = el.scrollHeight > el.clientHeight + 1;
+        return w || h;
+      };
+
+      let size = start;
+      while (size > minPx && overflows()) {
+        size -= 0.5;
+        el.style.fontSize = size + "px";
+      }
+
+      if (size < minPx) el.style.fontSize = minPx + "px";
+    }
+
     function autoGrowTextarea(ta) {
       if (!ta) return;
       ta.style.height = "auto";
-      ta.style.height = Math.max(ta.scrollHeight, 34) + "px";
+      ta.style.height = Math.max(ta.scrollHeight, 30) + "px";
     }
-  
+
     function patchFitAllReasonCells() {
       document.querySelectorAll("textarea.override-reason").forEach((ta) => {
         autoGrowTextarea(ta);
+        fitFontToBox(ta, { minPx: 6, mode: "width" });
       });
     }
-  
+
     async function jget(url) {
       const r = await fetch(url, { cache: "no-store" });
-      if (!r.ok) throw new Error(`GET ${url} → HTTP ${r.status}`);
+      if (!r.ok) throw new Error(`${url} → HTTP ${r.status}`);
       return r.json();
     }
-  
+
     async function jpost(url, bodyObj) {
       const r = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bodyObj || {})
       });
-      if (!r.ok) throw new Error(`POST ${url} → HTTP ${r.status}`);
+      if (!r.ok) throw new Error(`${url} → HTTP ${r.status}`);
       return r.json();
     }
-  
+
     function setStatusText(txt, percent=0) {
       const el = $("statusText");
       if (!el) return;
       el.textContent = txt;
       el.style.setProperty("--p", `${Math.max(0, Math.min(100, percent))}%`);
     }
-  
-    function setCounts(valid, invalid) {
-      if ($("validCount")) $("validCount").textContent = String(valid);
-      if ($("invalidCount")) $("invalidCount").textContent = String(invalid);
-    }
-  
+
     async function refreshProgress() {
       try {
         const p = await jget("/progress");
@@ -892,299 +918,165 @@
         const percent = Number(p.percent || 0);
         const step = p.current_step ? ` • ${p.current_step}` : "";
         setStatusText(`${status}${step}`, percent);
-  
-        const logText = Array.isArray(p.log) ? p.log.join("\n") : (p.log || "");
+
+        const logText = (p.log || "");
         if ($("liveLog")) $("liveLog").textContent = logText;
-  
-        if (status !== lastStatus) {
-          if (status === "COMPLETE") {
-            loadMembers().catch(() => {});
-          }
-          lastStatus = status;
-        }
+
+        if (status !== lastStatus) lastStatus = status;
       } catch (e) {
         setStatusText("ERROR • cannot read /progress", 0);
       }
     }
-  
+
     setInterval(refreshProgress, 1200);
     refreshProgress();
-  
-    // ✅ FIX: Backend returns array directly, not {members: [...]}
+
     async function loadMembers() {
-      try {
-        const members = await jget("/api/members"); // Returns array directly
-        const sel = $("memberSelect");
-        sel.innerHTML = `<option value="">Select member</option>`;
-        for (const memberKey of members) {
-          const opt = document.createElement("option");
-          opt.value = memberKey;
-          opt.textContent = memberKey;
-          sel.appendChild(opt);
-        }
-      } catch (e) {
-        console.error("Load members error:", e);
-      }
-    }
-    
-    // ✅ FIX: Backend returns array directly, not {sheets: [...]}
-    async function loadSheetsForMember(memberKey) {
-      $("sheetSelect").disabled = true;
-      $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
-      $("validBody").innerHTML = "";
-      $("invalidBody").innerHTML = "";
-      setCounts(0, 0);
-      
-      if (!memberKey) return;
-      
-      try {
-        const sheets = await jget(`/api/member/${encodeURIComponent(memberKey)}/sheets`);
-        const sel = $("sheetSelect");
-        sel.disabled = false;
-        
-        for (const sheetFile of sheets) {
-          const opt = document.createElement("option");
-          opt.value = sheetFile;
-          opt.textContent = sheetFile;
-          sel.appendChild(opt);
-        }
-      } catch (e) {
-        console.error("Load sheets error:", e);
-      }
-    }
-  
-    // ✅ FIX: Read from nested override object
-    function getOverrideStatus(row) {
-      if (row.override && row.override.status) {
-        return row.override.status;
-      }
-      return "";
-    }
-  
-    function getDisplayReason(row) {
-      if (row.override && row.override.reason) {
-        return row.override.reason;
-      }
-      if (row.reason) {
-        return row.reason;
-      }
-      if (row.status_reason) {
-        return row.status_reason;
-      }
-      return "";
-    }
-  
-    function statusBadge(isValid) {
-      return isValid 
-        ? '<span class="badge ok">✅ Valid</span>' 
-        : '<span class="badge bad">❌ Invalid</span>';
-    }
-  
-    function makeOverrideSelect(memberKey, sheetFile, eventIndex, initialStatus) {
-      const sel = document.createElement("select");
-      sel.style.cssText = `
-        width: 100%;
-        max-width: 160px;
-        padding: 8px 10px;
-        border: 1px solid rgba(255,255,255,0.12);
-        border-radius: 12px;
-        font-size: 12px;
-        background: rgba(6,10,18,0.55);
-        color: rgba(245,248,255,0.90);
-        outline: none;
-      `;
-      
-      const options = [
-        {v:"", t:"🔄 Auto"},
-        {v:"valid", t:"✅ Force Valid"},
-        {v:"invalid", t:"❌ Force Invalid"},
-      ];
-      
-      for (const o of options) {
+      const data = await jget("/api/review/members");
+      const members = data.members || [];
+      const sel = $("memberSelect");
+      sel.innerHTML = `<option value="">Select member</option>`;
+      for (const m of members) {
         const opt = document.createElement("option");
-        opt.value = o.v;
-        opt.textContent = o.t;
+        opt.value = m.key;
+        opt.textContent = m.name || m.key;
         sel.appendChild(opt);
       }
-      
-      sel.value = initialStatus;
-  
-      const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
-  
+    }
+
+    async function loadSheetsForMember(memberKey) {
+      const data = await jget(`/api/review/sheets?member_key=${encodeURIComponent(memberKey)}`);
+      const sheets = data.sheets || [];
+      const sel = $("sheetSelect");
+      sel.disabled = false;
+      sel.innerHTML = `<option value="">Select sheet</option>`;
+      for (const s of sheets) {
+        const opt = document.createElement("option");
+        opt.value = s.file;
+        opt.textContent = s.label || s.file;
+        sel.appendChild(opt);
+      }
+    }
+
+    function setCounts(validN, invalidN) {
+      if ($("validCount")) $("validCount").textContent = String(validN || 0);
+      if ($("invalidCount")) $("invalidCount").textContent = String(invalidN || 0);
+    }
+
+    function statusBadge(ok) {
+      return ok
+        ? `<span class="badge ok">✅ VALID</span>`
+        : `<span class="badge bad">❌ INVALID</span>`;
+    }
+
+    function makeOverrideSelect(member_key, sheet_file, event_index, currentOverride) {
+      const sel = document.createElement("select");
+      sel.innerHTML = `
+        <option value="" ${currentOverride==="" ? "selected" : ""}>Auto</option>
+        <option value="valid" ${currentOverride==="valid" ? "selected" : ""}>Force Valid</option>
+        <option value="invalid" ${currentOverride==="invalid" ? "selected" : ""}>Force Invalid</option>
+      `;
+
       sel.addEventListener("change", () => {
-        if (!pendingOverrides[key]) {
-          pendingOverrides[key] = {
-            member_key: memberKey,
-            sheet_file: sheetFile,
-            event_index: eventIndex,
-            status: sel.value || null,
-            reason: "",
-            source: "manual"
-          };
-        } else {
-          pendingOverrides[key].status = sel.value || null;
-        }
-  
-        if (sel.value !== initialStatus) {
-          sel.style.borderColor = "rgba(245,197,81,0.55)";
-          sel.style.background = "rgba(245,197,81,0.10)";
-        } else {
-          sel.style.borderColor = "";
-          sel.style.background = "";
-        }
+        const key = `${sheet_file}::${event_index}`;
+        pendingOverrides[key] = pendingOverrides[key] || { member_key, sheet_file, event_index };
+        pendingOverrides[key].override_status = sel.value || "";
       });
-  
+
       return sel;
     }
-  
-    function makeReasonBox(memberKey, sheetFile, eventIndex, initialReason) {
+
+    function makeReasonBox(member_key, sheet_file, event_index, currentReason) {
       const ta = document.createElement("textarea");
       ta.className = "override-reason";
-      ta.rows = 2;
-      ta.value = initialReason;
-      ta.placeholder = "Edit reason or add notes...";
-  
-      const key = `${memberKey}|||${sheetFile}|||${eventIndex}`;
-  
+      ta.placeholder = "Reason (optional)";
+      ta.value = currentReason || "";
+
       ta.addEventListener("input", () => {
         autoGrowTextarea(ta);
-  
-        if (!pendingOverrides[key]) {
-          pendingOverrides[key] = {
-            member_key: memberKey,
-            sheet_file: sheetFile,
-            event_index: eventIndex,
-            status: null,
-            reason: ta.value,
-            source: "manual"
-          };
-        } else {
-          pendingOverrides[key].reason = ta.value;
-        }
-  
-        if (ta.value !== initialReason) {
-          ta.style.borderColor = "rgba(245,197,81,0.55)";
-          ta.style.background = "rgba(245,197,81,0.10)";
-        } else {
-          ta.style.borderColor = "";
-          ta.style.background = "";
-        }
+        const key = `${sheet_file}::${event_index}`;
+        pendingOverrides[key] = pendingOverrides[key] || { member_key, sheet_file, event_index };
+        pendingOverrides[key].override_reason = ta.value || "";
       });
-  
+
       setTimeout(() => autoGrowTextarea(ta), 0);
       return ta;
     }
-    
+
     async function loadEventTableForSheet(memberKey, sheetFile) {
       $("validBody").innerHTML = "";
       $("invalidBody").innerHTML = "";
       setCounts(0, 0);
-    
+
       try {
-        const data = await jget(`/api/member/${encodeURIComponent(memberKey)}/sheet/${encodeURIComponent(sheetFile)}`);
-    
-        const validEvents = data.valid_rows || data.rows || [];
-        const invalidEvents = data.invalid_events || [];
-        
+        const data = await jget(`/api/review/events?member_key=${encodeURIComponent(memberKey)}&sheet_file=${encodeURIComponent(sheetFile)}`);
+
+        const validEvents = data.valid || [];
+        const invalidEvents = data.invalid || [];
         setCounts(validEvents.length, invalidEvents.length);
-    
+
         $("reviewHint").style.display = "none";
-    
-        // Render valid rows
+
         for (const ev of validEvents) {
           const tr = document.createElement("tr");
-          const tdDate = document.createElement("td");
-          tdDate.textContent = safeText(ev.date);
-          
-          const tdShip = document.createElement("td");
-          tdShip.textContent = safeText(ev.ship);
-          
-          const tdEvent = document.createElement("td");
-          tdEvent.textContent = safeText(ev.event);
-          
-          const tdStatus = document.createElement("td");
-          tdStatus.innerHTML = statusBadge(true);
-          
-          const tdOverride = document.createElement("td");
-          const overrideStatus = getOverrideStatus(ev);
-          tdOverride.appendChild(makeOverrideSelect(memberKey, sheetFile, ev.event_index, overrideStatus));
-          
-          const tdReason = document.createElement("td");
-          const displayReason = getDisplayReason(ev);
-          tdReason.appendChild(makeReasonBox(memberKey, sheetFile, ev.event_index, displayReason));
-          
-          tr.appendChild(tdDate);
-          tr.appendChild(tdShip);
-          tr.appendChild(tdEvent);
-          tr.appendChild(tdStatus);
-          tr.appendChild(tdOverride);
-          tr.appendChild(tdReason);
-          
+          tr.innerHTML = `
+            <td>${safeText(pick(ev, ["date", "event_date", "Date"]))}</td>
+            <td>${safeText(pick(ev, ["ship", "Ship"]))}</td>
+            <td>${safeText(pick(ev, ["event", "Event"]))}</td>
+            <td>${statusBadge(true)}</td>
+            <td></td>
+            <td></td>
+          `;
+          const oSel = makeOverrideSelect(memberKey, sheetFile, ev.event_index, ev.override_status || "");
+          const rBox = makeReasonBox(memberKey, sheetFile, ev.event_index, ev.override_reason || "");
+          tr.children[4].appendChild(oSel);
+          tr.children[5].appendChild(rBox);
           $("validBody").appendChild(tr);
         }
-    
-        // Render invalid rows
+
         for (const ev of invalidEvents) {
           const tr = document.createElement("tr");
-          const tdDate = document.createElement("td");
-          tdDate.textContent = safeText(ev.date);
-          
-          const tdShip = document.createElement("td");
-          tdShip.textContent = safeText(ev.ship);
-          
-          const tdEvent = document.createElement("td");
-          tdEvent.textContent = safeText(ev.event);
-          
-          const tdStatus = document.createElement("td");
-          tdStatus.innerHTML = statusBadge(false);
-          
-          const tdOverride = document.createElement("td");
-          const overrideStatus = getOverrideStatus(ev);
-          tdOverride.appendChild(makeOverrideSelect(memberKey, sheetFile, ev.event_index, overrideStatus));
-          
-          const tdReason = document.createElement("td");
-          const displayReason = getDisplayReason(ev);
-          tdReason.appendChild(makeReasonBox(memberKey, sheetFile, ev.event_index, displayReason));
-          
-          tr.appendChild(tdDate);
-          tr.appendChild(tdShip);
-          tr.appendChild(tdEvent);
-          tr.appendChild(tdStatus);
-          tr.appendChild(tdOverride);
-          tr.appendChild(tdReason);
-          
+          tr.innerHTML = `
+            <td>${safeText(pick(ev, ["date", "event_date", "Date"]))}</td>
+            <td>${safeText(pick(ev, ["ship", "Ship"]))}</td>
+            <td>${safeText(pick(ev, ["event", "Event"]))}</td>
+            <td>${statusBadge(false)}</td>
+            <td></td>
+            <td></td>
+          `;
+          const oSel = makeOverrideSelect(memberKey, sheetFile, ev.event_index, ev.override_status || "");
+          const rBox = makeReasonBox(memberKey, sheetFile, ev.event_index, ev.override_reason || "");
+          tr.children[4].appendChild(oSel);
+          tr.children[5].appendChild(rBox);
           $("invalidBody").appendChild(tr);
         }
-    
-        setTimeout(() => patchFitAllReasonCells(), 0);
-    
+
+        setTimeout(() => {
+          patchFitAllReasonCells();
+        }, 0);
+
       } catch (err) {
         $("reviewHint").textContent = "Error loading events: " + err.message;
         $("reviewHint").style.display = "block";
-        console.error("Load sheet error:", err);
       }
     }
-  
-    // ✅ FIX: Use correct download URLs
-    $("btnMerged").addEventListener("click", () => window.location = "/download_merged");
-    $("btnAll").addEventListener("click", () => window.location = "/download_all");
-  
+
     $("processBtn").addEventListener("click", async () => {
       const pdfs = $("pdfs").files;
       if (!pdfs || pdfs.length === 0) {
         alert("Please select at least one Sea Duty Cert PDF.");
         return;
       }
-  
+
       const form = new FormData();
       for (const f of pdfs) form.append("pdfs", f);
       if ($("ratesCsv").files && $("ratesCsv").files[0]) form.append("rates_csv", $("ratesCsv").files[0]);
       if ($("templatePdf").files && $("templatePdf").files[0]) form.append("template_pdf", $("templatePdf").files[0]);
       form.append("strikeout_color", $("strikeColor").value || "Black");
-  
+
       $("processBtn").disabled = true;
       setStatusText("PROCESSING • starting...", 1);
-  
+
       try {
         const r = await fetch("/process", { method: "POST", body: form });
         if (!r.ok) throw new Error("Process failed: " + r.status);
@@ -1196,7 +1088,7 @@
         setTimeout(() => { $("processBtn").disabled = false; }, 1200);
       }
     });
-  
+
     $("btnReset").addEventListener("click", async () => {
       if (!confirm("⚠️ Reset all output and overrides? This cannot be undone.")) return;
       $("btnReset").disabled = true;
@@ -1222,24 +1114,19 @@
         $("btnReset").disabled = false;
       }
     });
-  
+
+    $("btnMerged").addEventListener("click", () => window.open("/download/merged", "_blank"));
+    $("btnAll").addEventListener("click", () => window.open("/download/all", "_blank"));
+
     loadMembers().catch(() => {});
-  
+
     $("memberSelect").addEventListener("change", async (e) => {
       const memberKey = e.target.value;
       lastSelectedMember = memberKey;
       pendingOverrides = {};
-      if (memberKey) {
-        await loadSheetsForMember(memberKey);
-      } else {
-        $("sheetSelect").innerHTML = '<option value="">Select sheet</option>';
-        $("sheetSelect").disabled = true;
-        $("validBody").innerHTML = "";
-        $("invalidBody").innerHTML = "";
-        setCounts(0, 0);
-      }
+      await loadSheetsForMember(memberKey);
     });
-  
+
     $("sheetSelect").addEventListener("change", async (e) => {
       const sheetFile = e.target.value;
       lastSelectedSheet = sheetFile;
@@ -1247,55 +1134,63 @@
       if (!sheetFile || !lastSelectedMember) return;
       await loadEventTableForSheet(lastSelectedMember, sheetFile);
     });
-  
+
     $("saveOverridesBtn").addEventListener("click", async function() {
       const overrides = Object.values(pendingOverrides);
       if (overrides.length === 0) {
-        alert("ℹ️ No changes to save");
+        alert("No changes to save");
         return;
       }
-  
+
+      const transformedOverrides = overrides.map(override => ({
+        member_key: override.member_key,
+        sheet_file: override.sheet_file,
+        event_index: override.event_index,
+        status: override.override_status || "",
+        reason: override.override_reason || "",
+        source: "manual"
+      }));
+
       $("saveOverridesBtn").disabled = true;
       try {
-        await jpost("/api/overrides/batch", overrides);
+        await jpost("/api/overrides/batch", transformedOverrides);
         alert(`✅ Saved ${overrides.length} override(s)`);
         pendingOverrides = {};
-  
+
         if (lastSelectedMember && lastSelectedSheet) {
           await loadEventTableForSheet(lastSelectedMember, lastSelectedSheet);
         }
       } catch (err) {
-        alert("❌ Error saving: " + err.message);
-        console.error("Save error:", err);
+        alert("Error saving overrides: " + err.message);
       } finally {
         $("saveOverridesBtn").disabled = false;
       }
     });
-  
+
     $("rebuildBtn").addEventListener("click", async function() {
-      if (!confirm("🔄 Rebuild all outputs using current overrides?")) return;
-  
+      if (!confirm("🔄 Rebuild all output files using current overrides?")) return;
+
       $("rebuildBtn").disabled = true;
       try {
         const resp = await jpost("/rebuild_outputs", {});
         alert("✅ " + (resp.status || "Rebuild complete"));
       } catch (err) {
-        alert("❌ Error rebuilding: " + err.message);
+        alert("Error rebuilding: " + err.message);
       } finally {
         setTimeout(() => {
           $("rebuildBtn").disabled = false;
         }, 1000);
       }
     });
-  
-    // Help modal
+
+    // ===== HELP MODAL =====
     (function initHelpModal(){
       const modal = $("helpModal");
       const btn = $("helpBtn");
       const closeBtn = $("helpCloseBtn");
-  
+
       if (!modal || !btn || !closeBtn) return;
-  
+
       function openHelp(){
         modal.classList.add("open");
         modal.setAttribute("aria-hidden", "false");
@@ -1308,19 +1203,19 @@
         document.body.style.overflow = "";
         btn.focus({ preventScroll: true });
       }
-  
+
       btn.addEventListener("click", openHelp);
       closeBtn.addEventListener("click", closeHelp);
-  
+
       modal.addEventListener("click", (e) => {
         if (e.target && (e.target.dataset && e.target.dataset.close === "1")) closeHelp();
       });
-  
+
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && modal.classList.contains("open")) closeHelp();
       });
     })();
-  
+
     if ($("yearNow")) $("yearNow").textContent = new Date().getFullYear();
   </script>
 </body>
