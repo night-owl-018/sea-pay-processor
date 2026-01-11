@@ -54,7 +54,7 @@ def _build_table_lines_from_pdf_text(pdf_text: str):
     # PATCH: ship names can be multi-word; capture lazily up to '('
     # Example: "8/25/2025 PAUL HAMILTON (ASW T-2) ..."
     pat = re.compile(
-        r"\b(\d{1,2}/\d{1,2}/\d{4})\b\s+([A-Z0-9][A-Z0-9 ]{2,}?)\s*\(\s*((?:ASW|ASTAC)[^)]*)\)",
+        r"\b(\d{1,2}/\d{1,2}/\d{4})\b\s+([A-Z0-9][A-Z0-9 ]{2,}?)\s*\(\s*([^)]+)\)",
         re.IGNORECASE,
     )
 
@@ -127,3 +127,4 @@ def extract_member_name(text):
     if not m:
         raise RuntimeError("NAME NOT FOUND")
     return " ".join(m.group(1).split())
+
