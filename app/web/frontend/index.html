@@ -713,8 +713,129 @@
 
   </div>
 
+  <!-- HELP MODAL -->
+  <div id="helpModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; overflow-y: auto; backdrop-filter: blur(8px);">
+    <div style="max-width: 900px; margin: 40px auto; padding: 20px;">
+      <div class="card" style="margin-bottom: 20px;">
+        <h3 style="display: flex; justify-content: space-between; align-items: center;">
+          <span>📖 User Guide & Help</span>
+          <button onclick="$('helpModal').style.display='none'" style="width: auto; padding: 8px 16px; font-size: 14px;" class="danger">✕ Close</button>
+        </h3>
+        <div class="body" style="max-height: 70vh; overflow-y: auto;">
+          
+          <h4 style="color: var(--accent); margin-top: 0;">🚀 Quick Start Guide</h4>
+          <ol style="line-height: 1.8; padding-left: 20px;">
+            <li><strong>Upload Files:</strong> Select one or more Sea Duty Certification PDFs in the "Input Files" section</li>
+            <li><strong>Optional:</strong> Upload a custom Rate CSV or Template PDF if needed</li>
+            <li><strong>Process:</strong> Click the "▶️ Process" button to begin automated processing</li>
+            <li><strong>Review:</strong> Check the "Review & Override" section to verify results</li>
+            <li><strong>Download:</strong> Use the download buttons to get your processed files</li>
+          </ol>
+
+          <h4 style="color: var(--accent); margin-top: 24px;">📂 Input Files</h4>
+          <ul style="line-height: 1.8; padding-left: 20px;">
+            <li><strong>Sea Duty Cert (PDF):</strong> Required. Upload one or more certification PDFs to process</li>
+            <li><strong>Rate CSV:</strong> Optional. Custom rate/rank definitions. System includes default rates</li>
+            <li><strong>Template PDF:</strong> Optional. Custom PG-13 form template. System includes default template</li>
+          </ul>
+
+          <h4 style="color: var(--accent); margin-top: 24px;">⚙️ System Controls</h4>
+          <ul style="line-height: 1.8; padding-left: 20px;">
+            <li><strong>Status:</strong> Shows current processing status with progress percentage</li>
+            <li><strong>Strikeout Color:</strong> Choose Black or Red for invalid entry strikethrough on TORIS certs</li>
+            <li><strong>▶️ Process:</strong> Starts processing of uploaded files</li>
+            <li><strong>🗑️ Reset:</strong> Clears all data and outputs (cannot be undone)</li>
+            <li><strong>💾 Save Overrides:</strong> Saves any manual corrections you've made to event validation</li>
+            <li><strong>🔄 Rebuild Outputs:</strong> Regenerates all PDFs using current override settings</li>
+          </ul>
+
+          <h4 style="color: var(--accent); margin-top: 24px;">📥 Downloads</h4>
+          <ul style="line-height: 1.8; padding-left: 20px;">
+            <li><strong>📦 Package:</strong> Download merged package with all members organized with bookmarks</li>
+            <li><strong>📂 All:</strong> Download complete output folder as ZIP (all files, all members)</li>
+            <li><strong>Per-Member Downloads:</strong> Select a member from dropdown to download their specific files:
+              <ul style="margin-top: 8px;">
+                <li>📄 Summary - Text summary of valid/invalid periods</li>
+                <li>📋 TORIS Cert - Annotated certification with strikeouts</li>
+                <li>📑 PG-13 Forms - Generated payment forms</li>
+                <li>📦 All Files - Complete package for that member</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h4 style="color: var(--accent); margin-top: 24px;">✏️ Review & Override</h4>
+          <p style="line-height: 1.8;">After processing, you can review and manually override the system's validation decisions:</p>
+          <ol style="line-height: 1.8; padding-left: 20px;">
+            <li>Select a member from the dropdown</li>
+            <li>Select a sheet/page from their certification</li>
+            <li>Review the Valid and Invalid events tables</li>
+            <li>Use the Override dropdown to change validation status:
+              <ul style="margin-top: 8px;">
+                <li><strong>🔄 Auto:</strong> Use system's automatic validation</li>
+                <li><strong>✅ Valid:</strong> Force event to be valid (payable)</li>
+                <li><strong>❌ Invalid:</strong> Force event to be invalid (non-payable)</li>
+              </ul>
+            </li>
+            <li>Add a reason/note in the Reason field (optional but recommended)</li>
+            <li>Click "💾 Save Overrides" to apply your changes</li>
+            <li>Click "🔄 Rebuild Outputs" to regenerate PDFs with your overrides</li>
+          </ol>
+
+          <h4 style="color: var(--accent); margin-top: 24px;">🎯 Custom Download & Merge</h4>
+          <p style="line-height: 1.8;">Create custom packages with only the members and file types you need:</p>
+          <ol style="line-height: 1.8; padding-left: 20px;">
+            <li>Use "☑ Select All" or "☐ Deselect All" for quick selection</li>
+            <li>Check individual members you want to include</li>
+            <li>For each member, choose which file types to include (Summary, TORIS Cert, PG-13 Forms)</li>
+            <li>Click "📥 Download ZIP" to get selected files as a ZIP archive</li>
+            <li>Click "📦 Merge to PDF" to combine all selected files into one PDF with bookmarks</li>
+          </ol>
+
+          <h4 style="color: var(--accent); margin-top: 24px;">📜 Live Processing Log</h4>
+          <p style="line-height: 1.8;">Monitor real-time progress of file processing. The log shows:</p>
+          <ul style="line-height: 1.8; padding-left: 20px;">
+            <li>Files being processed</li>
+            <li>OCR and parsing status</li>
+            <li>Validation results</li>
+            <li>Output generation progress</li>
+            <li>Any errors or warnings</li>
+          </ul>
+
+          <h4 style="color: var(--accent); margin-top: 24px;">🔧 Troubleshooting</h4>
+          <ul style="line-height: 1.8; padding-left: 20px;">
+            <li><strong>Files not processing?</strong> Check the Live Processing Log for error messages</li>
+            <li><strong>Missing events?</strong> Use the Review & Override section to manually add them</li>
+            <li><strong>Wrong validation?</strong> Override the event status and add a reason</li>
+            <li><strong>Changes not showing?</strong> Make sure to click "💾 Save Overrides" then "🔄 Rebuild Outputs"</li>
+            <li><strong>Download not working?</strong> Open browser console (F12) and check for error messages</li>
+            <li><strong>Start fresh?</strong> Use the "🗑️ Reset" button to clear all data</li>
+          </ul>
+
+          <h4 style="color: var(--accent); margin-top: 24px;">💡 Tips & Best Practices</h4>
+          <ul style="line-height: 1.8; padding-left: 20px;">
+            <li>Always review the output before submitting for official use</li>
+            <li>Add detailed reasons when overriding automatic validation</li>
+            <li>Use the merged package for easy distribution to multiple personnel</li>
+            <li>Keep a backup of your original PDFs before processing</li>
+            <li>Process files in small batches for easier review</li>
+            <li>Check the valid/invalid counts after processing</li>
+          </ul>
+
+          <h4 style="color: var(--accent); margin-top: 24px;">📞 Support</h4>
+          <p style="line-height: 1.8;">
+            For technical support, bug reports, or feature requests, contact:<br>
+            <strong>STG1(SW) Ryan Nivera</strong><br>
+            Email: <a href="mailto:ryan.n.nivera.mil@us.navy.mil" style="color: var(--accent);">ryan.n.nivera.mil@us.navy.mil</a>
+          </p>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
   <footer class="app-footer">
     <div class="footer-inner">
+      <button onclick="$('helpModal').style.display='block'" style="width: auto; padding: 6px 12px; font-size: 12px; margin-right: 12px;" class="secondary">📖 Help</button>
       Developed by
       <a href="mailto:ryan.n.nivera.mil@us.navy.mil">STG1(SW) Ryan Nivera</a>
       © <span id="yearNow">2025</span>
