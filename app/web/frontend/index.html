@@ -659,6 +659,50 @@
       </div>
     </div>
 
+    <!-- CUSTOM DOWNLOAD & MERGE -->
+    <div class="card" style="margin-bottom: 14px;">
+      <h3>🎯 Custom Download & Merge</h3>
+      <div class="body">
+        
+        <div style="font-size: 12px; color: rgba(245,248,255,0.72); margin-bottom: 10px;">
+          Select members and file types to download or merge:
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="btn-row" style="margin-bottom: 12px;">
+          <button class="secondary" type="button" id="btnSelectAll" style="font-size: 12px; padding: 8px 10px;">
+            ☑ Select All
+          </button>
+          <button class="secondary" type="button" id="btnDeselectAll" style="font-size: 12px; padding: 8px 10px;">
+            ☐ Deselect All
+          </button>
+        </div>
+        
+        <!-- Member Selection List -->
+        <div id="memberSelectionList" style="max-height: 400px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px; background: rgba(6,10,18,0.35);">
+          <div style="text-align: center; color: rgba(245,248,255,0.55); padding: 20px;">
+            Process files first to see member list
+          </div>
+        </div>
+        
+        <!-- Selection Summary -->
+        <div id="selectionSummary" style="margin-top: 10px; padding: 10px; background: rgba(111,183,255,0.1); border-radius: 10px; font-size: 13px; text-align: center; color: rgba(245,248,255,0.82);">
+          Selection: <span id="selectedCount">0 members, 0 items</span>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div class="btn-row" style="margin-top: 12px;">
+          <button class="success" type="button" id="btnDownloadCustom" disabled>
+            📥 Download ZIP
+          </button>
+          <button class="primary" type="button" id="btnMergeCustom" disabled>
+            📦 Merge to PDF
+          </button>
+        </div>
+        
+      </div>
+    </div>
+
     <!-- LIVE PROCESSING LOG -->
     <div class="card">
       <h3>📜 Live Processing Log</h3>
@@ -684,6 +728,85 @@
     let pendingOverrides = {};
     let lastSelectedMember = "";
     let lastSelectedSheet = "";
+    let customSelections = {};
+
+    // Custom selection functions
+    window.toggleMember = function(member) {
+      customSelections[member].enabled = !customSelections[member].enabled;
+      if (customSelections[member].enabled) {
+        customSelections[member].summary = true;
+        customSelections[member].toris = true;
+        customSelections[member].pg13 = true;
+      }
+      renderMemberSelectionList();
+    };
+
+    window.toggleFileType = function(member, fileType) {
+      customSelections[member][fileType] = !customSelections[member][fileType];
+      updateSelectionSummary();
+    };
+
+    function renderMemberSelectionList() {
+      const container = $("memberSelectionList");
+      
+      if (Object.keys(customSelections).length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: rgba(245,248,255,0.55); padding: 20px;">Process files first to see member list</div>';
+        return;
+      }
+      
+      let html = '';
+      for (const member in customSelections) {
+        const sel = customSelections[member];
+        const checked = sel.enabled ? 'checked' : '';
+        
+        html += `
+          <div style="margin-bottom: 12px; padding: 10px; border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; background: rgba(20,28,48,0.4);">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; margin-bottom: 8px;">
+              <input type="checkbox" onchange="toggleMember('${member}')" ${checked}>
+              <span>${member}</span>
+            </label>
+            <div style="padding-left: 30px; display: flex; gap: 12px; flex-wrap: wrap;">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+                <input type="checkbox" onchange="toggleFileType('${member}', 'summary')" ${sel.summary ? 'checked' : ''} ${!sel.enabled ? 'disabled' : ''}>
+                <span>📄 Summary</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+                <input type="checkbox" onchange="toggleFileType('${member}', 'toris')" ${sel.toris ? 'checked' : ''} ${!sel.enabled ? 'disabled' : ''}>
+                <span>📋 TORIS Cert</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+                <input type="checkbox" onchange="toggleFileType('${member}', 'pg13')" ${sel.pg13 ? 'checked' : ''} ${!sel.enabled ? 'disabled' : ''}>
+                <span>📑 PG-13 Forms</span>
+              </label>
+            </div>
+          </div>
+        `;
+      }
+      
+      container.innerHTML = html;
+      updateSelectionSummary();
+    }
+
+    function updateSelectionSummary() {
+      let memberCount = 0;
+      let itemCount = 0;
+      
+      for (const member in customSelections) {
+        const sel = customSelections[member];
+        if (sel.enabled) {
+          memberCount++;
+          if (sel.summary) itemCount++;
+          if (sel.toris) itemCount++;
+          if (sel.pg13) itemCount++;
+        }
+      }
+      
+      $("selectedCount").textContent = `${memberCount} members, ${itemCount} items`;
+      
+      const hasSelection = itemCount > 0;
+      $("btnDownloadCustom").disabled = !hasSelection;
+      $("btnMergeCustom").disabled = !hasSelection;
+    }
 
     function safeText(v) {
       if (v === null || v === undefined) return "";
@@ -859,6 +982,86 @@
       window.location = "/download_member/" + encodeURIComponent(member);
     });
 
+    $("btnSelectAll").addEventListener("click", () => {
+      for (const member in customSelections) {
+        customSelections[member].enabled = true;
+        customSelections[member].summary = true;
+        customSelections[member].toris = true;
+        customSelections[member].pg13 = true;
+      }
+      renderMemberSelectionList();
+    });
+
+    $("btnDeselectAll").addEventListener("click", () => {
+      for (const member in customSelections) {
+        customSelections[member].enabled = false;
+        customSelections[member].summary = false;
+        customSelections[member].toris = false;
+        customSelections[member].pg13 = false;
+      }
+      renderMemberSelectionList();
+    });
+
+    $("btnDownloadCustom").addEventListener("click", async () => {
+      const selections = {};
+      for (const member in customSelections) {
+        const sel = customSelections[member];
+        if (sel.enabled) {
+          selections[member] = { summary: sel.summary, toris: sel.toris, pg13: sel.pg13 };
+        }
+      }
+      
+      try {
+        const response = await fetch("/download_custom", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({action: "download", selections: selections})
+        });
+        
+        if (!response.ok) throw new Error("Download failed");
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "CUSTOM_SELECTION.zip";
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        alert("Download failed: " + err.message);
+      }
+    });
+
+    $("btnMergeCustom").addEventListener("click", async () => {
+      const selections = {};
+      for (const member in customSelections) {
+        const sel = customSelections[member];
+        if (sel.enabled) {
+          selections[member] = { summary: sel.summary, toris: sel.toris, pg13: sel.pg13 };
+        }
+      }
+      
+      try {
+        const response = await fetch("/download_custom", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({action: "merge", selections: selections})
+        });
+        
+        if (!response.ok) throw new Error("Merge failed");
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "CUSTOM_MERGED_PACKAGE.pdf";
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        alert("Merge failed: " + err.message);
+      }
+    });
+
     $("btnReset").addEventListener("click", async () => {
       if (!confirm("⚠️ Reset all output and overrides? This cannot be undone.")) return;
       try {
@@ -892,16 +1095,26 @@
         const sel = $("memberSelect");
         const current = sel.value;
         sel.innerHTML = '<option value="">Select member</option>';
+        
+        customSelections = {};
         for (const m of members) {
           const opt = document.createElement("option");
           opt.value = m;
           opt.textContent = m;
           sel.appendChild(opt);
+          
+          customSelections[m] = {
+            enabled: false,
+            summary: false,
+            toris: false,
+            pg13: false
+          };
         }
         if (current && members.includes(current)) {
           sel.value = current;
         }
         lastSelectedMember = sel.value;
+        renderMemberSelectionList();
       } catch (e) {}
     }
 
