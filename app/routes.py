@@ -402,6 +402,141 @@ def download_merged():
     return send_file(mem, as_attachment=True, download_name="MERGED_PACKAGE.zip")
 
 
+@bp.route("/download_member/<member_key>")
+def download_member(member_key):
+    """
+    Download all files for a specific member as a ZIP.
+    Includes: Summary PDF, TORIS Cert, and all PG-13 forms.
+    """
+    from app.core.config import SUMMARY_PDF_FOLDER, TORIS_CERT_FOLDER, SEA_PAY_PG13_FOLDER
+    
+    # Convert member_key to safe filename prefix
+    # Example: "OSC BYRNES,BRIAN" -> "OSC_BYRNES_BRIAN"
+    safe_prefix = member_key.replace(" ", "_").replace(",", "_")
+    
+    mem = io.BytesIO()
+    file_count = 0
+    
+    with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
+        # Add summary PDF
+        summary_path = os.path.join(SUMMARY_PDF_FOLDER, f"{safe_prefix}_SUMMARY.pdf")
+        if os.path.exists(summary_path):
+            z.write(summary_path, os.path.basename(summary_path))
+            file_count += 1
+        
+        # Add TORIS cert
+        if os.path.exists(TORIS_CERT_FOLDER):
+            toris_files = [f for f in os.listdir(TORIS_CERT_FOLDER) 
+                          if f.startswith(safe_prefix) and f.endswith('.pdf')]
+            for f in toris_files:
+                full_path = os.path.join(TORIS_CERT_FOLDER, f)
+                z.write(full_path, f)
+                file_count += 1
+        
+        # Add PG-13s
+        if os.path.exists(SEA_PAY_PG13_FOLDER):
+            pg13_files = [f for f in os.listdir(SEA_PAY_PG13_FOLDER) 
+                         if f.startswith(safe_prefix) and f.endswith('.pdf')]
+            for f in sorted(pg13_files):
+                full_path = os.path.join(SEA_PAY_PG13_FOLDER, f)
+                z.write(full_path, f)
+                file_count += 1
+    
+    if file_count == 0:
+        return jsonify({"error": f"No files found for member {member_key}"}), 404
+    
+    mem.seek(0)
+    return send_file(
+        mem, 
+        as_attachment=True, 
+        download_name=f"{safe_prefix}_FILES.zip",
+        mimetype='application/zip'
+    )
+
+
+@bp.route("/download_member_summary/<member_key>")
+def download_member_summary(member_key):
+    """Download only the summary PDF for a member."""
+    from app.core.config import SUMMARY_PDF_FOLDER
+    
+    safe_prefix = member_key.replace(" ", "_").replace(",", "_")
+    summary_path = os.path.join(SUMMARY_PDF_FOLDER, f"{safe_prefix}_SUMMARY.pdf")
+    
+    if not os.path.exists(summary_path):
+        return jsonify({"error": f"Summary not found for {member_key}"}), 404
+    
+    return send_file(
+        summary_path,
+        as_attachment=True,
+        download_name=f"{safe_prefix}_SUMMARY.pdf"
+    )
+
+
+@bp.route("/download_member_toris/<member_key>")
+def download_member_toris(member_key):
+    """Download only the TORIS cert for a member."""
+    from app.core.config import TORIS_CERT_FOLDER
+    
+    safe_prefix = member_key.replace(" ", "_").replace(",", "_")
+    
+    if not os.path.exists(TORIS_CERT_FOLDER):
+        return jsonify({"error": "TORIS folder not found"}), 404
+    
+    toris_files = [f for f in os.listdir(TORIS_CERT_FOLDER) 
+                  if f.startswith(safe_prefix) and f.endswith('.pdf')]
+    
+    if not toris_files:
+        return jsonify({"error": f"TORIS cert not found for {member_key}"}), 404
+    
+    toris_path = os.path.join(TORIS_CERT_FOLDER, toris_files[0])
+    return send_file(
+        toris_path,
+        as_attachment=True,
+        download_name=toris_files[0]
+    )
+
+
+@bp.route("/download_member_pg13s/<member_key>")
+def download_member_pg13s(member_key):
+    """Download only the PG-13 forms for a member as a ZIP."""
+    from app.core.config import SEA_PAY_PG13_FOLDER
+    
+    safe_prefix = member_key.replace(" ", "_").replace(",", "_")
+    
+    if not os.path.exists(SEA_PAY_PG13_FOLDER):
+        return jsonify({"error": "PG-13 folder not found"}), 404
+    
+    pg13_files = [f for f in os.listdir(SEA_PAY_PG13_FOLDER) 
+                 if f.startswith(safe_prefix) and f.endswith('.pdf')]
+    
+    if not pg13_files:
+        return jsonify({"error": f"No PG-13 forms found for {member_key}"}), 404
+    
+    # If only one PG-13, send it directly
+    if len(pg13_files) == 1:
+        pg13_path = os.path.join(SEA_PAY_PG13_FOLDER, pg13_files[0])
+        return send_file(
+            pg13_path,
+            as_attachment=True,
+            download_name=pg13_files[0]
+        )
+    
+    # If multiple PG-13s, zip them
+    mem = io.BytesIO()
+    with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in sorted(pg13_files):
+            full_path = os.path.join(SEA_PAY_PG13_FOLDER, f)
+            z.write(full_path, f)
+    
+    mem.seek(0)
+    return send_file(
+        mem,
+        as_attachment=True,
+        download_name=f"{safe_prefix}_PG13_FORMS.zip",
+        mimetype='application/zip'
+    )
+
+
 @bp.route("/reset", methods=["POST"])
 def reset():
     """
