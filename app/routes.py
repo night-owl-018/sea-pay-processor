@@ -537,6 +537,113 @@ def download_member_pg13s(member_key):
     )
 
 
+@bp.route("/download_custom", methods=["POST"])
+def download_custom():
+    """Download or merge custom selection of members and file types."""
+    from app.core.config import SUMMARY_PDF_FOLDER, TORIS_CERT_FOLDER, SEA_PAY_PG13_FOLDER
+    from PyPDF2 import PdfWriter, PdfReader
+    
+    data = request.json
+    action = data.get("action", "download")
+    selections = data.get("selections", {})
+    
+    if not selections:
+        return jsonify({"error": "No selections provided"}), 400
+    
+    if action == "download":
+        # Create ZIP with selected files
+        mem = io.BytesIO()
+        file_count = 0
+        
+        with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
+            for member_key, options in selections.items():
+                safe_prefix = member_key.replace(" ", "_").replace(",", "_")
+                
+                # Add summary if selected
+                if options.get("summary"):
+                    summary_path = os.path.join(SUMMARY_PDF_FOLDER, f"{safe_prefix}_SUMMARY.pdf")
+                    if os.path.exists(summary_path):
+                        z.write(summary_path, os.path.basename(summary_path))
+                        file_count += 1
+                
+                # Add TORIS if selected
+                if options.get("toris") and os.path.exists(TORIS_CERT_FOLDER):
+                    toris_files = [f for f in os.listdir(TORIS_CERT_FOLDER) 
+                                  if f.startswith(safe_prefix) and f.endswith('.pdf')]
+                    for f in toris_files:
+                        z.write(os.path.join(TORIS_CERT_FOLDER, f), f)
+                        file_count += 1
+                
+                # Add PG-13s if selected
+                if options.get("pg13") and os.path.exists(SEA_PAY_PG13_FOLDER):
+                    pg13_files = [f for f in os.listdir(SEA_PAY_PG13_FOLDER) 
+                                 if f.startswith(safe_prefix) and f.endswith('.pdf')]
+                    for f in sorted(pg13_files):
+                        z.write(os.path.join(SEA_PAY_PG13_FOLDER, f), f)
+                        file_count += 1
+        
+        if file_count == 0:
+            return jsonify({"error": "No files found for selection"}), 404
+        
+        mem.seek(0)
+        return send_file(mem, as_attachment=True, download_name="CUSTOM_SELECTION.zip", mimetype='application/zip')
+    
+    elif action == "merge":
+        # Create merged PDF with bookmarks
+        writer = PdfWriter()
+        page_count = 0
+        
+        for member_key, options in selections.items():
+            safe_prefix = member_key.replace(" ", "_").replace(",", "_")
+            parent_bookmark = writer.add_outline_item(member_key, page_count)
+            
+            # Add summary if selected
+            if options.get("summary"):
+                summary_path = os.path.join(SUMMARY_PDF_FOLDER, f"{safe_prefix}_SUMMARY.pdf")
+                if os.path.exists(summary_path):
+                    reader = PdfReader(summary_path)
+                    writer.add_outline_item("Summary", page_count, parent=parent_bookmark)
+                    for page in reader.pages:
+                        writer.add_page(page)
+                        page_count += 1
+            
+            # Add TORIS if selected
+            if options.get("toris") and os.path.exists(TORIS_CERT_FOLDER):
+                toris_files = [f for f in os.listdir(TORIS_CERT_FOLDER) 
+                              if f.startswith(safe_prefix) and f.endswith('.pdf')]
+                for f in toris_files:
+                    reader = PdfReader(os.path.join(TORIS_CERT_FOLDER, f))
+                    writer.add_outline_item("TORIS Certification", page_count, parent=parent_bookmark)
+                    for page in reader.pages:
+                        writer.add_page(page)
+                        page_count += 1
+            
+            # Add PG-13s if selected
+            if options.get("pg13") and os.path.exists(SEA_PAY_PG13_FOLDER):
+                pg13_files = [f for f in os.listdir(SEA_PAY_PG13_FOLDER) 
+                             if f.startswith(safe_prefix) and f.endswith('.pdf')]
+                if pg13_files:
+                    pg13_parent = writer.add_outline_item("PG-13 Forms", page_count, parent=parent_bookmark)
+                    for f in sorted(pg13_files):
+                        reader = PdfReader(os.path.join(SEA_PAY_PG13_FOLDER, f))
+                        match = re.search(r'PG13__(.+?)__\d', f)
+                        ship_name = match.group(1).replace("_", " ") if match else f
+                        writer.add_outline_item(ship_name, page_count, parent=pg13_parent)
+                        for page in reader.pages:
+                            writer.add_page(page)
+                            page_count += 1
+        
+        if page_count == 0:
+            return jsonify({"error": "No pages to merge"}), 404
+        
+        mem = io.BytesIO()
+        writer.write(mem)
+        mem.seek(0)
+        return send_file(mem, as_attachment=True, download_name="CUSTOM_MERGED_PACKAGE.pdf", mimetype='application/pdf')
+    
+    return jsonify({"error": "Invalid action"}), 400
+
+
 @bp.route("/reset", methods=["POST"])
 def reset():
     """
