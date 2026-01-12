@@ -4,6 +4,9 @@ import json
 import shutil  # 🔹 PATCH: Add shutil import
 from datetime import datetime
 
+# 🔹 PATCH: Import routes to access cancel flag
+import app.web.routes as routes_module
+
 from app.core.logger import (
     log,
     reset_progress,
@@ -34,6 +37,15 @@ from app.core.rates import resolve_identity
 
 # Phase 4 – manual overrides (Option A)
 from app.core.overrides import apply_overrides
+
+
+# 🔹 PATCH: Cancel check helper
+def is_cancelled():
+    """Check if processing has been cancelled"""
+    try:
+        return routes_module.processing_cancelled
+    except:
+        return False
 
 
 # 🔹 =====================================================
@@ -254,6 +266,12 @@ def process_all(strike_color: str = "black"):
     # PROCESS EACH INPUT PDF
     # --------------------------------------------------
     for idx, file in enumerate(sorted(files)):
+        # 🔹 PATCH: Check for cancellation at start of each file
+        if is_cancelled():
+            log("❌ PROCESSING CANCELLED BY USER")
+            set_progress(status="CANCELLED", percent=0, current_step="Cancelled by user")
+            return
+            
         path = os.path.join(DATA_DIR, file)
 
         # 🔹 PATCH: OCR step (0% of this file)
@@ -265,6 +283,12 @@ def process_all(strike_color: str = "black"):
         
         # 🔹 PATCH: OCR complete (20% of this file)
         progress.update(idx, progress.STEP_OCR, f"[{idx+1}/{total_files}] OCR complete: {file}")
+        
+        # 🔹 PATCH: Check for cancellation after OCR
+        if is_cancelled():
+            log("❌ PROCESSING CANCELLED BY USER")
+            set_progress(status="CANCELLED", percent=0, current_step="Cancelled by user")
+            return
         
         sheet_start, sheet_end, _ = extract_reporting_period(raw, file)
 
@@ -283,6 +307,12 @@ def process_all(strike_color: str = "black"):
         # 3. Parse rows (TORIS logic, including SBTT/MITE suppression)
         year = extract_year_from_filename(file)
         rows, skipped_dupe, skipped_unknown = parse_rows(raw, year)
+
+        # 🔹 PATCH: Check for cancellation after parsing
+        if is_cancelled():
+            log("❌ PROCESSING CANCELLED BY USER")
+            set_progress(status="CANCELLED", percent=0, current_step="Cancelled by user")
+            return
 
         # 🔹 PATCH: Validation step (50% of this file)
         progress.update(idx, progress.STEP_OCR + progress.STEP_PARSE + progress.STEP_VALIDATION,
@@ -465,6 +495,12 @@ def process_all(strike_color: str = "black"):
         sd["skipped_unknown"].extend(skipped_unknown)
         sd["skipped_dupe"].extend(skipped_dupe)
 
+        # 🔹 PATCH: Check for cancellation before TORIS marking
+        if is_cancelled():
+            log("❌ PROCESSING CANCELLED BY USER")
+            set_progress(status="CANCELLED", percent=0, current_step="Cancelled by user")
+            return
+
         # 🔹 PATCH: TORIS marking (80% of this file)
         progress.update(idx, progress.STEP_OCR + progress.STEP_PARSE + 
                        progress.STEP_VALIDATION + progress.STEP_REVIEW_STATE + progress.STEP_TORIS,
@@ -609,6 +645,12 @@ def rebuild_outputs_from_review():
     # =============================
     total_members = len(review_state)
     for member_idx, (member_key, member_data) in enumerate(review_state.items(), start=1):
+        # 🔹 PATCH: Check for cancellation during rebuild
+        if is_cancelled():
+            log("❌ REBUILD CANCELLED BY USER")
+            set_progress(status="CANCELLED", percent=0, current_step="Cancelled by user")
+            return
+            
         member_progress = int((member_idx / max(total_members, 1)) * 85)
         set_progress(
             percent=member_progress,
