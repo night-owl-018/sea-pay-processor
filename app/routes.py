@@ -41,6 +41,9 @@ from app.core.merge import merge_all_pdfs
 bp = Blueprint("routes", __name__)
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "web", "frontend")
 
+# 🔹 PATCH: Global flag for cancelling processing
+processing_cancelled = False
+
 
 def _get_override_path(member_key):
     """
@@ -99,6 +102,9 @@ def home():
 
 @bp.route("/process", methods=["POST"])
 def process_route():
+    global processing_cancelled
+    processing_cancelled = False
+    
     clear_logs()
     reset_progress()
     log("=== PROCESS STARTED ===")
@@ -127,9 +133,20 @@ def process_route():
     strike_color = request.form.get("strikeout_color", "Black")
 
     def _run():
+        global processing_cancelled
         try:
+            if processing_cancelled:
+                log("PROCESSING CANCELLED BY USER")
+                set_progress(status="CANCELLED", percent=0, current_step="Cancelled")
+                return
+                
             set_progress(status="PROCESSING", percent=5, current_step="Processing")
             process_all(strike_color=strike_color)
+
+            if processing_cancelled:
+                log("PROCESSING CANCELLED BY USER")
+                set_progress(status="CANCELLED", percent=0, current_step="Cancelled")
+                return
 
             original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
             if os.path.exists(REVIEW_JSON_PATH):
@@ -144,6 +161,16 @@ def process_route():
 
     threading.Thread(target=_run, daemon=True).start()
     return jsonify({"status": "STARTED"})
+
+
+@bp.route("/cancel_process", methods=["POST"])
+def cancel_process():
+    """🔹 PATCH: Cancel ongoing processing"""
+    global processing_cancelled
+    processing_cancelled = True
+    log("=== CANCEL REQUEST RECEIVED ===")
+    set_progress(status="CANCELLING", percent=0, current_step="Cancelling...")
+    return jsonify({"status": "cancelled"})
 
 
 @bp.route("/rebuild_outputs", methods=["POST"])
