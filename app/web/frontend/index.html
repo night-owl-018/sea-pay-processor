@@ -112,7 +112,7 @@
 
     .top-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 14px;
       margin-bottom: 14px;
     }
@@ -152,6 +152,9 @@
       letter-spacing: 0.02em;
       color: rgba(245,248,255,0.92);
       line-height: 1.2;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
     .card .body { padding: 14px; }
 
@@ -344,8 +347,38 @@
       border: none;
     }
 
-    /* Collapsible sections */
-    .collapsible-header {
+    /* 🔹 PATCH: Stats badges in header */
+    .stats-badges {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+      padding-left: 10px;
+    }
+    .stat-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 750;
+      border: 1px solid;
+      white-space: nowrap;
+    }
+    .stat-badge.valid {
+      background: rgba(22,199,132,0.16);
+      color: rgba(22,199,132,1);
+      border-color: rgba(22,199,132,0.35);
+    }
+    .stat-badge.invalid {
+      background: rgba(255,91,107,0.16);
+      color: rgba(255,91,107,1);
+      border-color: rgba(255,91,107,0.35);
+    }
+    .stat-badge .count {
+      font-weight: 850;
+      font-size: 12px;
+    }
       cursor: pointer;
       user-select: none;
       display: flex;
@@ -574,8 +607,11 @@
 
       <!-- SYSTEM -->
       <div class="card">
-        <h3>⚙️ System</h3>
-        <div class="body">
+        <h3 class="collapsible-header" onclick="toggleCollapse('systemContent')">
+          <span class="collapse-icon" id="systemIcon">▼</span>
+          ⚙️ System
+        </h3>
+        <div class="body collapsible-content" id="systemContent">
           <label>Status</label>
           <div class="status" id="statusText">Idle</div>
 
@@ -608,8 +644,11 @@
 
       <!-- DOWNLOADS + MEMBER & STATS -->
       <div class="card">
-        <h3>📥 Downloads & Member</h3>
-        <div class="body">
+        <h3 class="collapsible-header" onclick="toggleCollapse('downloadsContent')">
+          <span class="collapse-icon" id="downloadsIcon">▼</span>
+          📥 Downloads & Member
+        </h3>
+        <div class="body collapsible-content" id="downloadsContent">
           <div class="btn-row" style="margin-top:0; margin-bottom: 12px;">
             <button class="secondary" type="button" id="btnMerged">📦 Package</button>
             <button class="secondary" type="button" id="btnAll">📂 All</button>
@@ -646,15 +685,6 @@
           <select id="sheetSelect" disabled class="mb-1">
             <option value="">Select sheet</option>
           </select>
-
-          <div class="btn-row" style="margin-top: 6px;">
-            <div style="text-align:center; padding: 10px 10px; background: rgba(22,199,132,0.14); color: rgba(245,248,255,0.92); border-radius: 14px; font-size: 13px; font-weight: 850; border: 1px solid rgba(22,199,132,0.22);">
-              ✅ <span id="validCount">0</span>
-            </div>
-            <div style="text-align:center; padding: 10px 10px; background: rgba(255,91,107,0.14); color: rgba(245,248,255,0.92); border-radius: 14px; font-size: 13px; font-weight: 850; border: 1px solid rgba(255,91,107,0.22);">
-              ❌ <span id="invalidCount">0</span>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -662,8 +692,21 @@
 
     <!-- REVIEW & OVERRIDE -->
     <div class="card" style="margin-bottom: 14px;">
-      <h3>✏️ Review & Override</h3>
-      <div class="body">
+      <h3 class="collapsible-header" onclick="toggleCollapse('reviewContent')">
+        <span class="collapse-icon" id="reviewIcon">▼</span>
+        ✏️ Review & Override
+        <div class="stats-badges">
+          <div class="stat-badge valid">
+            <span>✅</span>
+            <span class="count" id="validCount">0</span>
+          </div>
+          <div class="stat-badge invalid">
+            <span>❌</span>
+            <span class="count" id="invalidCount">0</span>
+          </div>
+        </div>
+      </h3>
+      <div class="body collapsible-content" id="reviewContent">
 
         <div class="hint" id="reviewHint">
           👆 Select a member and sheet above to review and override validation results
@@ -904,7 +947,7 @@
     let customSelections = {};
     let processingAborted = false;
 
-    // 🔹 PATCH: Collapse/Expand functionality
+    // 🔹 PATCH: Collapse/Expand functionality with localStorage persistence
     window.toggleCollapse = function(contentId) {
       const content = $(contentId);
       const iconId = contentId.replace('Content', 'Icon');
@@ -913,11 +956,42 @@
       if (content.classList.contains('collapsed')) {
         content.classList.remove('collapsed');
         icon.classList.remove('collapsed');
+        localStorage.setItem('collapse_' + contentId, 'false');
       } else {
         content.classList.add('collapsed');
         icon.classList.add('collapsed');
+        localStorage.setItem('collapse_' + contentId, 'true');
       }
     };
+
+    // 🔹 PATCH: Restore collapse states on page load
+    function restoreCollapseStates() {
+      const collapsibles = [
+        'inputFilesContent',
+        'systemContent', 
+        'downloadsContent',
+        'reviewContent',
+        'customDownloadContent',
+        'liveLogContent'
+      ];
+      
+      collapsibles.forEach(contentId => {
+        const isCollapsed = localStorage.getItem('collapse_' + contentId) === 'true';
+        if (isCollapsed) {
+          const content = $(contentId);
+          const iconId = contentId.replace('Content', 'Icon');
+          const icon = $(iconId);
+          
+          if (content && icon) {
+            content.classList.add('collapsed');
+            icon.classList.add('collapsed');
+          }
+        }
+      });
+    }
+
+    // Call on page load
+    restoreCollapseStates();
 
     // Custom selection functions
     window.toggleMember = function(member) {
