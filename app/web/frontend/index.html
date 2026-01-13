@@ -673,6 +673,18 @@
             <option value="Red">🔴 Red</option>
           </select>
 
+          <div style="height:12px;"></div>
+
+          <!-- 🔹 NEW: PG-13 Consolidation Option -->
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="consolidatePG13" name="consolidate_pg13" style="width: auto; cursor: pointer;">
+            <span style="font-weight: 650; font-size: 13px;">📄 Consolidate PG-13s by Ship</span>
+          </label>
+          <div style="font-size: 11px; color: rgba(245,248,255,0.62); margin-top: 4px; line-height: 1.4;">
+            When checked, creates <strong>one PG-13 per ship</strong> with all periods listed.<br>
+            Saves paper when a sailor has multiple periods on the same ship.
+          </div>
+
           <!-- PATCH: ALL FOUR buttons in ONE wrapper (2x2 grid) -->
           <div class="system-actions">
             <button type="button" id="processBtn" class="primary">▶️ Process</button>
@@ -1369,6 +1381,7 @@
       if ($("ratesCsv").files[0]) fd.append("rates_csv", $("ratesCsv").files[0]);
       if ($("templatePdf").files[0]) fd.append("template_pdf", $("templatePdf").files[0]);
       fd.append("strikeout_color", $("strikeColor").value);
+      fd.append("consolidate_pg13", $("consolidatePG13").checked ? "true" : "false");
       
       $("processBtn").disabled = true;
       $("btnCancel").disabled = false;
@@ -1987,7 +2000,8 @@
 
       $("rebuildBtn").disabled = true;
       try {
-        const resp = await jpost("/rebuild_outputs", {});
+        const consolidate = $("consolidatePG13").checked;
+        const resp = await jpost("/rebuild_outputs", { consolidate_pg13: consolidate });
         alert("✅ " + (resp.status || "Rebuild complete"));
       } catch (err) {
         alert("Error rebuilding: " + err.message);
