@@ -196,21 +196,27 @@ def clear_pg13_folder():
 # ---------------------------------------------------------
 # MAIN PROCESSOR
 # ---------------------------------------------------------
-def process_all(strike_color: str = "black"):
+def process_all(strike_color: str = "black", consolidate_pg13: bool = False):
     """
     Top-level processor with granular progress updates.
+
+    Args:
+        strike_color: Color for invalid entry strikeouts ("black" or "red")
+        consolidate_pg13: If True, creates one PG-13 per ship with all periods.
+                         If False, creates separate PG-13 for each period (default)
 
     - OCR each SEA DUTY CERTIFICATION SHEET
     - Parse rows (SBTT/MITE suppression, mission priority, duplicates)
     - Group into sea pay periods and compute totals
-    - Generate PG-13 PDFs (unchanged)
-    - Mark TORIS sheets with strikeouts (unchanged)
-    - Write summary TXT/PDF + tracker (unchanged)
-    - Merge package (unchanged)
+    - Generate PG-13 PDFs (with optional consolidation)
+    - Mark TORIS sheets with strikeouts
+    - Write summary TXT/PDF + tracker
+    - Merge package
     - Build rich JSON review_state (Phase 3)
     - Apply per-member overrides (Phase 4 Option A)
     
     🔹 PATCH: Now includes granular progress reporting at 1-2% increments
+    🔹 NEW: Optional PG-13 consolidation to save paper
     """
 
     # Ensure key output dirs exist
@@ -550,7 +556,7 @@ def process_all(strike_color: str = "black"):
             progress.update(idx, pg13_progress, 
                           f"[{idx+1}/{total_files}] PG-13 {ship_idx}/{ship_count}: {ship}")
             
-            make_pdf_for_ship(ship, ship_periods, name)
+            make_pdf_for_ship(ship, ship_periods, name, consolidate=consolidate_pg13)
             add_progress_detail("pg13_created", 1)
             pg13_total += 1
 
@@ -616,10 +622,13 @@ def process_all(strike_color: str = "black"):
 # =========================================================
 # REBUILD OUTPUTS FROM REVIEW JSON (NO OCR / NO PARSING)
 # =========================================================
-def rebuild_outputs_from_review():
+def rebuild_outputs_from_review(consolidate_pg13: bool = False):
     """
     Rebuild PG-13, TORIS, summaries, and merged package
     strictly from REVIEW_JSON_PATH.
+    
+    Args:
+        consolidate_pg13: If True, creates one PG-13 per ship with all periods
     
     FIXED: Properly handles force-valid overrides and builds correct summary data
     """
@@ -740,7 +749,7 @@ def rebuild_outputs_from_review():
                 })
 
             # ✅ Create PG-13 for this ship
-            make_pdf_for_ship(ship, periods, name)
+            make_pdf_for_ship(ship, periods, name, consolidate=consolidate_pg13)
             pg13_total += 1
 
         # Sort valid periods chronologically
