@@ -3,9 +3,7 @@ import re
 import json
 import shutil
 from datetime import datetime
-
-# 🔹 PATCH: Import routes to access cancel flag
-import app.routes as routes_module
+import sys
 
 from app.core.logger import (
     log,
@@ -37,12 +35,18 @@ from app.core.rates import resolve_identity
 from app.core.overrides import apply_overrides
 
 
+# 🔹 PATCH: Cancel check helper - uses sys.modules to avoid circular import
 def is_cancelled():
     """Check if processing has been cancelled"""
     try:
-        return routes_module.processing_cancelled
+        # Access routes module from sys.modules after it's already imported
+        routes = sys.modules.get('app.routes')
+        if routes:
+            return getattr(routes, 'processing_cancelled', False)
+        return False
     except:
         return False
+
 
 # 🔹 =====================================================
 # 🔹 PATCH: GRANULAR PROGRESS HELPER
@@ -879,5 +883,3 @@ def rebuild_outputs_from_review():
     )
 
     log("REBUILD OUTPUTS COMPLETE")
-
-
