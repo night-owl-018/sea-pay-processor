@@ -1361,6 +1361,28 @@
           st.removeAttribute("data-has-pct");
         }
 
+        /* ===== PATCH: Auto-manage Cancel button based on status ===== */
+        const cancelBtn = $("btnCancel");
+        const processBtn = $("processBtn");
+        const isProcessing = status && !["Idle", "COMPLETE", "CANCELLED", "CANCELLING"].includes(status.toUpperCase());
+        
+        if (isProcessing) {
+          // Processing is active, enable Cancel and disable Process
+          if (cancelBtn.disabled) {
+            cancelBtn.disabled = false;
+            cancelBtn.innerHTML = "⏹️ Cancel";
+          }
+          processBtn.disabled = true;
+        } else {
+          // Not processing, disable Cancel and enable Process
+          if (!cancelBtn.disabled) {
+            cancelBtn.disabled = true;
+          }
+          if (processBtn.disabled && status !== "CANCELLING") {
+            processBtn.disabled = false;
+          }
+        }
+
         if (typeof log === "string") {
           const logBox = $("liveLog");
           const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 20;
@@ -1401,18 +1423,27 @@
 
     // 🔹 PATCH: Cancel processing button
     $("btnCancel").addEventListener("click", async () => {
-      if (!confirm("⚠️ Cancel current processing? This will stop the operation.")) return;
+      // Disable the button immediately to prevent double-clicks
+      const cancelBtn = $("btnCancel");
+      const originalText = cancelBtn.innerHTML;
+      cancelBtn.disabled = true;
+      cancelBtn.innerHTML = "⏳ Cancelling...";
       
       try {
         processingAborted = true;
         const r = await fetch("/cancel_process", {method:"POST"});
         if (r.ok) {
-          alert("✅ Processing cancelled");
+          alert("✅ Processing cancelled successfully");
           $("processBtn").disabled = false;
-          $("btnCancel").disabled = true;
+        } else {
+          throw new Error("Failed to cancel: " + r.status);
         }
       } catch (err) {
         console.error("Cancel error:", err);
+        alert("❌ Error cancelling process: " + (err.message || String(err)));
+        // Re-enable if there was an error
+        cancelBtn.disabled = false;
+        cancelBtn.innerHTML = originalText;
       }
     });
 
