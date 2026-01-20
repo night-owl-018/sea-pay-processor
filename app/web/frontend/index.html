@@ -1251,6 +1251,7 @@
     let customSelections = {};
     let currentMember = '';
     let currentSheet = '';
+    let lastPollStatus = '';
 
     // API helpers
     async function apiGet(url) {
@@ -1273,13 +1274,14 @@
     }
 
     // Status polling
+    // Replace the old pollProgress function with this one
     async function pollProgress() {
       try {
         const data = await apiGet('/progress');
         const status = data.status || data.state || data.message || 'Idle';
         const pct = data.percent || data.progress || data.pct;
         const log = data.log || data.lines || data.text || '';
-
+    
         // Update status
         const statusEl = $('statusText');
         if (pct != null && pct !== '') {
@@ -1292,7 +1294,7 @@
           statusEl.style.setProperty('--pct', '0%');
           statusEl.removeAttribute('data-has-pct');
         }
-
+    
         // Update action dropdown cancel option based on processing status
         const statusUpper = status.toUpperCase();
         const isProcessing = !['IDLE', 'COMPLETE', 'CANCELLED', 'CANCELLING'].includes(statusUpper);
@@ -1300,7 +1302,7 @@
         if (cancelOption) {
           cancelOption.disabled = !isProcessing;
         }
-
+    
         // Update log
         if (log) {
           const logEl = $('liveLog');
@@ -1308,11 +1310,16 @@
           logEl.textContent = log;
           if (atBottom) logEl.scrollTop = logEl.scrollHeight;
         }
-
-        // Refresh on complete
-        if (status === 'COMPLETE') {
+    
+        // --- Start of Patch ---
+        // Refresh members ONLY when the state transitions to complete.
+        if (statusUpper === 'COMPLETE' && lastPollStatus !== 'COMPLETE') {
           await refreshMembers();
         }
+        // Always update the last known status
+        lastPollStatus = statusUpper;
+        // --- End of Patch ---
+    
       } catch (e) {
         console.error('Poll error:', e);
       }
