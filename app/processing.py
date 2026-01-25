@@ -892,3 +892,297 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
     )
 
     log("REBUILD OUTPUTS COMPLETE")
+
+# =============================================================================
+# REBUILD SINGLE MEMBER FUNCTION
+# =============================================================================
+
+    """
+    Rebuild outputs for a SINGLE member only.
+    
+    This is much faster than rebuilding everything when you just changed
+    one member's overrides.
+    
+    Args:
+        member_key: The member to rebuild (e.g., "STG1 NIVERA,RYAN")
+        consolidate_pg13: If True, creates one PG-13 per ship
+    
+    Returns:
+        dict: Status and info about what was rebuilt
+    """
+    
+    if not os.path.exists(REVIEW_JSON_PATH):
+        log(f"REBUILD SINGLE MEMBER ERROR → REVIEW JSON NOT FOUND")
+        return {"status": "error", "message": "Review JSON not found"}
+    
+    with open(REVIEW_JSON_PATH, "r", encoding="utf-8") as f:
+        review_state = json.load(f)
+    
+    if member_key not in review_state:
+        log(f"REBUILD SINGLE MEMBER ERROR → Member not found: {member_key}")
+        return {"status": "error", "message": f"Member not found: {member_key}"}
+    
+    member_data = review_state[member_key]
+    
+    log(f"=== REBUILDING SINGLE MEMBER: {member_key} ===")
+    
+    rate = member_data["rate"]
+    last = member_data["last"]
+    first = member_data["first"]
+    mi = member_data.get("mi") or member_data.get("middle_initial") or ""
+    
+    # Create safe filename prefix
+    safe_prefix = f"{rate}_{last}_{first}".replace(" ", "_").replace(",", "_")
+    
+    # =============================
+    # 1. DELETE OLD FILES FOR THIS MEMBER
+    # =============================
+    log(f"  → Removing old files for {member_key}")
+    
+    # Delete old PG-13s
+    if os.path.exists(SEA_PAY_PG13_FOLDER):
+        for f in os.listdir(SEA_PAY_PG13_FOLDER):
+            if f.startswith(safe_prefix):
+                os.remove(os.path.join(SEA_PAY_PG13_FOLDER, f))
+                log(f"    - Deleted old PG-13: {f}")
+    
+    # Delete old TORIS
+    if os.path.exists(TORIS_CERT_FOLDER):
+        for f in os.listdir(TORIS_CERT_FOLDER):
+            if f.startswith(safe_prefix):
+                os.remove(os.path.join(TORIS_CERT_FOLDER, f))
+                log(f"    - Deleted old TORIS: {f}")
+    
+    # Delete old summary files
+    summary_txt = os.path.join(SUMMARY_TXT_FOLDER, f"{safe_prefix}_SUMMARY.txt")
+    summary_pdf = os.path.join(SUMMARY_PDF_FOLDER, f"{safe_prefix}_SUMMARY.pdf")
+    if os.path.exists(summary_txt):
+        os.remove(summary_txt)
+        log(f"    - Deleted old summary TXT")
+    if os.path.exists(summary_pdf):
+        os.remove(summary_pdf)
+        log(f"    - Deleted old summary PDF")
+    
+    # Delete old tracker
+    tracker_file = os.path.join(TRACKER_FOLDER, f"{safe_prefix}_TRACKER.txt")
+    if os.path.exists(tracker_file):
+        os.remove(tracker_file)
+        log(f"    - Deleted old tracker")
+    
+    # =============================
+    # 2. COLLECT DATA FROM SHEETS
+    # =============================
+    log(f"  → Collecting data from sheets")
+    
+    all_valid_rows = []
+    all_invalid_events = []
+    
+    summary_data = {
+        member_key: {
+            "rate": rate,
+            "last": last,
+            "first": first,
+            "mi": mi,
+            "valid_periods": [],
+            "invalid_events": [],
+            "events_followed": [],
+            "tracker_lines": [],
+            "reporting_periods": [],
+        }
+    }
+    
+    for sheet in member_data.get("sheets", []):
+        # Extract reporting period if present
+        if sheet.get("reporting_period"):
+            summary_data[member_key]["reporting_periods"].append({
+                "start": sheet["reporting_period"].get("start"),
+                "end": sheet["reporting_period"].get("end"),
+            })
+        
+        # Collect valid rows
+        for row in sheet.get("rows", []):
+            all_valid_rows.append(row)
+        
+        # Collect invalid events
+        for ev in sheet.get("invalid_events", []):
+            all_invalid_events.append(ev)
+    
+    log(f"    - Valid rows: {len(all_valid_rows)}")
+    log(f"    - Invalid events: {len(all_invalid_events)}")
+    
+    # =============================
+    # 3. REBUILD PG-13 FORMS
+    # =============================
+    log(f"  → Rebuilding PG-13 forms")
+    
+    ship_groups = group_by_ship(all_valid_rows)
+    pg13_count = 0
+    
+    if consolidate_pg13:
+        # One form per ship
+        for ship, periods in ship_groups.items():
+            if not periods:
+                continue
+            
+            pg13_name = f"{safe_prefix}__PG13__{ship.replace(' ', '_')}.pdf"
+            pg13_path = os.path.join(SEA_PAY_PG13_FOLDER, pg13_name)
+            
+            make_pdf_for_ship(
+                rate=rate,
+                name=f"{first} {last}",
+                ship=ship,
+                periods=periods,
+                output_path=pg13_path,
+            )
+            pg13_count += 1
+            log(f"    - Created consolidated PG-13: {ship}")
+    else:
+        # Multiple forms per ship (one per period)
+        pg13_idx = 1
+        for ship, periods in ship_groups.items():
+            for period in periods:
+                pg13_name = f"{safe_prefix}__PG13__{ship.replace(' ', '_')}__{pg13_idx:03d}.pdf"
+                pg13_path = os.path.join(SEA_PAY_PG13_FOLDER, pg13_name)
+                
+                make_pdf_for_ship(
+                    rate=rate,
+                    name=f"{first} {last}",
+                    ship=ship,
+                    periods=[period],
+                    output_path=pg13_path,
+                )
+                pg13_idx += 1
+                pg13_count += 1
+        log(f"    - Created {pg13_count} separate PG-13 forms")
+    
+    # =============================
+    # 4. BUILD SUMMARY DATA
+    # =============================
+    log(f"  → Building summary data")
+    
+    # Build valid periods list
+    valid_periods_list = []
+    for row in all_valid_rows:
+        valid_periods_list.append({
+            "ship": row.get("ship", ""),
+            "start": row.get("start_date", ""),
+            "end": row.get("end_date", ""),
+            "days": row.get("days", 0),
+        })
+    
+    summary_data[member_key]["valid_periods"] = valid_periods_list
+    
+    # Build invalid events list
+    for e in all_invalid_events:
+        summary_data[member_key]["invalid_events"].append({
+            "date": e.get("date", ""),
+            "ship": e.get("ship", ""),
+            "reason": e.get("reason", ""),
+        })
+    
+    # Build events followed list
+    events_followed = []
+    for p in valid_periods_list:
+        try:
+            start_dt = datetime.strptime(p["start"], "%m/%d/%Y")
+            end_dt = datetime.strptime(p["end"], "%m/%d/%Y")
+            date_str = f"{start_dt.month}/{start_dt.day}/{start_dt.year} TO {end_dt.month}/{end_dt.day}/{end_dt.year}"
+        except:
+            date_str = f"{p['start']} TO {p['end']}"
+        
+        events_followed.append(f"{date_str} | {p['ship']} | VALID")
+    
+    for e in all_invalid_events:
+        if e.get("date"):
+            try:
+                dt_obj = datetime.strptime(e["date"], "%m/%d/%Y")
+                date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}"
+            except:
+                date_str = e["date"]
+            
+            events_followed.append(f"{date_str} | {e['ship']} | {e['reason']}")
+    
+    summary_data[member_key]["events_followed"] = events_followed
+    
+    # Build tracker lines
+    tracker_lines = []
+    for p in valid_periods_list:
+        try:
+            start_dt = datetime.strptime(p["start"], "%m/%d/%Y")
+            end_dt = datetime.strptime(p["end"], "%m/%d/%Y")
+            days = (end_dt - start_dt).days + 1
+            tracker_lines.append(
+                f"{rate} {last}, {first} | {p['ship']} | "
+                f"{start_dt.month}/{start_dt.day}/{start_dt.year} TO "
+                f"{end_dt.month}/{end_dt.day}/{end_dt.year} "
+                f"({days} day{'s' if days != 1 else ''}) | VALID"
+            )
+        except:
+            pass
+    
+    for e in all_invalid_events:
+        if e.get("date"):
+            try:
+                dt_obj = datetime.strptime(e["date"], "%m/%d/%Y")
+                date_str = f"{dt_obj.month}/{dt_obj.day}/{dt_obj.year}"
+            except:
+                date_str = e["date"]
+            
+            tracker_lines.append(
+                f"{rate} {last}, {first} | {e['ship']} | {date_str} | {e['reason']}"
+            )
+    
+    summary_data[member_key]["tracker_lines"] = tracker_lines
+    
+    # =============================
+    # 5. REBUILD TORIS WITH STRIKEOUTS
+    # =============================
+    log(f"  → Rebuilding TORIS certification")
+    
+    first_sheet = member_data.get("sheets", [{}])[0]
+    src_file = os.path.join(DATA_DIR, first_sheet.get("source_file", ""))
+    
+    if os.path.exists(src_file):
+        toris_name = f"{safe_prefix}__TORIS_SEA_DUTY_CERT_SHEETS.pdf"
+        toris_path = os.path.join(TORIS_CERT_FOLDER, toris_name)
+        
+        computed_days = sum(p["days"] for p in valid_periods_list)
+        
+        mark_sheet_with_strikeouts(
+            src_file,
+            [],  # No duplicates in rebuild
+            all_invalid_events,
+            toris_path,
+            None,
+            computed_days,
+            override_valid_rows=all_valid_rows,
+        )
+        log(f"    - Created TORIS with {computed_days} total days")
+    else:
+        log(f"    ⚠️ Source file not found for TORIS: {src_file}")
+    
+    # =============================
+    # 6. WRITE SUMMARY FILES
+    # =============================
+    log(f"  → Writing summary files")
+    write_summary_files(summary_data)
+    
+    # =============================
+    # 7. REBUILD MERGED PACKAGE
+    # =============================
+    log(f"  → Rebuilding merged package")
+    merge_all_pdfs()
+    
+    log(f"✅ REBUILD COMPLETE FOR {member_key}")
+    log(f"   - {pg13_count} PG-13 forms created")
+    log(f"   - TORIS certification updated")
+    log(f"   - Summary files regenerated")
+    log(f"   - Merged package updated")
+    
+    return {
+        "status": "success",
+        "member_key": member_key,
+        "pg13_count": pg13_count,
+        "valid_rows": len(all_valid_rows),
+        "invalid_events": len(all_invalid_events),
+    }
