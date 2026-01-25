@@ -42,10 +42,11 @@ def _stamp_ui_fields(evt, status, reason, source="override"):
     """
     CRITICAL: these fields are what your FRONTEND reads back after reload.
     If these are missing, dropdown snaps to Auto and reason looks unsaved.
+    🔹 FIX: Handle None vs "" properly - always set fields explicitly
     """
-    evt["override_status"] = status or ""
-    evt["override_reason"] = reason or ""
-    evt["source"] = source or "override"
+    evt["override_status"] = status if status is not None else ""
+    evt["override_reason"] = reason if reason is not None else ""
+    evt["source"] = source if source else "override"
 
 
 # -----------------------------------------------------------
@@ -194,22 +195,22 @@ def apply_overrides(member_key, review_state_member):
                     # Move valid → invalid
                     new_invalid = dict(target_event)
                     new_invalid.update({
-                        "reason": reason or "Forced invalid by override",
+                        "reason": reason if reason else "Forced invalid by override",
                         "category": "override",
                         "source": "override",
                         "override": {
                             "status": status,
-                            "reason": reason,
+                            "reason": reason if reason is not None else "",
                             "source": source,
                             "history": target_event.get("override", {}).get("history", []),
                         },
                         "final_classification": {
                             "is_valid": False,
-                            "reason": reason,
+                            "reason": reason if reason is not None else "",
                             "source": "override",
                         },
                         "status": "invalid",
-                        "status_reason": reason or "Forced invalid by override",
+                        "status_reason": reason if reason else "Forced invalid by override",
                     })
                     _stamp_ui_fields(new_invalid, status, reason, "override")
                     moves_to_invalid.append((current_idx, new_invalid))
@@ -226,14 +227,14 @@ def apply_overrides(member_key, review_state_member):
                         target_event["final_classification"] = {}
                     target_event["final_classification"].update({
                         "is_valid": True,
-                        "reason": reason,
+                        "reason": reason if reason is not None else "",
                         "source": "override" if (status or reason) else target_event.get("final_classification", {}).get("source"),
                     })
 
                     # Keep actual status as valid if Auto, otherwise set to valid
                     target_event["status"] = "valid"
-                    if reason:
-                        target_event["status_reason"] = reason
+                    # 🔹 FIX: Always set status_reason, even if blank, to clear old values
+                    target_event["status_reason"] = reason if reason is not None else ""
 
                     _stamp_ui_fields(target_event, status, reason, "override")
 
@@ -244,16 +245,16 @@ def apply_overrides(member_key, review_state_member):
                     new_row = dict(target_event)
                     new_row.update({
                         "status": "valid",
-                        "status_reason": reason,
+                        "status_reason": reason if reason is not None else "",
                         "override": {
                             "status": status,
-                            "reason": reason,
+                            "reason": reason if reason is not None else "",
                             "source": source,
                             "history": target_event.get("override", {}).get("history", []),
                         },
                         "final_classification": {
                             "is_valid": True,
-                            "reason": reason,
+                            "reason": reason if reason is not None else "",
                             "source": "override",
                         },
                     })
@@ -277,21 +278,21 @@ def apply_overrides(member_key, review_state_member):
                         target_event["override"] = {}
                     target_event["override"].update({
                         "status": status,
-                        "reason": reason,
+                        "reason": reason if reason is not None else "",
                         "source": source,
                     })
                     if "final_classification" not in target_event:
                         target_event["final_classification"] = {}
                     target_event["final_classification"].update({
                         "is_valid": False,
-                        "reason": reason,
+                        "reason": reason if reason is not None else "",
                         "source": "override" if (status or reason) else target_event.get("final_classification", {}).get("source"),
                     })
 
                     # If Auto "", keep it invalid as-is; if invalid, force invalid
                     target_event["status"] = "invalid"
-                    if reason:
-                        target_event["status_reason"] = reason
+                    # 🔹 FIX: Always set status_reason, even if blank, to clear old values
+                    target_event["status_reason"] = reason if reason is not None else ""
 
                     _stamp_ui_fields(target_event, status, reason, "override")
 
