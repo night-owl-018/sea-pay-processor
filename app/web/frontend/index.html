@@ -1223,8 +1223,8 @@
           $('memberSelect').innerHTML = '<option value="">Select member</option>';
           await loadSheets(); // Resets downstream elements
           alert('✅ Reset complete');
+          $('actionSelect').value = ''; // Only reset dropdown after actual reset
         }
-        $('actionSelect').value = '';
       } catch (err) {
         alert(err.message);
       } finally {
