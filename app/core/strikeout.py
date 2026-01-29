@@ -118,8 +118,19 @@ def mark_sheet_with_strikeouts(
         override_valid_dates = set()
         if override_valid_rows:
             for r in override_valid_rows:
-                if r.get("date"):
-                    override_valid_dates.add(r["date"])
+                date_str = r.get("date")
+                if date_str:
+                    # 🔹 CRITICAL FIX: Normalize date to MM/DD/YYYY format
+                    # This ensures "8/28/2025" and "08/28/2025" both match
+                    try:
+                        dt = datetime.strptime(date_str, "%m/%d/%Y")
+                        normalized_date = f"{dt.month:02d}/{dt.day:02d}/{dt.year}"
+                        override_valid_dates.add(normalized_date)
+                        # Also add the original format to handle all variations
+                        override_valid_dates.add(date_str)
+                    except Exception:
+                        # If parsing fails, add as-is
+                        override_valid_dates.add(date_str)
             log(f"OVERRIDE VALID DATES (NO STRIKE) → {', '.join(sorted(override_valid_dates))}")
         
         # Convert all pages to images for positional OCR
