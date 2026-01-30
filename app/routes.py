@@ -402,7 +402,12 @@ def download_all():
                 full = os.path.join(root, f)
                 z.write(full, os.path.relpath(full, OUTPUT_DIR))
     mem.seek(0)
-    return send_file(mem, as_attachment=True, download_name="ALL_OUTPUT.zip")
+    resp = send_file(mem, as_attachment=True, download_name="ALL_OUTPUT.zip")
+    # 🔹 IMPORTANT: prevent cached/stale ZIP downloads after a rebuild
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @bp.route("/download_merged")
@@ -416,7 +421,12 @@ def download_merged():
                 full = os.path.join(root, f)
                 z.write(full, os.path.relpath(full, PACKAGE_FOLDER))
     mem.seek(0)
-    return send_file(mem, as_attachment=True, download_name="MERGED_PACKAGE.zip")
+    resp = send_file(mem, as_attachment=True, download_name="MERGED_PACKAGE.zip")
+    # 🔹 IMPORTANT: prevent cached/stale ZIP downloads after a rebuild
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @bp.route("/download_member/<member_key>")
@@ -455,12 +465,16 @@ def download_member(member_key):
         return jsonify({"error": f"No files found for member {member_key}"}), 404
     
     mem.seek(0)
-    return send_file(
-        mem, 
-        as_attachment=True, 
+    resp = send_file(
+        mem,
+        as_attachment=True,
         download_name=f"{safe_prefix}_FILES.zip",
-        mimetype='application/zip'
+        mimetype="application/zip",
     )
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @bp.route("/download_member_summary/<member_key>")
@@ -474,11 +488,15 @@ def download_member_summary(member_key):
     if not os.path.exists(summary_path):
         return jsonify({"error": f"Summary not found for {member_key}"}), 404
     
-    return send_file(
+    resp = send_file(
         summary_path,
         as_attachment=True,
-        download_name=f"{safe_prefix}_SUMMARY.pdf"
+        download_name=f"{safe_prefix}_SUMMARY.pdf",
     )
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @bp.route("/download_member_toris/<member_key>")
@@ -498,11 +516,15 @@ def download_member_toris(member_key):
         return jsonify({"error": f"TORIS cert not found for {member_key}"}), 404
     
     toris_path = os.path.join(TORIS_CERT_FOLDER, toris_files[0])
-    return send_file(
+    resp = send_file(
         toris_path,
         as_attachment=True,
-        download_name=toris_files[0]
+        download_name=toris_files[0],
     )
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @bp.route("/download_member_pg13s/<member_key>")
@@ -523,11 +545,15 @@ def download_member_pg13s(member_key):
     
     if len(pg13_files) == 1:
         pg13_path = os.path.join(SEA_PAY_PG13_FOLDER, pg13_files[0])
-        return send_file(
+        resp = send_file(
             pg13_path,
             as_attachment=True,
-            download_name=pg13_files[0]
+            download_name=pg13_files[0],
         )
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
     
     mem = io.BytesIO()
     with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
@@ -536,12 +562,16 @@ def download_member_pg13s(member_key):
             z.write(full_path, f)
     
     mem.seek(0)
-    return send_file(
+    resp = send_file(
         mem,
         as_attachment=True,
         download_name=f"{safe_prefix}_PG13_FORMS.zip",
-        mimetype='application/zip'
+        mimetype="application/zip",
     )
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 
 @bp.route("/download_custom", methods=["POST"])
