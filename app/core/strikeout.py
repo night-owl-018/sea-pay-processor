@@ -346,7 +346,7 @@ def mark_sheet_with_strikeouts(
 
         # ------------------------------------------------
         # 1) Strike rows from skipped_unknown / skipped_duplicates
-        # 🔹 FIX: Skip dates that have valid overrides
+        # 🔹 MULTI-LAYER FIX: Check override_valid_dates AND row override field
         # ------------------------------------------------
         for row in row_list:
             date = row.get("date")
@@ -354,10 +354,18 @@ def mark_sheet_with_strikeouts(
             if not date or not occ_idx:
                 continue
 
-            # 🔹 FIX: Check if date has a valid override - skip if so
+            # 🔹 LAYER 1: Check override_valid_dates set
             if date in override_valid_dates:
                 log(
-                    f"    SKIP STRIKE (VALID OVERRIDE) → {date} OCC#{occ_idx} "
+                    f"    ✅ SKIP STRIKE (IN OVERRIDE SET) → {date} OCC#{occ_idx} "
+                    f"PAGE {row['page'] + 1}"
+                )
+                continue
+            
+            # 🔹 LAYER 2: Check if row has override flag (set earlier in this function)
+            if row.get("override") is True:
+                log(
+                    f"    ✅ SKIP STRIKE (ROW HAS OVERRIDE FLAG) → {date} OCC#{occ_idx} "
                     f"PAGE {row['page'] + 1}"
                 )
                 continue
@@ -375,10 +383,18 @@ def mark_sheet_with_strikeouts(
             if not date or not occ_idx:
                 continue
 
-            # 🔹 FIX: Check if date has a valid override - skip if so
+            # 🔹 LAYER 1: Check override_valid_dates set
             if date in override_valid_dates:
                 log(
-                    f"    SKIP STRIKE (VALID OVERRIDE) → {date} OCC#{occ_idx} "
+                    f"    ✅ SKIP STRIKE (IN OVERRIDE SET) → {date} OCC#{occ_idx} "
+                    f"PAGE {row['page'] + 1}"
+                )
+                continue
+            
+            # 🔹 LAYER 2: Check if row has override flag
+            if row.get("override") is True:
+                log(
+                    f"    ✅ SKIP STRIKE (ROW HAS OVERRIDE FLAG) → {date} OCC#{occ_idx} "
                     f"PAGE {row['page'] + 1}"
                 )
                 continue
