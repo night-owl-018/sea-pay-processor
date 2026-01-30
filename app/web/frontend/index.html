@@ -1280,6 +1280,32 @@
       await loadSheets();
     });
 
+    // Load member list from API
+    async function loadMembers() {
+      try {
+        const members = await apiGet('/api/members');
+        const sel = $('memberSelect');
+        sel.innerHTML = '<option value="">Select member</option>';
+        
+        if (members.length === 0) {
+          sel.innerHTML = '<option value="">No members found - process files first</option>';
+          return;
+        }
+        
+        members.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m;
+          opt.textContent = m;
+          sel.appendChild(opt);
+        });
+        
+        console.log(`Loaded ${members.length} members`);
+      } catch (e) {
+        console.error('Load members error:', e);
+        $('memberSelect').innerHTML = '<option value="">Error loading members</option>';
+      }
+    }
+
     async function loadSheets() {
       pendingOverrides = {};
       const hasMember = !!currentMember;
@@ -1562,7 +1588,7 @@
 
     // Initialize
     $('yearNow').textContent = new Date().getFullYear();
-    loadSheets(); // Initial setup for review modal
+    loadMembers(); // Load member list on page load
   </script>
 </body>
 </html>
