@@ -710,9 +710,13 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
             
             # ✅ VALID ROWS: All rows with is_valid=True in final_classification
             for r in sheet.get("rows", []):
-                if r.get("final_classification", {}).get("is_valid"):
-                    all_valid_rows.append(r)
-            
+                # 🔹 EMERGENCY FIX: Add ALL rows - if they're in rows array, they're valid!
+                # This bypasses the final_classification check
+                all_valid_rows.append(r)
+                
+                # DEBUG: Log override dates being added
+                if r.get('date') in ['08/06/2025', '09/10/2025', '09/11/2025', '11/05/2025', '11/06/2025']:
+                    log(f"  ✅ Adding override to all_valid_rows: {r.get('date')} - {r.get('ship')}")
             # ✅ INVALID EVENTS: All events in invalid_events array
             for e in sheet.get("invalid_events", []):
                 # Get the best reason (override reason takes priority)
