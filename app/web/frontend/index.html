@@ -709,7 +709,14 @@
 
           <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 11px;">
             <input type="checkbox" id="consolidatePG13">
-            <span>Consolidate PG-13s</span>
+            <span>Consolidate PG-13s (one per ship)</span>
+          </label>
+          
+          <div style="height:4px;"></div>
+          
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-size: 11px;">
+            <input type="checkbox" id="consolidateAllMissions">
+            <span>Consolidate All Missions (one per member)</span>
           </label>
           
           <div style="height:8px;"></div>
@@ -1198,6 +1205,19 @@
       btn.className = this.value === 'reset' ? 'btn-danger' : 'btn-primary';
     });
     
+    // Make consolidate checkboxes mutually exclusive
+    $('consolidatePG13').addEventListener('change', function() {
+      if (this.checked) {
+        $('consolidateAllMissions').checked = false;
+      }
+    });
+    
+    $('consolidateAllMissions').addEventListener('change', function() {
+      if (this.checked) {
+        $('consolidatePG13').checked = false;
+      }
+    });
+    
     // Action Go button handler
     $('actionGoBtn').addEventListener('click', async () => {
       const action = $('actionSelect').value;
@@ -1212,6 +1232,7 @@
           if ($('templatePdf').files[0]) fd.append('template_pdf', $('templatePdf').files[0]);
           fd.append('strikeout_color', $('strikeColor').value);
           fd.append('consolidate_pg13', $('consolidatePG13').checked);
+          fd.append('consolidate_all_missions', $('consolidateAllMissions').checked);
           await fetch('/process', {method: 'POST', body: fd});
         } else if (action === 'cancel') {
           await fetch('/cancel_process', {method: 'POST'});
@@ -1464,7 +1485,10 @@
       if (!confirm('🔄 Rebuild all outputs?')) return;
       $('rebuildBtn').disabled = true;
       try {
-        const res = await apiPost('/rebuild_outputs', { consolidate_pg13: $('consolidatePG13').checked });
+        const res = await apiPost('/rebuild_outputs', { 
+          consolidate_pg13: $('consolidatePG13').checked,
+          consolidate_all_missions: $('consolidateAllMissions').checked
+        });
         alert('✅ ' + (res.status || 'Rebuild complete'));
       } catch (err) {
         alert(`Error: ${err.message}`);
