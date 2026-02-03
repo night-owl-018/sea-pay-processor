@@ -197,7 +197,7 @@ def clear_pg13_folder():
 # ---------------------------------------------------------
 # MAIN PROCESSOR
 # ---------------------------------------------------------
-def process_all(strike_color: str = "black", consolidate_pg13: bool = False):
+def process_all(strike_color: str = "black", consolidate_pg13: bool = False, consolidate_all_missions: bool = False):
     """
     Top-level processor with granular progress updates.
 
@@ -545,27 +545,56 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False):
                              progress.STEP_VALIDATION + progress.STEP_REVIEW_STATE + 
                              progress.STEP_TORIS)
         
-        # PG-13 per ship
-        ship_map = {}
-        for g in groups:
-            ship_map.setdefault(g["ship"], []).append(g)
+        # PG-13 per ship (only if not consolidating all missions)
+        if not consolidate_all_missions:
+            ship_map = {}
+            for g in groups:
+                ship_map.setdefault(g["ship"], []).append(g)
 
-        ship_count = len(ship_map)
-        for ship_idx, (ship, ship_periods) in enumerate(ship_map.items(), start=1):
-            # Update progress within PG-13 step
-            pg13_progress = pg13_base_progress + (progress.STEP_PG13 * (ship_idx / max(ship_count, 1)))
-            progress.update(idx, pg13_progress, 
-                          f"[{idx+1}/{total_files}] PG-13 {ship_idx}/{ship_count}: {ship}")
-            
-            make_pdf_for_ship(ship, ship_periods, name, consolidate=consolidate_pg13)
-            add_progress_detail("pg13_created", 1)
-            pg13_total += 1
+            ship_count = len(ship_map)
+            for ship_idx, (ship, ship_periods) in enumerate(ship_map.items(), start=1):
+                # Update progress within PG-13 step
+                pg13_progress = pg13_base_progress + (progress.STEP_PG13 * (ship_idx / max(ship_count, 1)))
+                progress.update(idx, pg13_progress, 
+                              f"[{idx+1}/{total_files}] PG-13 {ship_idx}/{ship_count}: {ship}")
+                
+                make_pdf_for_ship(ship, ship_periods, name, consolidate=consolidate_pg13)
+                add_progress_detail("pg13_created", 1)
+                pg13_total += 1
+        else:
+            # When consolidating all missions, we'll generate the PDFs after processing all files
+            # Just mark progress as complete for this file's PG-13 step
+            progress.update(idx, pg13_base_progress + progress.STEP_PG13, 
+                          f"[{idx+1}/{total_files}] Preparing for all-missions consolidation")
+
 
         add_progress_detail("files_processed", 1)
         files_processed_total += 1
         
         # 🔹 PATCH: File complete (100% of this file)
         progress.update(idx, 100, f"[{idx+1}/{total_files}] Complete: {file}")
+
+    # -------------------------------
+    # 🔹 NEW: CONSOLIDATED ALL MISSIONS PG-13 GENERATION
+    # -------------------------------
+    if consolidate_all_missions:
+        log("=== CREATING CONSOLIDATED ALL MISSIONS PG-13 FORMS ===")
+        from app.core.pdf_writer import make_consolidated_all_missions_pdf
+        
+        for member_key, member_data in summary_data.items():
+            # Group all periods by ship for this member
+            ship_groups = {}
+            for period in member_data.get("periods", []):
+                ship = period["ship"]
+                ship_groups.setdefault(ship, []).append(period)
+            
+            if ship_groups:
+                name = member_key  # Member key is already in "STG1 NIVERA,RYAN" format
+                make_consolidated_all_missions_pdf(ship_groups, name)
+                pg13_total += 1
+                log(f"Created consolidated all missions PG-13 for {member_key}")
+        
+        log(f"=== COMPLETED {pg13_total} CONSOLIDATED ALL MISSIONS PG-13 FORMS ===")
 
     # -------------------------------
     # FINAL TOTALS AND SUMMARY FILES
@@ -629,7 +658,7 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False):
 # =========================================================
 # REBUILD OUTPUTS FROM REVIEW JSON (NO OCR / NO PARSING)
 # =========================================================
-def rebuild_outputs_from_review(consolidate_pg13: bool = False):
+def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_missions: bool = False):
     """
     Rebuild PG-13, TORIS, summaries, and merged package
     strictly from REVIEW_JSON_PATH.
@@ -759,9 +788,10 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
                     "days": days,
                 })
 
-            # ✅ Create PG-13 for this ship
-            make_pdf_for_ship(ship, periods, name, consolidate=consolidate_pg13)
-            pg13_total += 1
+            # ✅ Create PG-13 for this ship (only if not consolidating all missions)
+            if not consolidate_all_missions:
+                make_pdf_for_ship(ship, periods, name, consolidate=consolidate_pg13)
+                pg13_total += 1
 
         # Sort valid periods chronologically
         valid_periods_list.sort(key=lambda p: p["start"])
@@ -884,6 +914,28 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
         toris_total += 1
 
     # =============================
+    # 🔹 NEW: CONSOLIDATED ALL MISSIONS PG-13 GENERATION
+    # =============================
+    if consolidate_all_missions:
+        log("=== CREATING CONSOLIDATED ALL MISSIONS PG-13 FORMS (REBUILD) ===")
+        from app.core.pdf_writer import make_consolidated_all_missions_pdf
+        
+        for member_key, member_data in summary_data.items():
+            # Group all valid periods by ship for this member
+            ship_groups = {}
+            for period_tuple in member_data.get("valid_periods", []):
+                ship, start, end = period_tuple
+                ship_groups.setdefault(ship, []).append({"start": start, "end": end})
+            
+            if ship_groups:
+                name = member_key  # Member key is already in "STG1 NIVERA,RYAN" format
+                make_consolidated_all_missions_pdf(ship_groups, name)
+                pg13_total += 1
+                log(f"Created consolidated all missions PG-13 for {member_key}")
+        
+        log(f"=== COMPLETED {pg13_total} CONSOLIDATED ALL MISSIONS PG-13 FORMS (REBUILD) ===")
+
+    # =============================
     # FINALIZE (ONCE)
     # =============================
     set_progress(percent=90, current_step="Writing summary files")
@@ -915,7 +967,7 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False):
 # REBUILD SINGLE MEMBER FUNCTION
 # =============================================================================
 
-def rebuild_single_member(member_key, consolidate_pg13=False):
+def rebuild_single_member(member_key, consolidate_pg13=False, consolidate_all_missions=False):
     """
     Rebuild outputs for a SINGLE member only.
     
@@ -1037,41 +1089,37 @@ def rebuild_single_member(member_key, consolidate_pg13=False):
     ship_groups = group_by_ship(all_valid_rows)
     pg13_count = 0
     
-    if consolidate_pg13:
+    if consolidate_all_missions:
+        # Create ONE form with ALL ships and periods
+        log(f"  → Creating consolidated all missions PG-13")
+        from app.core.pdf_writer import make_consolidated_all_missions_pdf
+        
+        # Prepare ship_groups dict in the format expected by the function
+        all_ships_periods = {}
+        for ship, periods in ship_groups.items():
+            if periods:
+                all_ships_periods[ship] = periods
+        
+        if all_ships_periods:
+            make_consolidated_all_missions_pdf(all_ships_periods, member_key)
+            pg13_count = 1
+            log(f"    - Created consolidated all missions PG-13")
+    elif consolidate_pg13:
         # One form per ship
         for ship, periods in ship_groups.items():
             if not periods:
                 continue
             
-            pg13_name = f"{safe_prefix}__PG13__{ship.replace(' ', '_')}.pdf"
-            pg13_path = os.path.join(SEA_PAY_PG13_FOLDER, pg13_name)
-            
-            make_pdf_for_ship(
-                rate=rate,
-                name=f"{first} {last}",
-                ship=ship,
-                periods=periods,
-                output_path=pg13_path,
-            )
+            make_pdf_for_ship(ship, periods, f"{first} {last}", consolidate=True)
             pg13_count += 1
             log(f"    - Created consolidated PG-13: {ship}")
     else:
-        # Multiple forms per ship (one per period)
-        pg13_idx = 1
+        # Separate form for each period (original behavior)
         for ship, periods in ship_groups.items():
-            for period in periods:
-                pg13_name = f"{safe_prefix}__PG13__{ship.replace(' ', '_')}__{pg13_idx:03d}.pdf"
-                pg13_path = os.path.join(SEA_PAY_PG13_FOLDER, pg13_name)
-                
-                make_pdf_for_ship(
-                    rate=rate,
-                    name=f"{first} {last}",
-                    ship=ship,
-                    periods=[period],
-                    output_path=pg13_path,
-                )
-                pg13_idx += 1
-                pg13_count += 1
+            if not periods:
+                continue
+            make_pdf_for_ship(ship, periods, f"{first} {last}", consolidate=False)
+            pg13_count += len(periods)
         log(f"    - Created {pg13_count} separate PG-13 forms")
     
     # =============================
