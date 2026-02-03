@@ -137,9 +137,12 @@ def process_route():
 
     strike_color = request.form.get("strikeout_color", "Black")
     consolidate_pg13 = request.form.get("consolidate_pg13", "false").lower() == "true"
+    consolidate_all_missions = request.form.get("consolidate_all_missions", "false").lower() == "true"
     
     if consolidate_pg13:
         log("PG-13 CONSOLIDATION ENABLED → Will create one form per ship")
+    if consolidate_all_missions:
+        log("ALL MISSIONS CONSOLIDATION ENABLED → Will create one form per member with all ships")
 
     def _run():
         global processing_cancelled
@@ -152,7 +155,7 @@ def process_route():
                     return
                 
             set_progress(status="PROCESSING", percent=5, current_step="Processing")
-            process_all(strike_color=strike_color, consolidate_pg13=consolidate_pg13)
+            process_all(strike_color=strike_color, consolidate_pg13=consolidate_pg13, consolidate_all_missions=consolidate_all_missions)
 
             # 🔹 PATCH: Check cancellation after processing
             with processing_lock:
@@ -204,12 +207,15 @@ def cancel_process():
 def rebuild_outputs():
     try:
         consolidate_pg13 = request.json.get("consolidate_pg13", False) if request.json else False
+        consolidate_all_missions = request.json.get("consolidate_all_missions", False) if request.json else False
         
         log("=== REBUILD OUTPUTS STARTED ===")
         if consolidate_pg13:
             log("PG-13 CONSOLIDATION ENABLED → Will create one form per ship")
+        if consolidate_all_missions:
+            log("ALL MISSIONS CONSOLIDATION ENABLED → Will create one form per member with all ships")
         
-        rebuild_outputs_from_review(consolidate_pg13=consolidate_pg13)
+        rebuild_outputs_from_review(consolidate_pg13=consolidate_pg13, consolidate_all_missions=consolidate_all_missions)
         merge_all_pdfs()
         log("=== REBUILD OUTPUTS COMPLETE ===")
         return jsonify({"status": "ok"})
@@ -748,16 +754,18 @@ def rebuild_member(member_key):
     
     POST body (optional):
     {
-        "consolidate_pg13": true/false
+        "consolidate_pg13": true/false,
+        "consolidate_all_missions": true/false
     }
     """
     try:
         payload = request.get_json(silent=True) or {}
         consolidate_pg13 = payload.get("consolidate_pg13", False)
+        consolidate_all_missions = payload.get("consolidate_all_missions", False)
         
         log(f"=== REBUILD SINGLE MEMBER STARTED: {member_key} ===")
         
-        result = rebuild_single_member(member_key, consolidate_pg13=consolidate_pg13)
+        result = rebuild_single_member(member_key, consolidate_pg13=consolidate_pg13, consolidate_all_missions=consolidate_all_missions)
         
         if result["status"] == "error":
             log(f"REBUILD SINGLE MEMBER ERROR → {result['message']}")
@@ -788,7 +796,8 @@ def api_override_save_and_rebuild():
         "event_index": 123,
         "status": "valid" | "invalid" | "",
         "reason": "optional reason text",
-        "consolidate_pg13": true/false  (optional, default false)
+        "consolidate_pg13": true/false  (optional, default false),
+        "consolidate_all_missions": true/false  (optional, default false)
     }
     """
     try:
@@ -805,6 +814,7 @@ def api_override_save_and_rebuild():
         reason = (payload.get("reason") or "").strip()
         source = payload.get("source", "manual")
         consolidate_pg13 = payload.get("consolidate_pg13", False)
+        consolidate_all_missions = payload.get("consolidate_all_missions", False)
         
         # 1. Save the override
         save_override(
@@ -823,7 +833,7 @@ def api_override_save_and_rebuild():
             _write_review(state)
         
         # 3. Rebuild just this member's outputs
-        rebuild_result = rebuild_single_member(member_key, consolidate_pg13=consolidate_pg13)
+        rebuild_result = rebuild_single_member(member_key, consolidate_pg13=consolidate_pg13, consolidate_all_missions=consolidate_all_missions)
         
         if rebuild_result["status"] == "error":
             return jsonify({
