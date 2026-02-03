@@ -100,9 +100,10 @@ def make_consolidated_all_missions_pdf(ship_groups, name):
     s_fn = first_period["start"].strftime("%m-%d-%Y")
     e_fn = last_period["end"].strftime("%m-%d-%Y")
     
+    # 🔹 PATCH: Match existing naming convention used everywhere else
     filename = (
         f"{rate}_{last}_{first}"
-        f"__PG13__ALL_MISSIONS__{s_fn}_TO_{e_fn}.pdf"
+        f"__SEA_PAY_PG13__ALL_MISSIONS__{s_fn}_TO_{e_fn}.pdf"
     )
     filename = filename.replace(" ", "_")
     
@@ -184,6 +185,9 @@ def make_consolidated_all_missions_pdf(ship_groups, name):
     writer = PdfWriter()
     writer.add_page(base)
     
+    # 🔹 PATCH: Ensure output folder exists before writing
+    os.makedirs(SEA_PAY_PG13_FOLDER, exist_ok=True)
+
     with open(outpath, "wb") as f:
         writer.write(f)
     
@@ -396,4 +400,3 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
 
         flatten_pdf(outpath)
         log(f"CREATED → {filename}")
-
