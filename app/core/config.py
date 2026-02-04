@@ -1,4 +1,5 @@
 import os
+import json
 
 # -----------------------------------
 # DIRECTORY ROOTS
@@ -25,6 +26,12 @@ OUTPUT_DIR = "/app/output"
 TEMPLATE = os.path.join(TEMPLATE_DIR, "NAVPERS_1070_613_TEMPLATE.pdf")
 RATE_FILE = os.path.join(CONFIG_DIR, "atgsd_n811.csv")
 SHIP_FILE = os.path.join(PROJECT_ROOT, "ships.txt")
+
+# -----------------------------------
+# NEW: CERTIFYING OFFICER CONFIG
+# -----------------------------------
+
+CERTIFYING_OFFICER_FILE = os.path.join(OUTPUT_DIR, "certifying_officer.json")
 
 # -----------------------------------
 # OUTPUT SUBFOLDERS
@@ -54,6 +61,78 @@ REVIEW_JSON_PATH = os.path.join(OUTPUT_DIR, "SEA_PAY_REVIEW.json")
 
 FONT_NAME = "Times-Roman"
 FONT_SIZE = 12
+
+# -----------------------------------
+# CERTIFYING OFFICER HELPER FUNCTIONS
+# -----------------------------------
+
+def load_certifying_officer():
+    """
+    Load certifying officer information from JSON file.
+    Returns dict with keys: rate, last_name, first_initial, middle_initial
+    Returns empty dict if file doesn't exist or can't be read.
+    """
+    if not os.path.exists(CERTIFYING_OFFICER_FILE):
+        return {}
+    
+    try:
+        with open(CERTIFYING_OFFICER_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return {
+                'rate': data.get('rate', '').strip(),
+                'last_name': data.get('last_name', '').strip(),
+                'first_initial': data.get('first_initial', '').strip(),
+                'middle_initial': data.get('middle_initial', '').strip(),
+            }
+    except Exception as e:
+        print(f"Warning: Could not load certifying officer info: {e}")
+        return {}
+
+
+def save_certifying_officer(rate, last_name, first_initial, middle_initial):
+    """
+    Save certifying officer information to JSON file.
+    """
+    data = {
+        'rate': rate.strip(),
+        'last_name': last_name.strip(),
+        'first_initial': first_initial.strip(),
+        'middle_initial': middle_initial.strip(),
+    }
+    
+    try:
+        with open(CERTIFYING_OFFICER_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error: Could not save certifying officer info: {e}")
+        return False
+
+
+def get_certifying_officer_name():
+    """
+    Get formatted certifying officer name for display on forms.
+    Returns formatted name or empty string if not set.
+    Format: "RATE LAST_NAME, F. M." (e.g., "STG1 NIVERA, R. A.")
+    """
+    officer = load_certifying_officer()
+    if not officer or not officer.get('last_name'):
+        return ""
+    
+    parts = []
+    if officer.get('rate'):
+        parts.append(officer['rate'])
+    
+    if officer.get('last_name'):
+        name = officer['last_name']
+        if officer.get('first_initial'):
+            name += f", {officer['first_initial']}."
+            if officer.get('middle_initial'):
+                name += f" {officer['middle_initial']}."
+        parts.append(name)
+    
+    return " ".join(parts)
+
 
 # -----------------------------------
 # ENSURE DIRECTORIES EXIST
