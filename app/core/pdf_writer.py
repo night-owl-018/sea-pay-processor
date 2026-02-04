@@ -164,14 +164,14 @@ def make_consolidated_all_missions_pdf(
     c.drawString(363.8, sig_y - 12, "Certifying Official & Date")
     c.drawString(356.26, sig_y - 72, "_________________________")
     
-    # Get certifying officer name from config
+    # Get certifying officer name from config and put it ABOVE the blank line
     certifying_officer_name = get_certifying_officer_name()
     if certifying_officer_name:
-        # If certifying officer is set, display their name
-        c.drawString(356.26, sig_y - 84.3, certifying_officer_name)
-    else:
-        # Otherwise show the placeholder
-        c.drawString(384.1, sig_y - 84.3, "FI MI Last Name")
+        # Put certifying officer name above the blank line (above FI MI Last Name)
+        c.drawString(356.26, sig_y - 60, certifying_officer_name)
+    
+    # Always show the FI MI Last Name label below
+    c.drawString(384.1, sig_y - 84.3, "FI MI Last Name")
 
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
@@ -256,14 +256,14 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c.drawString(363.8, 487.5, "Certifying Official & Date")
     c.drawString(356.26, 427.5, "_________________________")
     
-    # Get certifying officer name from config
+    # Get certifying officer name from config and put it ABOVE the blank line
     certifying_officer_name = get_certifying_officer_name()
     if certifying_officer_name:
-        # If certifying officer is set, display their name
-        c.drawString(356.26, 415.2, certifying_officer_name)
-    else:
-        # Otherwise show the placeholder
-        c.drawString(384.1, 415.2, "FI MI Last Name")
+        # Put certifying officer name above the blank line (above FI MI Last Name)
+        c.drawString(356.26, 439.5, certifying_officer_name)
+    
+    # Always show the FI MI Last Name label below
+    c.drawString(384.1, 415.2, "FI MI Last Name")
 
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
     c.drawString(503.5, 40, "USN AD")
@@ -345,14 +345,14 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c.drawString(363.8, 487.5, "Certifying Official & Date")
         c.drawString(356.26, 427.5, "_________________________")
         
-        # Get certifying officer name from config
+        # Get certifying officer name from config and put it ABOVE the blank line
         certifying_officer_name = get_certifying_officer_name()
         if certifying_officer_name:
-            # If certifying officer is set, display their name
-            c.drawString(356.26, 415.2, certifying_officer_name)
-        else:
-            # Otherwise show the placeholder
-            c.drawString(384.1, 415.2, "FI MI Last Name")
+            # Put certifying officer name above the blank line (above FI MI Last Name)
+            c.drawString(356.26, 439.5, certifying_officer_name)
+        
+        # Always show the FI MI Last Name label below
+        c.drawString(384.1, 415.2, "FI MI Last Name")
 
         c.drawString(38.8, 83, "SEA PAY CERTIFIER")
         c.drawString(503.5, 40, "USN AD")
