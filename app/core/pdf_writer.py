@@ -51,6 +51,26 @@ def flatten_pdf(path):
 
 
 # ------------------------------------------------
+# INTERNAL HELPER: Draw centered certifying officer name,
+# slightly LOWER (closer to the signature line below)
+# ------------------------------------------------
+def _draw_centered_certifying_officer(c, sig_line_left_x, sig_line_y, name, y_above_line=6):
+    """
+    Centers `name` horizontally over the signature underline, and places it
+    y_above_line points ABOVE the underline (lower than the old placement).
+    """
+    if not name:
+        return
+
+    sig_line = "_________________________"
+    sig_line_w = c.stringWidth(sig_line, FONT_NAME, FONT_SIZE)
+    sig_mid_x = sig_line_left_x + (sig_line_w / 2.0)
+
+    # Place the text slightly above the underline, but lower than before
+    c.drawCentredString(sig_mid_x, sig_line_y + y_above_line, name)
+
+
+# ------------------------------------------------
 # 🔹 NEW: CONSOLIDATED ALL MISSIONS (ALL SHIPS ON ONE FORM)
 # ------------------------------------------------
 def make_consolidated_all_missions_pdf(
@@ -160,16 +180,17 @@ def make_consolidated_all_missions_pdf(
     base_sig_y = 499.5
     sig_y = min(base_sig_y, 595 - content_height - 40)
 
-    c.drawString(356.26, sig_y, "_________________________")
+    sig_left_x = 356.26
+
+    c.drawString(sig_left_x, sig_y, "_________________________")
     c.drawString(363.8, sig_y - 12, "Certifying Official & Date")
-    c.drawString(356.26, sig_y - 72, "_________________________")
-    
-    # Get certifying officer name from config and put it ABOVE the blank line
+
+    c.drawString(sig_left_x, sig_y - 72, "_________________________")
+
+    # ✅ Certifying officer name: centered, no rate, no auto-periods, LOWER (closer to underline)
     certifying_officer_name = get_certifying_officer_name()
-    if certifying_officer_name:
-        # Put certifying officer name above the blank line (above FI MI Last Name)
-        c.drawString(356.26, sig_y - 60, certifying_officer_name)
-    
+    _draw_centered_certifying_officer(c, sig_left_x, sig_y - 72, certifying_officer_name, y_above_line=6)
+
     # Always show the FI MI Last Name label below
     c.drawString(384.1, sig_y - 84.3, "FI MI Last Name")
 
@@ -252,16 +273,18 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
         f"{ship.upper()} Category A vessel."
     )
 
-    c.drawString(356.26, 499.5, "_________________________")
+    sig_left_x = 356.26
+    top_sig_y = 499.5
+    bottom_line_y = 427.5
+
+    c.drawString(sig_left_x, top_sig_y, "_________________________")
     c.drawString(363.8, 487.5, "Certifying Official & Date")
-    c.drawString(356.26, 427.5, "_________________________")
-    
-    # Get certifying officer name from config and put it ABOVE the blank line
+    c.drawString(sig_left_x, bottom_line_y, "_________________________")
+
+    # ✅ Certifying officer name: centered + LOWER (closer to underline)
     certifying_officer_name = get_certifying_officer_name()
-    if certifying_officer_name:
-        # Put certifying officer name above the blank line (above FI MI Last Name)
-        c.drawString(356.26, 439.5, certifying_officer_name)
-    
+    _draw_centered_certifying_officer(c, sig_left_x, bottom_line_y, certifying_officer_name, y_above_line=6)
+
     # Always show the FI MI Last Name label below
     c.drawString(384.1, 415.2, "FI MI Last Name")
 
@@ -341,16 +364,18 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
             f"{ship.upper()} Category A vessel."
         )
 
-        c.drawString(356.26, 499.5, "_________________________")
+        sig_left_x = 356.26
+        top_sig_y = 499.5
+        bottom_line_y = 427.5
+
+        c.drawString(sig_left_x, top_sig_y, "_________________________")
         c.drawString(363.8, 487.5, "Certifying Official & Date")
-        c.drawString(356.26, 427.5, "_________________________")
-        
-        # Get certifying officer name from config and put it ABOVE the blank line
+        c.drawString(sig_left_x, bottom_line_y, "_________________________")
+
+        # ✅ Certifying officer name: centered + LOWER (closer to underline)
         certifying_officer_name = get_certifying_officer_name()
-        if certifying_officer_name:
-            # Put certifying officer name above the blank line (above FI MI Last Name)
-            c.drawString(356.26, 439.5, certifying_officer_name)
-        
+        _draw_centered_certifying_officer(c, sig_left_x, bottom_line_y, certifying_officer_name, y_above_line=6)
+
         # Always show the FI MI Last Name label below
         c.drawString(384.1, 415.2, "FI MI Last Name")
 
