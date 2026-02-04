@@ -1076,21 +1076,12 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
                 <label>First Initial *</label>
-                <input type="text"
-                       id="certifyingOfficerFirstInitial"
-                       placeholder="e.g., R"
-                       maxlength="10"
-                       required
-                       style="text-transform: uppercase;">
+                <input type="text" id="certifyingOfficerFirstInitial" placeholder="e.g., R" maxlength="1" required style="text-transform: uppercase;">
               </div>
               
               <div>
                 <label>Middle Initial</label>
-                <input type="text"
-                       id="certifyingOfficerMiddleInitial"
-                       placeholder="e.g., N"
-                       maxlength="10"
-                       style="text-transform: uppercase;">
+                <input type="text" id="certifyingOfficerMiddleInitial" placeholder="e.g., A" maxlength="1" style="text-transform: uppercase;">
               </div>
             </div>
             
@@ -1682,17 +1673,15 @@
       const lastName = $('certifyingOfficerLastName').value.trim().toUpperCase();
       const firstInitial = $('certifyingOfficerFirstInitial').value.trim().toUpperCase();
       const middleInitial = $('certifyingOfficerMiddleInitial').value.trim().toUpperCase();
-    
+      
       let preview = '';
-    
       if (rate) preview += rate + ' ';
-      if (lastName) preview += lastName;
-    
-      if (firstInitial) preview += ', ' + firstInitial;
-      if (middleInitial) preview += ' ' + middleInitial;
-    
-      $('certifyingOfficerPreview').textContent =
-        preview || '(Enter information above)';
+      if (lastName) {
+        preview += lastName;
+        if (firstInitial) {
+          preview += ', ' + firstInitial + '.';
+          if (middleInitial) {
+            preview += ' ' + middleInitial + '.';
           }
         }
       }
