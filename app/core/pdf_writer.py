@@ -8,7 +8,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.colors import black
 
 from app.core.logger import log
-from app.core.config import TEMPLATE, FONT_NAME, FONT_SIZE, SEA_PAY_PG13_FOLDER, get_certifying_officer_name
+from app.core.config import TEMPLATE, FONT_NAME, FONT_SIZE, SEA_PAY_PG13_FOLDER, get_certifying_officer_name, get_certifying_officer_name_pg13
 from app.core.rates import resolve_identity
 
 
@@ -188,7 +188,7 @@ def make_consolidated_all_missions_pdf(
     c.drawString(sig_left_x, sig_y - 72, "_________________________")
 
     # ✅ Certifying officer name: centered, no rate, no auto-periods, LOWER (closer to underline)
-    certifying_officer_name = get_certifying_officer_name()
+    certifying_officer_name = get_certifying_officer_name_pg13()
     _draw_centered_certifying_officer(c, sig_left_x, sig_y - 72, certifying_officer_name, y_above_line=6)
 
     # Always show the FI MI Last Name label below
@@ -282,7 +282,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c.drawString(sig_left_x, bottom_line_y, "_________________________")
 
     # ✅ Certifying officer name: centered + LOWER (closer to underline)
-    certifying_officer_name = get_certifying_officer_name()
+    certifying_officer_name = get_certifying_officer_name_pg13()
     _draw_centered_certifying_officer(c, sig_left_x, bottom_line_y, certifying_officer_name, y_above_line=6)
 
     # Always show the FI MI Last Name label below
@@ -373,7 +373,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c.drawString(sig_left_x, bottom_line_y, "_________________________")
 
         # ✅ Certifying officer name: centered + LOWER (closer to underline)
-        certifying_officer_name = get_certifying_officer_name()
+        certifying_officer_name = get_certifying_officer_name_pg13()
         _draw_centered_certifying_officer(c, sig_left_x, bottom_line_y, certifying_officer_name, y_above_line=6)
 
         # Always show the FI MI Last Name label below
