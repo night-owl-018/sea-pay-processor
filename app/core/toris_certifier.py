@@ -37,19 +37,22 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
         
         # Create an overlay with the certifying officer name
         # Position it ABOVE the "PRINTED NAME OF CERTIFYING OFFICER" line
-        # Based on the actual TORIS form, this is at approximately Y=110
-        # (on the blank line between the two underscores)
+        # 
+        # TORIS form signature section structure (from bottom of page):
+        # Line at ~125: ___________________________________ (first underscore)
+        # Text at ~113: STG1 NIVERA, R. N. (certifying officer name) ← WE PUT IT HERE
+        # Label at ~100: PRINTED NAME OF CERTIFYING OFFICER
+        # Line at ~88: ___________________________________ (second underscore)  
+        # Label at ~75: SIGNATURE OF CERTIFYING OFFICER & DATE
         buf = io.BytesIO()
         c = canvas.Canvas(buf, pagesize=letter)
         c.setFont("Helvetica-Bold", 10)
         
-        # Position on the blank line ABOVE "PRINTED NAME OF CERTIFYING OFFICER"
-        # The signature area at bottom of form:
-        # Line 1 (upper): ___________________________________
-        # Line 2 (name here): STG1 NIVERA, R. N.  <-- We put it here
-        # Line 3 (label): PRINTED NAME OF CERTIFYING OFFICER
-        x_position = 100  # Left aligned with the form
-        y_position = 110  # Above the "PRINTED NAME" label, on the blank line
+        # Position: Between the first underscore line and the "PRINTED NAME" label
+        # X: Align with the left edge of the signature area (about 100 points from left)
+        # Y: About 113 points from bottom (between underscore and label)
+        x_position = 100  
+        y_position = 113  
         
         c.drawString(x_position, y_position, certifying_officer_name)
         c.save()
