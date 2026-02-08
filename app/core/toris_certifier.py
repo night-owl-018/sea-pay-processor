@@ -265,9 +265,9 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                             break
 
                     if len(picked) == 2:
-                        u1_from_bottom = page_height - ((float(picked[0]["top"]) + float(picked[0]["bottom"])) / 2.0)
-                        u2_from_bottom = page_height - ((float(picked[1]["top"]) + float(picked[1]["bottom"])) / 2.0)
-
+                        u1_from_bottom = page_height - float(picked[0]["bottom"])
+                        u2_from_bottom = page_height - float(picked[1]["top"])
+                        
                         name_y = compute_baseline_between_rules(u1_from_bottom, u2_from_bottom)
                         name_x = float(picked[0]["x0"]) + 2.0
 
