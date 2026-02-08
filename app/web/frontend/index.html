@@ -665,7 +665,7 @@
           </svg>
           GitHub
         </a>
-        <button onclick="showModal('certifyingOfficerModal'); loadCertifyingOfficer(); loadCertifyingOfficerChoices();" class="header-btn">👤 Certifying Officer</button>
+        <button onclick="showModal('certifyingOfficerModal'); loadCertifyingOfficer();" class="header-btn">👤 Certifying Officer</button>
         <button onclick="showModal('aboutModal')" class="header-btn">ℹ️ About</button>
         <button onclick="showModal('helpModal')" class="header-btn">📖 Help</button>
       </div>
@@ -1049,61 +1049,6 @@
     </div>
   </div>
 
- <form id="certifyingOfficerForm" style="display: grid; gap: 12px;">
-
-  <!-- ✅ NEW: N811 PICKER -->
-  <div>
-    <label>Pick from N811 list</label>
-    <input
-      list="certifyingOfficerChoiceList"
-      id="certifyingOfficerPicker"
-      placeholder="Type a last name or rate..."
-      autocomplete="off"
-    >
-    <datalist id="certifyingOfficerChoiceList"></datalist>
-  </div>
-
-  <div>
-    <label>Rate *</label>
-    <input type="text" id="certifyingOfficerRate" placeholder="e.g., STG1" required style="text-transform: uppercase;">
-  </div>
-
-  <div>
-    <label>Last Name *</label>
-    <input type="text" id="certifyingOfficerLastName" placeholder="e.g., SAILOR" required style="text-transform: uppercase;">
-  </div>
-
-  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-    <div>
-      <label>First Name *</label>
-      <input type="text" id="certifyingOfficerFirstName" placeholder="e.g., ROGER" required style="text-transform: uppercase;">
-    </div>
-
-    <div>
-      <label>Middle Initial</label>
-      <input
-        type="text"
-        id="certifyingOfficerMiddleName"
-        placeholder="e.g., T"
-        maxlength="1"
-        style="text-transform: uppercase;"
-      >
-    </div>
-  </div>
-
-  <div style="margin-top: 8px; padding: 12px; background: rgba(111,183,255,0.08); border-radius: 10px; border: 1px solid rgba(111,183,255,0.2);">
-    <div style="font-size: 11px; font-weight: 650; margin-bottom: 6px; color: rgba(111,183,255,0.95);">Preview:</div>
-    <div id="certifyingOfficerPreview" style="font-family: 'Courier New', monospace; font-size: 12px; font-weight: 700; color: rgba(245,248,255,0.95);">
-      (Enter information above)
-    </div>
-  </div>
-
-  <button type="submit" class="btn-primary" style="width: 100%; margin-top: 8px;">
-    💾 Save Certifying Officer
-  </button>
-            
-            <div id="certifyingOfficerStatus" style="display: none; padding: 10px; border-radius: 10px; text-align: center; font-size: 12px; font-weight: 650;"></div>
-          </form>
         </div>
       </div>
     </div>
