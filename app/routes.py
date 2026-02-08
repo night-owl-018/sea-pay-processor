@@ -25,6 +25,8 @@ from app.core.config import (
     REVIEW_JSON_PATH,
     PACKAGE_FOLDER,
     OVERRIDES_DIR,
+    load_certifying_officer,
+    save_certifying_officer,
 )
 
 from app.processing import process_all
@@ -861,23 +863,47 @@ def api_override_save_and_rebuild():
 # CERTIFYING OFFICER ROUTES
 # ------------------------------------------------
 
-@bp.route("/api/certifying_officer", methods=["GET"])
-def get_certifying_officer():
+@bp.route("/api/certifying_officer", methods=["GET", "POST"])
+def certifying_officer():
     """
-    Get current certifying officer information.
+    GET:  Return current certifying officer information.
+    POST: Save certifying officer information.
     """
-    from app.core.config import load_certifying_officer
-    
     try:
-        officer = load_certifying_officer()
+        if request.method == "GET":
+            officer = load_certifying_officer()
+            return jsonify({
+                "status": "success",
+                "officer": officer
+            })
+
+        # POST
+        payload = request.get_json(silent=True) or {}
+        officer = {
+            "rate": (payload.get("rate") or "").strip().upper(),
+            "last_name": (payload.get("last_name") or "").strip().upper(),
+            "first_name": (payload.get("first_name") or "").strip().upper(),
+            "middle_name": (payload.get("middle_name") or "").strip().upper(),
+        }
+
+        if not officer["last_name"]:
+            return jsonify({
+                "status": "error",
+                "error": "last_name is required"
+            }), 400
+
+        save_certifying_officer(officer)
+
         return jsonify({
             "status": "success",
             "officer": officer
         })
-    except Exception as e:
-        log(f"GET CERTIFYING OFFICER ERROR → {e}")
-        return jsonify({"status": "error", "error": str(e)}), 500
 
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "error": str(e)
+        }), 500
 
 @bp.route("/api/certifying_officer_choices", methods=["GET"])
 def get_certifying_officer_choices():
@@ -934,5 +960,6 @@ def get_certifying_officer_choices():
     except Exception as e:
         log(f"CERTIFYING OFFICER CHOICES ERROR → {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
+
 
 
