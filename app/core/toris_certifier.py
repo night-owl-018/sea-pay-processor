@@ -87,7 +87,7 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                     hi = max(y_a_from_bottom, y_b_from_bottom)
                 
                     # Small padding from rules
-                    pad = font_size * 0.08  # ~0.8pt @ 10pt
+                    pad = font_size * 0.12  # ~0.8pt @ 10pt
                 
                     # Total text height
                     text_h = ascent + descent
@@ -103,12 +103,12 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 
                     # 🔑 Key control:
                     # smaller = lower placement, larger = higher placement
-                    frac = 0.22  # was 0.42 (too high on TORIS)
+                    frac = 0.18  # was 0.42 (too high on TORIS)
                     
                     baseline = lo + pad + descent + (free * frac)
                     
                     # extra small downward nudge (still scaled to font size, not a fixed Y)
-                    baseline -= (font_size * 0.24)  # ~1.2pt at 10pt
+                    baseline -= (font_size * 0.30)  # ~1.2pt at 10pt
                 
                     # Final clamp
                     min_base = lo + pad + descent
