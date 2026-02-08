@@ -138,20 +138,33 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                     """
                     Compute a baseline Y that places the text box centered between two rules,
                     with padding so it never touches either rule.
+                
+                    Uses actual font metrics from the registered Times New Roman font,
+                    plus a small downward bias (scaled by font size) to avoid riding high.
                     """
-                    # Times New Roman-ish metrics for visual centering (baseline-based)
-                    ascent = font_size * 0.70
-                    descent = font_size * 0.23
-                    pad = font_size * 0.20  # ~2pt at 10pt font
-
+                    # Get true font metrics (1000-em units -> points)
+                    f = pdfmetrics.getFont(font_name)
+                    ascent = (float(getattr(f.face, "ascent", 700)) / 1000.0) * font_size
+                    descent = (abs(float(getattr(f.face, "descent", -220))) / 1000.0) * font_size
+                
+                    # Padding inside the band so text never touches the rules
+                    pad = font_size * 0.20  # ~2pt at 10pt
+                
+                    # Small downward bias so text sits visually “between” the rules (not kissing the top)
+                    # (still clamped below, so it can’t hit the lower line)
+                    bias_down = font_size * 0.10  # ~1pt at 10pt
+                
                     lo = min(y_a_from_bottom, y_b_from_bottom)
                     hi = max(y_a_from_bottom, y_b_from_bottom)
                     mid = (lo + hi) / 2.0
-
-                    ideal = mid - ((ascent - descent) / 2.0)
+                
+                    # Baseline that centers the text box in the band
+                    ideal = mid - ((ascent - descent) / 2.0) - bias_down
+                
+                    # Clamp baseline so the entire glyph box stays inside the rules with padding
                     min_base = lo + pad + descent
                     max_base = hi - pad - ascent
-
+                
                     return max(min(ideal, max_base), min_base)
 
                 if len(picked_lines) == 2:
