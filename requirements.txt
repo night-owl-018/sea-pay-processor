@@ -4,6 +4,6 @@ reportlab
 pytesseract
 pdf2image
 pycryptodome
-
+pdfplumber
 
 
