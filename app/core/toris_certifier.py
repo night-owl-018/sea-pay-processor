@@ -74,35 +74,43 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
 
                 def compute_baseline_between_rules(y_a_from_bottom: float, y_b_from_bottom: float) -> float:
                     """
-                    Compute a baseline Y that places the text box centered between two rules,
-                    with padding so it never touches either rule.
-
-                    Uses actual font metrics from the registered Times New Roman font,
-                    plus a small downward bias (scaled by font size) to avoid riding high.
+                    Place the baseline inside the two signature rules.
+                    Uses real Times New Roman font metrics and positions the text
+                    slightly BELOW center so it never rides high.
                     """
-                    # Get true font metrics (1000-em units -> points)
                     f = pdfmetrics.getFont(font_name)
                     ascent = (float(getattr(f.face, "ascent", 700)) / 1000.0) * font_size
                     descent = (abs(float(getattr(f.face, "descent", -220))) / 1000.0) * font_size
-
-                    # Padding inside the band so text never touches the rules
-                    pad = font_size * 0.20  # ~2pt at 10pt
-
-                    # Small downward bias so text sits visually between the rules (not kissing the top)
-                    bias_down = font_size * 0.10  # ~1pt at 10pt
-
+                
+                    # Identify band
                     lo = min(y_a_from_bottom, y_b_from_bottom)
                     hi = max(y_a_from_bottom, y_b_from_bottom)
-                    mid = (lo + hi) / 2.0
-
-                    # Baseline that centers the text box in the band, with slight downward bias
-                    ideal = mid - ((ascent - descent) / 2.0) - bias_down
-
-                    # Clamp baseline so the entire glyph box stays inside the rules with padding
+                
+                    # Small padding from rules
+                    pad = font_size * 0.08  # ~0.8pt @ 10pt
+                
+                    # Total text height
+                    text_h = ascent + descent
+                
+                    band_h = hi - lo
+                    free = band_h - (2 * pad) - text_h
+                
+                    # Safety fallback (extremely rare)
+                    if free < 0:
+                        min_base = lo + pad + descent
+                        max_base = hi - pad - ascent
+                        return max(min((lo + hi) / 2.0, max_base), min_base)
+                
+                    # 🔑 Key control:
+                    # < 0.50 = lower placement, > 0.50 = higher
+                    frac = 0.42
+                
+                    baseline = lo + pad + descent + (free * frac)
+                
+                    # Final clamp
                     min_base = lo + pad + descent
                     max_base = hi - pad - ascent
-
-                    return max(min(ideal, max_base), min_base)
+                    return max(min(baseline, max_base), min_base)
 
                 # ----------------------------
                 # 5) Tighter label anchor (same-line requirement)
