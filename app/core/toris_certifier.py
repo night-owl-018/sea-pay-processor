@@ -13,6 +13,9 @@ from reportlab.pdfbase.ttfonts import TTFont
 from app.core.logger import log
 from app.core.config import get_certifying_officer_name
 
+# 🔎 PATCH: prove what file is actually executing
+log(f"TORIS CERT MODULE PATH → {__file__}")
+
 
 def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
     """
@@ -28,12 +31,17 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
       6) Uses Times New Roman (Times_New_Roman.ttf) from repo root.
       7) Centers baseline within the two lines and clamps with padding so text never touches rules.
       8) Registers the font BEFORE any calls to pdfmetrics.getFont() or setFont() (fixes KeyError 'TimesNewRoman').
+      9) DEBUG: prints baseline clamp math so we can prove if you’re clamping to the same Y each run.
+     10) DEBUG: prints a patch fingerprint so you can confirm the container is running this exact version.
 
     Args:
         input_pdf_path: Path to the TORIS sheet PDF
         output_pdf_path: Path where the updated PDF should be saved
     """
     try:
+        # 🔎 PATCH: fingerprint for runtime verification
+        log("TORIS CERT PATCH CHECK → compute_baseline_between_rules DEBUG v2026-02-08-01")
+
         certifying_officer_name = get_certifying_officer_name()
 
         if not certifying_officer_name:
@@ -81,38 +89,59 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                     f = pdfmetrics.getFont(font_name)
                     ascent = (float(getattr(f.face, "ascent", 700)) / 1000.0) * font_size
                     descent = (abs(float(getattr(f.face, "descent", -220))) / 1000.0) * font_size
-                
+
                     # Identify band
                     lo = min(y_a_from_bottom, y_b_from_bottom)
                     hi = max(y_a_from_bottom, y_b_from_bottom)
-                
+
                     # Small padding from rules
-                    pad = font_size * 0.12  # ~0.8pt @ 10pt
-                
+                    pad = font_size * 0.12
+
                     # Total text height
                     text_h = ascent + descent
-                
+
                     band_h = hi - lo
                     free = band_h - (2 * pad) - text_h
-                
+
                     # Safety fallback (extremely rare)
                     if free < 0:
                         min_base = lo + pad + descent
                         max_base = hi - pad - ascent
-                        return max(min((lo + hi) / 2.0, max_base), min_base)
-                
+
+                        # 🔎 PATCH: clamp debug for fallback too
+                        raw = (lo + hi) / 2.0
+                        log(
+                            "BASELINE DEBUG (free<0) → "
+                            f"lo={lo:.2f} hi={hi:.2f} pad={pad:.2f} "
+                            f"ascent={ascent:.2f} descent={descent:.2f} text_h={text_h:.2f} "
+                            f"band_h={band_h:.2f} free={free:.2f} raw={raw:.2f} "
+                            f"min_base={min_base:.2f} max_base={max_base:.2f}"
+                        )
+
+                        return max(min(raw, max_base), min_base)
+
                     # 🔑 Key control:
                     # smaller = lower placement, larger = higher placement
-                    frac = 0.18  # was 0.42 (too high on TORIS)
-                    
+                    frac = 0.18
+
                     baseline = lo + pad + descent + (free * frac)
-                    
+
                     # extra small downward nudge (still scaled to font size, not a fixed Y)
-                    baseline -= (font_size * 0.30)  # ~1.2pt at 10pt
-                
-                    # Final clamp
+                    baseline -= (font_size * 0.30)
+
+                    # Final clamp bounds
                     min_base = lo + pad + descent
                     max_base = hi - pad - ascent
+
+                    # 🔎 PATCH: full clamp debug
+                    log(
+                        "BASELINE DEBUG → "
+                        f"lo={lo:.2f} hi={hi:.2f} pad={pad:.2f} "
+                        f"ascent={ascent:.2f} descent={descent:.2f} text_h={text_h:.2f} "
+                        f"band_h={band_h:.2f} free={free:.2f} frac={frac:.3f} "
+                        f"raw={baseline:.2f} min_base={min_base:.2f} max_base={max_base:.2f}"
+                    )
+
                     return max(min(baseline, max_base), min_base)
 
                 # ----------------------------
@@ -244,6 +273,9 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                         name_x = 63
                         log("No vector/underscore lines found reliably; using label-based fallback")
                         log(f"Placing '{certifying_officer_name}' at (X={name_x}, Y={name_y:.1f})")
+
+                # 🔎 PATCH: prove what we are about to draw
+                log(f"TORIS DRAW DEBUG → name_x={name_x:.2f} name_y={name_y:.2f} font={font_name} size={font_size}")
 
                 # Build overlay on the ACTUAL TORIS page size, not letter
                 buf = io.BytesIO()
