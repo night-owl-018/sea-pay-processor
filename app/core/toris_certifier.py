@@ -16,14 +16,8 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
     """
     Add the certifying officer's name to a TORIS Sea Duty Certification Sheet PDF.
     
-    The name is placed BETWEEN two underscore lines, ABOVE the 
-    "PRINTED NAME OF CERTIFYING OFFICER" label.
-    
-    Layout:
-    ___________________________________  (first underscore)
-    STG1 NIVERA, R. N.                   (name - placed here)
-    ___________________________________  (second underscore)
-    PRINTED NAME OF CERTIFYING OFFICER   (label)
+    Dynamically finds "PRINTED NAME OF CERTIFYING OFFICER" text and places the
+    certifying officer name above it (between the two underscore lines).
     
     Args:
         input_pdf_path: Path to the TORIS sheet PDF
@@ -41,33 +35,79 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 shutil.copy2(input_pdf_path, output_pdf_path)
             return
         
-        # COORDINATES for certifying officer name:
-        # Based on TORIS form structure where:
-        # - "PRINTED NAME OF CERTIFYING OFFICER" label is around Y=361
-        # - Second underscore line is about 12 points above label (Y=373)
-        # - Name goes about 6 points above the second underscore (Y=379)
-        # This places the name in the space between the two underscore lines
-        
-        x_position = 63   # Left margin alignment
-        y_position = 379  # Between the two underscore lines
-        
-        log(f"Placing '{certifying_officer_name}' at (X={x_position}, Y={y_position})")
+        # Use pdfplumber to find the exact position of "PRINTED NAME OF CERTIFYING OFFICER"
+        try:
+            import pdfplumber
+            
+            with pdfplumber.open(input_pdf_path) as pdf:
+                # Process last page (where signature section is)
+                page_index = len(pdf.pages) - 1
+                page = pdf.pages[page_index]
+                
+                # Extract all text with positions
+                words = page.extract_words()
+                
+                # Search for "PRINTED" which is the start of the label
+                label_y = None
+                label_x = None
+                
+                for word in words:
+                    if word['text'] == 'PRINTED':
+                        # Check if next words are "NAME OF CERTIFYING OFFICER"
+                        # Found the label! Get its position
+                        label_y = word['top']  # Y from top of page
+                        label_x = word['x0']   # X position
+                        log(f"Found 'PRINTED NAME...' at Y={label_y} from top")
+                        break
+                
+                if label_y is None:
+                    log("Could not find 'PRINTED NAME OF CERTIFYING OFFICER' - using fallback")
+                    raise Exception("Text not found")
+                
+                # Convert from pdfplumber coordinates (Y=0 at top) to ReportLab (Y=0 at bottom)
+                page_height = float(page.height)
+                label_y_from_bottom = page_height - label_y
+                
+                # Place name about 12-14 points ABOVE the label
+                # This puts it between the two underscore lines
+                name_y = label_y_from_bottom + 13
+                name_x = 63  # Standard left margin
+                
+                log(f"Label at Y={label_y_from_bottom:.1f} from bottom")
+                log(f"Placing '{certifying_officer_name}' at (X={name_x}, Y={name_y:.1f})")
+                
+        except ImportError:
+            log("⚠️ pdfplumber not installed - cannot dynamically position name")
+            log("Install with: pip install pdfplumber")
+            # Copy file without modification
+            if input_pdf_path != output_pdf_path:
+                import shutil
+                shutil.copy2(input_pdf_path, output_pdf_path)
+            return
+            
+        except Exception as e:
+            log(f"⚠️ Error finding text position: {e}")
+            # Copy file without modification
+            if input_pdf_path != output_pdf_path:
+                import shutil
+                shutil.copy2(input_pdf_path, output_pdf_path)
+            return
         
         # Create an overlay with the certifying officer name
         buf = io.BytesIO()
         c = canvas.Canvas(buf, pagesize=letter)
         c.setFont("Helvetica-Bold", 10)
         
-        c.drawString(x_position, y_position, certifying_officer_name)
+        c.drawString(name_x, name_y, certifying_officer_name)
         c.save()
         buf.seek(0)
         
-        # Read the existing PDF
+        # Read the existing PDF and merge overlay
         reader = PdfReader(input_pdf_path)
         overlay = PdfReader(buf)
         writer = PdfWriter()
         
-        # Merge the overlay onto the last page (where signature section is)
+        # Merge the overlay onto the last page
         for i, page in enumerate(reader.pages):
             if i == len(reader.pages) - 1:  # Last page
                 page.merge_page(overlay.pages[0])
