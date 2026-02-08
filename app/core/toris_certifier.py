@@ -7,6 +7,8 @@ import io
 import re
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 from app.core.logger import log
 from app.core.config import get_certifying_officer_name
@@ -23,6 +25,8 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
       1) Supports drawn lines (vector lines) instead of relying on underscore text.
       5) Uses a tighter label anchor (PRINTED + NAME + CERTIFYING + OFFICER sequence on same line area),
          and chooses the lowest match on the page (most likely the signature block).
+      6) Uses Times New Roman (Times_New_Roman.ttf) from repo root.
+      7) Centers baseline within the two lines and clamps with padding so text never touches rules.
 
     Args:
         input_pdf_path: Path to the TORIS sheet PDF
@@ -52,26 +56,24 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 words = page.extract_words() or []
 
                 # ----------------------------
-                # 5) Tighter label anchor
+                # 5) Tighter label anchor (same-line requirement)
                 # ----------------------------
-                # Find candidates where "PRINTED" is followed nearby by "NAME", "CERTIFYING", "OFFICER".
-                # Choose the LOWEST on the page (largest 'top'), because the certifying block is near the bottom.
                 candidates = []
                 for i, w in enumerate(words):
                     if (w.get("text") or "").upper() != "PRINTED":
                         continue
 
                     printed_top = float(w.get("top", 0.0))
-                    printed_x0 = float(w.get("x0", 0.0))
 
-                    # Look ahead a bit for the expected keywords
-                    lookahead = [
-                        (words[i + j].get("text") or "").upper()
-                        for j in range(1, 18)
-                        if (i + j) < len(words)
-                    ]
+                    same_line = []
+                    for j in range(1, 25):
+                        if i + j >= len(words):
+                            break
+                        ww = words[i + j]
+                        if abs(float(ww.get("top", 0.0)) - printed_top) <= 3.0:
+                            same_line.append((ww.get("text") or "").upper())
 
-                    if "NAME" in lookahead and "CERTIFYING" in lookahead and "OFFICER" in lookahead:
+                    if ("NAME" in same_line) and ("CERTIFYING" in same_line) and ("OFFICER" in same_line):
                         candidates.append(w)
 
                 if not candidates:
@@ -89,16 +91,11 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 # -----------------------------------------
                 # 1) Prefer drawn lines (vector) above label
                 # -----------------------------------------
-                # pdfplumber exposes vector lines in page.lines.
-                # We locate two horizontal lines above the label in the same general block,
-                # then place the name centered between them.
                 def is_horizontal_line(ln: dict) -> bool:
                     y0 = float(ln.get("y0", ln.get("top", 0.0)))
                     y1 = float(ln.get("y1", ln.get("bottom", 0.0)))
                     return abs(y0 - y1) <= 1.5
 
-                # Pull horizontal lines above label, within a reasonable vertical band
-                # (no hard-coded final Y, just a search window to avoid grabbing random lines)
                 vertical_band_top = max(0.0, label_top - 120.0)
                 vertical_band_bottom = label_top - 2.0
 
@@ -111,27 +108,21 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                     x1 = float(ln.get("x1", 0.0))
                     y = float(ln.get("y0", ln.get("top", 0.0)))  # y from top in pdfplumber coords
 
-                    # Must be above label and within band
                     if not (vertical_band_top <= y <= vertical_band_bottom):
                         continue
 
-                    # Must overlap the left signature block region (loosely based on label position)
-                    # Expand right side generously to catch long lines.
                     if x1 < (label_x0 - 30.0):
                         continue
                     if x0 > (label_x1 + 350.0):
                         continue
 
-                    # Must be a "real" signature line length (avoid tiny rules)
                     if (x1 - x0) < 150.0:
                         continue
 
                     line_candidates.append({"x0": x0, "x1": x1, "y": y})
 
-                # Sort closest to label first (largest y under label_top)
                 line_candidates.sort(key=lambda d: (label_top - d["y"]))
 
-                # Pick two distinct line Y values (closest two)
                 picked_lines = []
                 for d in line_candidates:
                     if not picked_lines or abs(d["y"] - picked_lines[-1]["y"]) > 2.0:
@@ -139,14 +130,35 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                     if len(picked_lines) == 2:
                         break
 
+                # Font choice and metrics for positioning
+                font_name = "TimesNewRoman"
+                font_size = 10
+
+                def compute_baseline_between_rules(y_a_from_bottom: float, y_b_from_bottom: float) -> float:
+                    """
+                    Compute a baseline Y that places the text box centered between two rules,
+                    with padding so it never touches either rule.
+                    """
+                    # Times New Roman-ish metrics for visual centering (baseline-based)
+                    ascent = font_size * 0.70
+                    descent = font_size * 0.23
+                    pad = font_size * 0.20  # ~2pt at 10pt font
+
+                    lo = min(y_a_from_bottom, y_b_from_bottom)
+                    hi = max(y_a_from_bottom, y_b_from_bottom)
+                    mid = (lo + hi) / 2.0
+
+                    ideal = mid - ((ascent - descent) / 2.0)
+                    min_base = lo + pad + descent
+                    max_base = hi - pad - ascent
+
+                    return max(min(ideal, max_base), min_base)
+
                 if len(picked_lines) == 2:
-                    # Convert line y (from top) to reportlab y (from bottom)
                     y1_from_bottom = page_height - picked_lines[0]["y"]
                     y2_from_bottom = page_height - picked_lines[1]["y"]
-                    mid_y = (y1_from_bottom + y2_from_bottom) / 2.0
 
-                    font_size = 10
-                    name_y = mid_y - (font_size * 0.35)
+                    name_y = compute_baseline_between_rules(y1_from_bottom, y2_from_bottom)
 
                     # Align left edge to the line start
                     name_x = min(picked_lines[0]["x0"], picked_lines[1]["x0"]) + 2.0
@@ -179,12 +191,10 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                             break
 
                     if len(picked) == 2:
-                        u1 = page_height - ((float(picked[0]["top"]) + float(picked[0]["bottom"])) / 2.0)
-                        u2 = page_height - ((float(picked[1]["top"]) + float(picked[1]["bottom"])) / 2.0)
-                        mid_y = (u1 + u2) / 2.0
+                        u1_from_bottom = page_height - ((float(picked[0]["top"]) + float(picked[0]["bottom"])) / 2.0)
+                        u2_from_bottom = page_height - ((float(picked[1]["top"]) + float(picked[1]["bottom"])) / 2.0)
 
-                        font_size = 10
-                        name_y = mid_y - (font_size * 0.35)
+                        name_y = compute_baseline_between_rules(u1_from_bottom, u2_from_bottom)
                         name_x = float(picked[0]["x0"]) + 2.0
 
                         log(
@@ -199,10 +209,22 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                         log("No vector/underscore lines found reliably; using label-based fallback")
                         log(f"Placing '{certifying_officer_name}' at (X={name_x}, Y={name_y:.1f})")
 
+                # ----------------------------
+                # Register Times New Roman from repo root
+                # ----------------------------
+                if font_name not in pdfmetrics.getRegisteredFontNames():
+                    font_path = os.path.abspath(
+                        os.path.join(os.path.dirname(__file__), "..", "..", "Times_New_Roman.ttf")
+                    )
+                    if not os.path.exists(font_path):
+                        raise FileNotFoundError(f"Times_New_Roman.ttf not found at: {font_path}")
+                    pdfmetrics.registerFont(TTFont(font_name, font_path))
+                    log(f"Registered font {font_name} from {font_path}")
+
                 # Build overlay on the ACTUAL TORIS page size, not letter
                 buf = io.BytesIO()
                 c = canvas.Canvas(buf, pagesize=(page_width, page_height))
-                c.setFont("Helvetica-Bold", 10)
+                c.setFont(font_name, font_size)
                 c.drawString(name_x, name_y, certifying_officer_name)
                 c.save()
                 buf.seek(0)
