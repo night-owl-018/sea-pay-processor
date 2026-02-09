@@ -86,11 +86,17 @@
       color: rgba(245,248,255,0.72);
     }
 
+    /* PATCH: fix missing selector and force header order */
     .header-buttons {
       display: flex;
       gap: 8px;
       align-items: center;
     }
+
+    /* Force header button order (Help, GitHub, About) */
+    #hdrHelp { order: 0; }
+    #hdrGithub { order: 1; }
+    #hdrAbout { order: 2; }
 
     .header-btn {
       padding: 8px 14px;
@@ -653,9 +659,11 @@
         <h1>⚓ ATGSD Sea Pay Processor</h1>
         <div class="subtitle">Automated Sea Duty Certification & PG-13 Generation System</div>
       </div>
+
+      <!-- PATCH: (📖 Help, GitHub, ℹ️ About) with IDs -->
       <div class="header-buttons">
         <button id="hdrHelp" onclick="showModal('helpModal')" class="header-btn">📖 Help</button>
-      
+
         <a id="hdrGithub"
            href="https://github.com/night-owl-018/stg1_nivera_atgsd-sea-pay-processor/tree/main"
            target="_blank"
@@ -667,7 +675,7 @@
           </svg>
           GitHub
         </a>
-      
+
         <button id="hdrAbout" onclick="showModal('aboutModal')" class="header-btn">ℹ️ About</button>
       </div>
     </div>
@@ -686,11 +694,11 @@
           <details class="advanced">
             <summary>🧰 Optional: Roster & PG13 Template PDF</summary>
             <div class="hint">Most users can leave this closed. Open only if you need to override the built-in rates or PG-13 template.</div>
-          
+
             <div class="advanced-inner">
               <label>Roster</label>
               <input id="ratesCsv" type="file" accept=".csv" class="mb-1">
-          
+
               <label>PG13 Template PDF</label>
               <input id="templatePdf" type="file" accept="application/pdf">
             </div>
