@@ -863,9 +863,12 @@ def api_override_save_and_rebuild():
 # ------------------------------------------------
 # CERTIFYING OFFICER ROUTES
 # ------------------------------------------------
+# ------------------------------------------------
+# CERTIFYING OFFICER ROUTES (FIXED: single source of truth)
+# ------------------------------------------------
 
 @bp.route("/api/certifying_officer", methods=["GET", "POST"])
-def certifying_officer():
+def api_certifying_officer():
     """
     GET:  Return current certifying officer information.
     POST: Save certifying officer information.
@@ -873,62 +876,32 @@ def certifying_officer():
     try:
         if request.method == "GET":
             officer = load_certifying_officer()
-            return jsonify({
-                "status": "success",
-                "officer": officer
-            })
+            return jsonify({"status": "success", "officer": officer})
 
         # POST
-        payload = request.get_json(silent=True) or {}
-        officer = {
-            "rate": (payload.get("rate") or "").strip().upper(),
-            "last_name": (payload.get("last_name") or "").strip().upper(),
-            "first_name": (payload.get("first_name") or "").strip().upper(),
-            "middle_name": (payload.get("middle_name") or "").strip().upper(),
-        }
+        data = request.get_json(silent=True) or {}
 
-        if not officer["last_name"]:
-            return jsonify({
-                "status": "error",
-                "error": "last_name is required"
-            }), 400
+        rate = (data.get("rate") or "").strip().upper()
+        last_name = (data.get("last_name") or "").strip().upper()
+        first_name = (data.get("first_name") or "").strip().upper()
+        middle_name = (data.get("middle_name") or "").strip().upper()
 
-        save_certifying_officer(officer)
+        if not last_name:
+            return jsonify({"status": "error", "error": "last_name is required"}), 400
+
+        # IMPORTANT: call with 4 positional args (matches your config.save_certifying_officer signature)
+        save_certifying_officer(rate, last_name, first_name, middle_name)
 
         return jsonify({
             "status": "success",
-            "officer": officer
+            "officer": {
+                "rate": rate,
+                "last_name": last_name,
+                "first_name": first_name,
+                "middle_name": middle_name,
+            }
         })
 
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "error": str(e)
-        }), 500
-
-# -----------------------------
-# Certifying Officer API
-# -----------------------------
-@bp.route("/api/certifying_officer", methods=["GET"])
-def api_get_certifying_officer():
-    officer = load_certifying_officer()
-    return jsonify({"status": "success", "officer": officer})
-
-@bp.route("/api/certifying_officer", methods=["POST"])
-def api_set_certifying_officer():
-    data = request.get_json(silent=True) or {}
-
-    rate = (data.get("rate") or "").strip().upper()
-    last_name = (data.get("last_name") or "").strip().upper()
-    first_name = (data.get("first_name") or "").strip().upper()
-    middle_name = (data.get("middle_name") or "").strip().upper()
-
-    if not last_name:
-        return jsonify({"status": "error", "error": "last_name is required"}), 400
-
-    try:
-        save_certifying_officer(rate, last_name, first_name, middle_name)
-        return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)}), 500
 
@@ -945,13 +918,15 @@ def get_certifying_officer_choices():
     try:
         choices = []
 
-        if not os.path.exists(RATE_FILE):
+        # 🔹 PATCH: Read from N811 roster CSV in CONFIG_DIR (NOT RATE_FILE)
+        N811_CSV = os.path.join(CONFIG_DIR, "atgsd_n811.csv")
+        if not os.path.exists(N811_CSV):
             return jsonify({"status": "success", "choices": choices})
 
         def clean(v):
             return (v or "").replace("\t", " ").strip().upper()
 
-        with open(RATE_FILE, "r", encoding="utf-8-sig", newline="") as f:
+        with open(N811_CSV, "r", encoding="utf-8-sig", newline="") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 rate = clean(row.get("rate"))
@@ -987,7 +962,3 @@ def get_certifying_officer_choices():
     except Exception as e:
         log(f"CERTIFYING OFFICER CHOICES ERROR → {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
-
-
-
-
