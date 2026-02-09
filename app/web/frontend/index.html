@@ -1319,19 +1319,19 @@
       btn.className = this.value === 'reset' ? 'btn-danger' : 'btn-primary';
     });
 
-    // Persist Consolidation selection
-    const CONSOLIDATE_MODE_KEY = 'atgsd_consolidate_mode';
-    (function initConsolidationMode() {
-      const sel = $('consolidateMode');
+    // Persist Strikeout color selection
+    const STRIKE_COLOR_KEY = 'atgsd_strike_color';
+    (function initStrikeColor() {
+      const sel = $('strikeColor');
       if (!sel) return;
-
-      const saved = localStorage.getItem(CONSOLIDATE_MODE_KEY);
-      if (saved && ['none', 'pg13', 'missions'].includes(saved)) {
+    
+      const saved = localStorage.getItem(STRIKE_COLOR_KEY);
+      if (saved && ['Black', 'Red'].includes(saved)) {
         sel.value = saved;
       }
-
+    
       sel.addEventListener('change', () => {
-        localStorage.setItem(CONSOLIDATE_MODE_KEY, sel.value);
+        localStorage.setItem(STRIKE_COLOR_KEY, sel.value);
       });
     })();
 
