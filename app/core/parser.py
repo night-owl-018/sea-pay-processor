@@ -116,12 +116,20 @@ def parse_rows(text, year):
     # --------------------------------------------------
     for i, line in enumerate(lines):
         m = re.match(r"\s*(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?", line)
-        if not m:
-            continue
+if not m:
+    continue
+mm, dd, parsed_year_str = m.groups()
 
-        mm, dd, yy = m.groups()
-        y = ("20" + yy) if yy and len(yy) == 2 else yy or year
-        date = f"{mm.zfill(2)}/{dd.zfill(2)}/{y}"
+# Explicitly prioritize the year parsed from the document line
+if parsed_year_str and len(parsed_year_str) == 4:
+    y = parsed_year_str
+elif parsed_year_str and len(parsed_year_str) == 2:
+    y = "20" + parsed_year_str
+else:
+    # Only use the filename year as a last resort if no year is on the line
+    y = year
+
+date = f"{mm.zfill(2)}/{dd.zfill(2)}/{y}"
 
         raw = line[m.end():]
         
@@ -298,3 +306,4 @@ def group_by_ship(rows):
         output.append({"ship": ship, "start": start, "end": prev})
 
     return output
+
