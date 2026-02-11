@@ -60,7 +60,7 @@ REVIEW_JSON_PATH = os.path.join(OUTPUT_DIR, "SEA_PAY_REVIEW.json")
 # -----------------------------------
 
 FONT_NAME = "Times-Roman"
-FONT_SIZE = 11
+FONT_SIZE = 10
 
 # -----------------------------------
 # CERTIFYING OFFICER HELPER FUNCTIONS
@@ -195,4 +195,5 @@ for p in [
     PREVIEWS_DIR,
 ]:
     os.makedirs(p, exist_ok=True)
+
 
