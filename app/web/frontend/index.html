@@ -1131,7 +1131,16 @@
                 <label>Middle Initial</label>
                 <input type="text" id="certifyingOfficerMiddleName" placeholder="e.g., T" maxlength="1" style="text-transform: uppercase;">
               </div>
-            </div>
+            
+<div>
+  <label>Certifier Date (PG-13) *</label>
+  <input type="date" id="certifyingOfficerDate" required>
+  <div class="hint" style="margin-top: 6px;">
+    Saved format: <span id="certifyingOfficerDateYmd">YYYYMMDD</span>
+  </div>
+</div>
+
+</div>
 
             <div style="margin-top: 8px; padding: 12px; background: rgba(111,183,255,0.08); border-radius: 10px; border: 1px solid rgba(111,183,255,0.2);">
               <div style="font-size: 11px; font-weight: 650; margin-bottom: 6px; color: rgba(111,183,255,0.95);">Preview:</div>
@@ -1193,6 +1202,27 @@
   <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
     // Utility functions
     const $ = id => document.getElementById(id);
+
+function dateInputToYMD(v) {
+  // v = "YYYY-MM-DD" -> "YYYYMMDD"
+  if (!v) return "";
+  return String(v).replaceAll("-", "");
+}
+
+function ymdToDateInput(ymd) {
+  // "YYYYMMDD" -> "YYYY-MM-DD"
+  if (!ymd || String(ymd).length !== 8) return "";
+  const s = String(ymd);
+  return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+}
+
+function updateCertDatePreview() {
+  const inp = $('certifyingOfficerDate');
+  const out = $('certifyingOfficerDateYmd');
+  if (!inp || !out) return;
+  out.textContent = dateInputToYMD(inp.value) || "YYYYMMDD";
+}
+
 
     // Modal functions
     window.showModal = function(modalId) {
@@ -1843,7 +1873,8 @@
           rate: $('certifyingOfficerRate').value.trim().toUpperCase(),
           last_name: $('certifyingOfficerLastName').value.trim().toUpperCase(),
           first_name: $('certifyingOfficerFirstName').value.trim().toUpperCase(),
-          middle_name: $('certifyingOfficerMiddleName').value.trim().toUpperCase()
+          middle_name: $('certifyingOfficerMiddleName').value.trim().toUpperCase(),
+          date_yyyymmdd: dateInputToYMD(($('certifyingOfficerDate') && $('certifyingOfficerDate').value) || '')
         });
 
         const s = $('certOfficerPickStatus');
@@ -1895,6 +1926,7 @@
       if ($('certifyingOfficerPreview')) {
         $('certifyingOfficerPreview').textContent = preview || '(Enter information above)';
       }
+      updateCertDatePreview();
     }
 
     async function loadCertifyingOfficer() {
@@ -1906,7 +1938,9 @@
           if ($('certifyingOfficerLastName')) $('certifyingOfficerLastName').value = officer.last_name || '';
           if ($('certifyingOfficerFirstName')) $('certifyingOfficerFirstName').value = officer.first_name || '';
           if ($('certifyingOfficerMiddleName')) $('certifyingOfficerMiddleName').value = officer.middle_name || '';
+          if ($('certifyingOfficerDate')) $('certifyingOfficerDate').value = ymdToDateInput(officer.date_yyyymmdd || '');
           updateCertifyingOfficerPreview();
+          updateCertDatePreview();
         }
       } catch (error) {
         console.error('Failed to load certifying officer:', error);
@@ -1922,9 +1956,16 @@
         const lastName = $('certifyingOfficerLastName').value.trim().toUpperCase();
         const firstName = $('certifyingOfficerFirstName').value.trim().toUpperCase();
         const middleName = $('certifyingOfficerMiddleName').value.trim().toUpperCase();
+        const dateISO = $('certifyingOfficerDate') ? $('certifyingOfficerDate').value : '';
+        const dateYMD = dateInputToYMD(dateISO);
 
         if (!lastName) {
           alert('Last name is required');
+          return;
+        }
+
+        if (!dateYMD || dateYMD.length !== 8) {
+          alert('Certifier date is required');
           return;
         }
 
@@ -1941,7 +1982,8 @@
             rate: rate,
             last_name: lastName,
             first_name: firstName,
-            middle_name: middleName
+            middle_name: middleName,
+            date_yyyymmdd: dateYMD
           });
 
           if (response.status === 'success') {
@@ -1977,6 +2019,10 @@
       const el = $(id);
       if (el) el.addEventListener('input', updateCertifyingOfficerPreview);
     });
+
+
+    const dateEl = $('certifyingOfficerDate');
+    if (dateEl) dateEl.addEventListener('change', updateCertDatePreview);
 
     $('yearNow').textContent = new Date().getFullYear();
     loadMembers();
