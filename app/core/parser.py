@@ -5,9 +5,76 @@ from app.core.ships import match_ship
 
 
 def extract_year_from_filename(fn):
-    """Extract 4-digit year from filename or fallback to current year."""
-    m = re.search(r"(20\d{2})", fn)
-    return m.group(1) if m else str(datetime.now().year)
+    """Extract 4-digit year from filename (uses LAST year found) or fallback to current year."""
+    matches = re.findall(r"(20\d{2})", fn)
+    return matches[-1] if matches else str(datetime.now().year)
+
+
+def extract_reporting_period_from_filename(fn):
+    """
+    Extract start and end dates from filename pattern like:
+    'NAME_Sea_Pay_11_25_2025_-_2_27_2026.pdf'
+    
+    Returns: (start_date, end_date) as datetime objects, or (None, None) if not found
+    """
+    # More flexible pattern to handle various separators
+    pattern = r"(\d{1,2})_(\d{1,2})_(\d{4}).*?(\d{1,2})_(\d{1,2})_(\d{4})"
+    m = re.search(pattern, fn)
+    if m:
+        try:
+            start_month, start_day, start_year, end_month, end_day, end_year = m.groups()
+            start_date = datetime(int(start_year), int(start_month), int(start_day))
+            end_date = datetime(int(end_year), int(end_month), int(end_day))
+            return start_date, end_date
+        except (ValueError, TypeError):
+            return None, None
+    return None, None
+
+
+def infer_year_for_date(month, day, start_date=None, end_date=None, fallback_year=None):
+    """
+    Intelligently infer the year for a date based on the reporting period.
+    
+    Logic:
+    1. If we have a reporting period (start_date and end_date), find which year 
+       makes the date fall within that range
+    2. Handle year transitions properly (e.g., Nov 2025 to Feb 2026)
+    3. Fall back to fallback_year if provided, or current year
+    
+    Args:
+        month: Month number (1-12) as int or string
+        day: Day number as int or string  
+        start_date: Start of reporting period (datetime object)
+        end_date: End of reporting period (datetime object)
+        fallback_year: Fallback year if no reporting period available
+        
+    Returns:
+        Year as string
+    """
+    month = int(month)
+    day = int(day)
+    
+    # If we don't have a reporting period, use simple fallback
+    if not start_date or not end_date:
+        return str(fallback_year) if fallback_year else str(datetime.now().year)
+    
+    # Try both years from the reporting period
+    candidate_years = [start_date.year]
+    if end_date.year != start_date.year:
+        candidate_years.append(end_date.year)
+    
+    # Check which year makes the date fall within the reporting period
+    for year in candidate_years:
+        try:
+            candidate_date = datetime(year, month, day)
+            if start_date <= candidate_date <= end_date:
+                return str(year)
+        except ValueError:
+            # Invalid date (e.g., Feb 30)
+            continue
+    
+    # If neither year works, use the end year (more likely for recent dates)
+    return str(end_date.year)
 
 
 # ----------------------------------------------------------
@@ -84,7 +151,7 @@ def sanitize_event_parentheses(s: str) -> str:
 # ----------------------------------------------------------
 # MAIN TORIS PARSER (SBTT/MITE as invalid entries, not suppressors)
 # ----------------------------------------------------------
-def parse_rows(text, year):
+def parse_rows(text, year, reporting_start=None, reporting_end=None):
     """
     TORIS Sea Duty parser, enriched for UI / JSON review state.
 
@@ -92,10 +159,13 @@ def parse_rows(text, year):
     not as suppressors of the entire date. Valid ships still go through
     normal duplicate/mission priority logic.
     
+    NEW: Intelligent year inference using reporting period dates
+    
     Behavior:
       - MITE/SBTT → added to skipped_unknown as invalid entries
       - Valid ships → normal mission priority + duplicate detection
       - Unknowns → stay invalid
+      - Year inference: Uses reporting period to correctly handle year transitions
     
     NEW (Phase 2):
       - rows now carry: raw, is_inport, inport_label, is_mission, label
@@ -120,7 +190,14 @@ def parse_rows(text, year):
             continue
 
         mm, dd, yy = m.groups()
-        y = ("20" + yy) if yy and len(yy) == 2 else yy or year
+        # Use intelligent year inference based on reporting period
+        if yy and len(yy) == 2:
+            y = "20" + yy
+        elif yy:
+            y = yy
+        else:
+            # No year in date - use intelligent inference
+            y = infer_year_for_date(mm, dd, reporting_start, reporting_end, year)
         date = f"{mm.zfill(2)}/{dd.zfill(2)}/{y}"
 
         raw = line[m.end():]
