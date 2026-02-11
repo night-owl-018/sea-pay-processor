@@ -886,11 +886,16 @@ def api_certifying_officer():
         first_name = (data.get("first_name") or "").strip().upper()
         middle_name = (data.get("middle_name") or "").strip().upper()
 
+        date_yyyymmdd = (data.get("date_yyyymmdd") or "").strip()
+        if date_yyyymmdd:
+            if not (len(date_yyyymmdd) == 8 and date_yyyymmdd.isdigit()):
+                return jsonify({"status": "error", "error": "date_yyyymmdd must be 8 digits (YYYYMMDD)"}), 400
+
         if not last_name:
             return jsonify({"status": "error", "error": "last_name is required"}), 400
 
         # IMPORTANT: call with 4 positional args (matches your config.save_certifying_officer signature)
-        save_certifying_officer(rate, last_name, first_name, middle_name)
+        save_certifying_officer(rate, last_name, first_name, middle_name, date_yyyymmdd)
 
         return jsonify({
             "status": "success",
@@ -899,6 +904,7 @@ def api_certifying_officer():
                 "last_name": last_name,
                 "first_name": first_name,
                 "middle_name": middle_name,
+                "date_yyyymmdd": date_yyyymmdd,
             }
         })
 
