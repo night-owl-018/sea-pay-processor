@@ -111,6 +111,19 @@ def _draw_pg13_certifier_date(c, date_yyyymmdd):
     c.setFont(FONT_NAME, 10)
     c.drawCentredString(date_center_x, date_y, date_yyyymmdd)
 
+
+# ------------------------------------------------
+# INTERNAL HELPER: Format YYYYMMDD -> MM/DD/YYYY
+# ------------------------------------------------
+def _fmt_mmddyyyy(date_yyyymmdd: str) -> str:
+    if not date_yyyymmdd:
+        return ""
+    s = str(date_yyyymmdd).strip()
+    if len(s) == 8 and s.isdigit():
+        return f"{s[4:6]}/{s[6:8]}/{s[0:4]}"
+    return s
+
+
 # ------------------------------------------------
 # 🔹 NEW: CONSOLIDATED ALL MISSIONS (ALL SHIPS ON ONE FORM)
 # ------------------------------------------------
@@ -236,6 +249,14 @@ def make_consolidated_all_missions_pdf(
     c.drawString(sig_left_x, sig_y, sig_line_text)
     c.setFont(FONT_NAME, 10)
 
+    # Date aligned to right edge of underline (MM/DD/YYYY)
+    sig_date = _fmt_mmddyyyy(get_certifying_date_yyyymmdd())
+    if sig_date:
+        c.setFont(FONT_NAME, 10)
+        sig_right_x = sig_left_x + sig_line_w
+        date_w = c.stringWidth(sig_date, FONT_NAME, 10)
+        c.drawString(sig_right_x - date_w, sig_y + 2, sig_date)
+    c.setFont(FONT_NAME, 10)
     c.drawCentredString(sig_mid_x, sig_y - 12, "Certifying Official & Date")
 
     # Tighten vertical spacing (was sig_y - 72, too large)
@@ -360,6 +381,14 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c.drawString(sig_left_x, top_sig_y, sig_line_text)
     c.setFont(FONT_NAME, 10)
 
+    # Date aligned to right edge of underline (MM/DD/YYYY)
+    sig_date = _fmt_mmddyyyy(get_certifying_date_yyyymmdd())
+    if sig_date:
+        c.setFont(FONT_NAME, 10)
+        sig_right_x = sig_left_x + sig_line_w
+        date_w = c.stringWidth(sig_date, FONT_NAME, 10)
+        c.drawString(sig_right_x - date_w, top_sig_y + 2, sig_date)
+    c.setFont(FONT_NAME, 10)
     c.drawCentredString(sig_mid_x, top_sig_y - 12, "Certifying Official & Date")
     c.setFont(FONT_NAME, sig_line_font_size)
 
@@ -478,6 +507,14 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c.drawString(sig_left_x, top_sig_y, sig_line_text)
         c.setFont(FONT_NAME, 10)
 
+    # Date aligned to right edge of underline (MM/DD/YYYY)
+    sig_date = _fmt_mmddyyyy(get_certifying_date_yyyymmdd())
+    if sig_date:
+        c.setFont(FONT_NAME, 10)
+        sig_right_x = sig_left_x + sig_line_w
+        date_w = c.stringWidth(sig_date, FONT_NAME, 10)
+        c.drawString(sig_right_x - date_w, top_sig_y + 2, sig_date)
+    c.setFont(FONT_NAME, 10)
         c.drawCentredString(sig_mid_x, top_sig_y - 12, "Certifying Official & Date")
         c.setFont(FONT_NAME, sig_line_font_size)
 
