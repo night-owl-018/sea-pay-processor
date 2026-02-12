@@ -73,7 +73,7 @@ def _draw_centered_certifying_officer(
     sig_line_left_x,
     sig_line_y,
     name,
-    y_above_line=1.5,
+    y_above_line=7.0,
     sig_line_text="_________________________",
     sig_line_font_size=8,
 ):
@@ -175,7 +175,6 @@ def make_consolidated_all_missions_pdf(
     c.setFont(FONT_NAME, FONT_SIZE)
 
     # HEADER BLOCK
-    c.setFont(FONT_NAME, 10)
     c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
     c.drawString(373, 671, "X")
     c.setFont(FONT_NAME, 8)
@@ -236,10 +235,13 @@ def make_consolidated_all_missions_pdf(
     c.setFont(FONT_NAME, sig_line_font_size)
     c.drawString(sig_left_x, sig_y, sig_line_text)
     c.setFont(FONT_NAME, 10)
+
     c.drawCentredString(sig_mid_x, sig_y - 12, "Certifying Official & Date")
 
     # Tighten vertical spacing (was sig_y - 72, too large)
     bottom_line_y = sig_y - 52
+    c.setFont(FONT_NAME, sig_line_font_size)
+
     c.drawString(sig_left_x, bottom_line_y, sig_line_text)
 
     # ✅ Certifying officer name centered over underline
@@ -250,7 +252,7 @@ def make_consolidated_all_missions_pdf(
         sig_left_x,
         bottom_line_y,
         certifying_officer_name,
-        y_above_line=1.5,
+        y_above_line=7.0,
         sig_line_text=sig_line_text,
         sig_line_font_size=sig_line_font_size,
     )
@@ -315,7 +317,6 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c = canvas.Canvas(buf, pagesize=letter)
     c.setFont(FONT_NAME, FONT_SIZE)
 
-    c.setFont(FONT_NAME, 10)
     c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
     c.drawString(373, 671, "X")
     c.setFont(FONT_NAME, 8)
@@ -358,7 +359,10 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c.setFont(FONT_NAME, sig_line_font_size)
     c.drawString(sig_left_x, top_sig_y, sig_line_text)
     c.setFont(FONT_NAME, 10)
+
     c.drawCentredString(sig_mid_x, top_sig_y - 12, "Certifying Official & Date")
+    c.setFont(FONT_NAME, sig_line_font_size)
+
     c.drawString(sig_left_x, bottom_line_y, sig_line_text)
 
     # ✅ Certifying officer name centered + lower
@@ -369,7 +373,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
         sig_left_x,
         bottom_line_y,
         certifying_officer_name,
-        y_above_line=1.5,
+        y_above_line=7.0,
         sig_line_text=sig_line_text,
         sig_line_font_size=sig_line_font_size,
     )
@@ -438,7 +442,6 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c = canvas.Canvas(buf, pagesize=letter)
         c.setFont(FONT_NAME, FONT_SIZE)
 
-        c.setFont(FONT_NAME, 10)
         c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
         c.drawString(373, 671, "X")
         c.setFont(FONT_NAME, 8)
@@ -474,7 +477,10 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c.setFont(FONT_NAME, sig_line_font_size)
         c.drawString(sig_left_x, top_sig_y, sig_line_text)
         c.setFont(FONT_NAME, 10)
+
         c.drawCentredString(sig_mid_x, top_sig_y - 12, "Certifying Official & Date")
+        c.setFont(FONT_NAME, sig_line_font_size)
+
         c.drawString(sig_left_x, bottom_line_y, sig_line_text)
 
         # ✅ Certifying officer name centered + lower
@@ -485,7 +491,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
             sig_left_x,
             bottom_line_y,
             certifying_officer_name,
-            y_above_line=1.5,
+            y_above_line=7.0,
             sig_line_text=sig_line_text,
             sig_line_font_size=sig_line_font_size,
         )
