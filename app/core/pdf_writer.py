@@ -175,6 +175,7 @@ def make_consolidated_all_missions_pdf(
     c.setFont(FONT_NAME, FONT_SIZE)
 
     # HEADER BLOCK
+    c.setFont(FONT_NAME, 10)
     c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
     c.drawString(373, 671, "X")
     c.setFont(FONT_NAME, 8)
@@ -226,7 +227,7 @@ def make_consolidated_all_missions_pdf(
 
     sig_left_x = 356.26
     sig_line_text = "_________________________"
-    sig_line_font_size = 10
+    sig_line_font_size = 8
 
     # Calculate center from underline width (same font size used to draw it)
     sig_line_w = c.stringWidth(sig_line_text, FONT_NAME, sig_line_font_size)
@@ -234,6 +235,7 @@ def make_consolidated_all_missions_pdf(
 
     c.setFont(FONT_NAME, sig_line_font_size)
     c.drawString(sig_left_x, sig_y, sig_line_text)
+    c.setFont(FONT_NAME, 10)
     c.drawCentredString(sig_mid_x, sig_y - 12, "Certifying Official & Date")
 
     # Tighten vertical spacing (was sig_y - 72, too large)
@@ -313,6 +315,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     c = canvas.Canvas(buf, pagesize=letter)
     c.setFont(FONT_NAME, FONT_SIZE)
 
+    c.setFont(FONT_NAME, 10)
     c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
     c.drawString(373, 671, "X")
     c.setFont(FONT_NAME, 8)
@@ -348,12 +351,13 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     bottom_line_y = 427.5
 
     sig_line_text = "_________________________"
-    sig_line_font_size = 10
+    sig_line_font_size = 8
     sig_line_w = c.stringWidth(sig_line_text, FONT_NAME, sig_line_font_size)
     sig_mid_x = sig_left_x + (sig_line_w / 2.0)
 
     c.setFont(FONT_NAME, sig_line_font_size)
     c.drawString(sig_left_x, top_sig_y, sig_line_text)
+    c.setFont(FONT_NAME, 10)
     c.drawCentredString(sig_mid_x, top_sig_y - 12, "Certifying Official & Date")
     c.drawString(sig_left_x, bottom_line_y, sig_line_text)
 
@@ -434,6 +438,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         c = canvas.Canvas(buf, pagesize=letter)
         c.setFont(FONT_NAME, FONT_SIZE)
 
+        c.setFont(FONT_NAME, 10)
         c.drawString(39, 689, "AFLOAT TRAINING GROUP SAN DIEGO (UIC. 49365)")
         c.drawString(373, 671, "X")
         c.setFont(FONT_NAME, 8)
@@ -462,12 +467,13 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         bottom_line_y = 427.5
 
         sig_line_text = "_________________________"
-        sig_line_font_size = 10
+        sig_line_font_size = 8
         sig_line_w = c.stringWidth(sig_line_text, FONT_NAME, sig_line_font_size)
         sig_mid_x = sig_left_x + (sig_line_w / 2.0)
 
         c.setFont(FONT_NAME, sig_line_font_size)
         c.drawString(sig_left_x, top_sig_y, sig_line_text)
+        c.setFont(FONT_NAME, 10)
         c.drawCentredString(sig_mid_x, top_sig_y - 12, "Certifying Official & Date")
         c.drawString(sig_left_x, bottom_line_y, sig_line_text)
 
