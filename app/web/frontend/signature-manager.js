@@ -50,78 +50,68 @@ class SignatureManager {
             return;
         }
 
-        // Remove any existing event listeners by swapping the canvas node FIRST.
-        // If we clone AFTER applying HiDPI transforms, we lose the transform and
-        // drawing ends up tiny in the upper-left with pointer offset.
+        // Remove any existing event listeners by swapping the canvas node.
         const cloned = this.canvas.cloneNode(true);
         this.canvas.parentNode.replaceChild(cloned, this.canvas);
         this.canvas = cloned;
 
-        const parent = this.canvas.parentElement;
-        const rect = parent.getBoundingClientRect();
+        // Ensure CSS controls the displayed size. Do NOT force a pixel width/height here,
+        // because mobile browsers can scale the modal and cause coordinate offsets.
+        this.canvas.style.width = '100%';
+        this.canvas.style.touchAction = 'none';
 
-        // HiDPI canvas for crisp signatures on PDF (prevents pixelated output)
-        const cssWidth = Math.max(300, Math.min(700, rect.width));
-        const cssHeight = 200;
+        // Measure on-screen size (CSS pixels)
+        const rect = this.canvas.getBoundingClientRect();
+        const cssWidth = Math.max(1, rect.width);
+        const cssHeight = Math.max(1, rect.height || 200);
+
+        // HiDPI backing store for crisp export
         const dpr = window.devicePixelRatio || 1;
+        this.canvas.width = Math.round(cssWidth * dpr);
+        this.canvas.height = Math.round(cssHeight * dpr);
 
-        // Save for correct clearing and any future coordinate math
+        // Save scaling so pointer math stays accurate on all devices
         this.canvasDpr = dpr;
-        this.canvasCssWidth = cssWidth;
-        this.canvasCssHeight = cssHeight;
+        this.scaleX = this.canvas.width / cssWidth;
+        this.scaleY = this.canvas.height / cssHeight;
 
-        // Set CSS size (what user sees)
-        this.canvas.style.width = cssWidth + 'px';
-        this.canvas.style.height = cssHeight + 'px';
-
-        // Set internal bitmap size (what gets exported)
-        this.canvas.width = Math.floor(cssWidth * dpr);
-        this.canvas.height = Math.floor(cssHeight * dpr);
-
-        console.log(`Canvas initialized (HiDPI): ${this.canvas.width}x${this.canvas.height} @dpr=${dpr}`);
-
-        // Get context
         this.ctx = this.canvas.getContext('2d');
 
-        // Scale so drawing coordinates remain in CSS pixels
-        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        // Draw directly in device pixels (no ctx scaling). This avoids the classic
+        // "tiny upper-left" and "offset pen" problems on iOS/zoomed layouts.
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-        // Smoothing helps when downscaling the exported PNG into PDFs
         this.ctx.imageSmoothingEnabled = true;
         this.ctx.imageSmoothingQuality = 'high';
 
-        // Configure drawing style
         this.ctx.strokeStyle = '#000';
-        this.ctx.lineWidth = 3; // in CSS pixels (transform keeps it consistent)
+        this.ctx.lineWidth = 3 * dpr;   // keep same apparent thickness
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
 
-        // CRITICAL for iOS: Prevent default touch behavior
-        this.canvas.style.touchAction = 'none';
-        
-        // Touch events - MUST be passive: false for preventDefault to work
+        // Touch events - MUST be passive:false so preventDefault works (iOS)
         this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
             e.stopPropagation();
             this.handleTouchStart(e);
         }, { passive: false });
-        
+
         this.canvas.addEventListener('touchmove', (e) => {
             e.preventDefault();
             e.stopPropagation();
             this.handleTouchMove(e);
         }, { passive: false });
-        
+
         this.canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
             this.stopDrawing();
         }, { passive: false });
-        
+
         this.canvas.addEventListener('touchcancel', (e) => {
             e.preventDefault();
             this.stopDrawing();
         }, { passive: false });
-        
+
         // Mouse events
         this.canvas.addEventListener('mousedown', (e) => {
             e.preventDefault();
@@ -136,8 +126,8 @@ class SignatureManager {
             this.stopDrawing();
         });
         this.canvas.addEventListener('mouseleave', () => this.stopDrawing());
-        
-        console.log('Canvas event listeners attached - touch enabled');
+
+        console.log(`Canvas initialized: css=${cssWidth}x${cssHeight}, bmp=${this.canvas.width}x${this.canvas.height}, dpr=${dpr}`);
     }
     
     attachEventListeners() {
@@ -173,29 +163,25 @@ class SignatureManager {
     }
     
     handleTouchStart(e) {
-        e.preventDefault();
         const touch = e.touches[0];
         const rect = this.canvas.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
-        
+        const x = (touch.clientX - rect.left) * (this.scaleX || 1);
+        const y = (touch.clientY - rect.top) * (this.scaleY || 1);
+
         this.isDrawing = true;
         this.ctx.beginPath();
         this.ctx.moveTo(x, y);
         this.points.push({x, y});
-        
-        console.log('Touch start at:', x, y);
     }
     
     handleTouchMove(e) {
         if (!this.isDrawing) return;
-        e.preventDefault();
-        
+
         const touch = e.touches[0];
         const rect = this.canvas.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
-        
+        const x = (touch.clientX - rect.left) * (this.scaleX || 1);
+        const y = (touch.clientY - rect.top) * (this.scaleY || 1);
+
         this.ctx.lineTo(x, y);
         this.ctx.stroke();
         this.points.push({x, y});
@@ -227,8 +213,8 @@ class SignatureManager {
     getPosition(e) {
         const rect = this.canvas.getBoundingClientRect();
         return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
+            x: (e.clientX - rect.left) * (this.scaleX || 1),
+            y: (e.clientY - rect.top) * (this.scaleY || 1)
         };
     }
     
@@ -237,11 +223,7 @@ class SignatureManager {
             console.warn('Canvas not initialized, skipping clear');
             return;
         }
-        // When HiDPI scaling is active, our drawing units are CSS pixels.
-        // Clearing with internal bitmap dimensions can be inconsistent under transforms.
-        const w = this.canvasCssWidth || this.canvas.width;
-        const h = this.canvasCssHeight || this.canvas.height;
-        this.ctx.clearRect(0, 0, w, h);
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.points = [];
         console.log('Canvas cleared');
     }
