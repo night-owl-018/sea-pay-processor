@@ -229,17 +229,23 @@ _strokeMove(p) {
     const dy = p.y - this._lastPoint.y;
     const dist = Math.hypot(dx, dy);
 
-    if (dist < 0.4) return;
+    // Increased minimum distance for smoother corners
+    if (dist < 0.8) return;  // Was 0.4, now 0.8 = smoother curves
 
-    // interpolate to avoid sharp corners on fast moves
-    const step = 2.0;
-    const segments = Math.min(24, Math.max(1, Math.floor(dist / step)));
+    // Enhanced interpolation for perfect curves - MORE segments = smoother
+    const step = 1.5;  // Was 2.0, now 1.5 = finer interpolation
+    const segments = Math.min(32, Math.max(2, Math.floor(dist / step)));  // More segments
 
     for (let i = 1; i <= segments; i++) {
         const t = i / segments;
-        const x = this._lastPoint.x + dx * t;
-        const y = this._lastPoint.y + dy * t;
+        
+        // Use ease-in-out for smoother acceleration around corners
+        const smoothT = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+        
+        const x = this._lastPoint.x + dx * smoothT;
+        const y = this._lastPoint.y + dy * smoothT;
         const ts = this._lastTs + (now - this._lastTs) * t;
+        
         this._drawSmoothPoint({ x, y, t: ts });
         this.points.push({ x, y });
     }
@@ -249,7 +255,13 @@ _strokeMove(p) {
 }
 
 _drawSmoothPoint(p) {
-    const mid = { x: (this._lastPoint.x + p.x) / 2, y: (this._lastPoint.y + p.y) / 2 };
+    // Enhanced midpoint calculation for smoother curves
+    // Use weighted average for better corner smoothing
+    const weight = 0.5;  // 0.5 = perfect balance
+    const mid = { 
+        x: this._lastPoint.x * weight + p.x * (1 - weight), 
+        y: this._lastPoint.y * weight + p.y * (1 - weight) 
+    };
 
     // Enhanced speed-based width for professional pen feel
     const dt = Math.max(8, p.t - this._lastTs);
@@ -272,10 +284,16 @@ _drawSmoothPoint(p) {
     this._lastWidth = smoothW;
 
     this.ctx.lineWidth = smoothW;
+    
+    // ENHANCED: Better corner handling with rounded line caps
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+    
     this.ctx.beginPath();
     this.ctx.moveTo(this._lastMid.x, this._lastMid.y);
     
     // Use quadratic curve for smooth professional appearance
+    // Control point is the previous point for natural curve flow
     this.ctx.quadraticCurveTo(this._lastPoint.x, this._lastPoint.y, mid.x, mid.y);
     this.ctx.stroke();
 
