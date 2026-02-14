@@ -5,5 +5,4 @@ pytesseract
 pdf2image
 pycryptodome
 pdfplumber
-
-
+Pillow
