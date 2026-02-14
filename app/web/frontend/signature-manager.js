@@ -52,17 +52,28 @@ class SignatureManager {
         
         const parent = this.canvas.parentElement;
         const rect = parent.getBoundingClientRect();
-        
-        // Set canvas size - use actual pixel dimensions
-        this.canvas.width = Math.max(300, Math.min(600, rect.width));
-        this.canvas.height = 200;
-        
-        console.log(`Canvas initialized: ${this.canvas.width}x${this.canvas.height}`);
-        
+
+        // HiDPI canvas for crisp signatures on PDF (prevents pixelated output)
+        const cssWidth = Math.max(300, Math.min(600, rect.width));
+        const cssHeight = 200;
+        const dpr = window.devicePixelRatio || 1;
+
+        // Set CSS size (what user sees)
+        this.canvas.style.width = cssWidth + 'px';
+        this.canvas.style.height = cssHeight + 'px';
+
+        // Set internal bitmap size (what gets exported)
+        this.canvas.width = Math.floor(cssWidth * dpr);
+        this.canvas.height = Math.floor(cssHeight * dpr);
+
+        console.log(`Canvas initialized (HiDPI): ${this.canvas.width}x${this.canvas.height} @dpr=${dpr}`);
+
         // Get context
         this.ctx = this.canvas.getContext('2d');
-        
-        // Configure drawing style
+        // Scale so drawing coordinates remain in CSS pixels
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        this.ctx.imageSmoothingEnabled = true;
+// Configure drawing style
         this.ctx.strokeStyle = '#000';
         this.ctx.lineWidth = 3;  // Thicker for mobile
         this.ctx.lineCap = 'round';
@@ -463,9 +474,9 @@ class SignatureManager {
                 description: 'Top signature on PG-13 above "Certifying Official & Date"'
             },
             {
-                key: 'pg13_member',
-                label: 'PG-13 Member Signature (Bottom)',
-                description: 'Bottom signature on PG-13 above "FI MI Last Name"'
+                key: 'pg13_verifying_official',
+                label: 'PG-13 Verifying Official (Bottom Right)',
+                description: 'Signature centered inside the bottom-right "SIGNATURE OF VERIFYING OFFICIAL" box'
             }
         ];
         
