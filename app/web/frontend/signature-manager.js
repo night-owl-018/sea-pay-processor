@@ -14,16 +14,19 @@ class SignatureManager {
     }
     
     init() {
-        this.canvas = document.getElementById('signatureCanvas');
-        if (!this.canvas) return;
-        
-        this.ctx = this.canvas.getContext('2d');
-        this.setupCanvas();
+        // Always attach event listeners first - critical for button functionality
         this.attachEventListeners();
         this.checkOnlineStatus();
         
         window.addEventListener('online', () => this.handleOnline());
         window.addEventListener('offline', () => this.handleOffline());
+        
+        // Setup canvas if available (will be initialized when modal opens)
+        this.canvas = document.getElementById('signatureCanvas');
+        if (this.canvas) {
+            this.ctx = this.canvas.getContext('2d');
+            this.setupCanvas();
+        }
         
         this.loadAllData();
         this.loadLocalSignatures();
@@ -140,6 +143,16 @@ class SignatureManager {
     
     openCreateModal() {
         document.getElementById('createModal').classList.add('show');
+        
+        // Initialize canvas if not already done
+        if (!this.canvas) {
+            this.canvas = document.getElementById('signatureCanvas');
+            if (this.canvas) {
+                this.ctx = this.canvas.getContext('2d');
+                this.setupCanvas();
+            }
+        }
+        
         this.clearCanvas();
         document.getElementById('signatureName').value = '';
         document.getElementById('signatureRole').value = '';
