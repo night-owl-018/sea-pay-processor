@@ -670,7 +670,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         # FI MI Last Name centered
         c.setFont(FONT_NAME, 10)
         c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
-    # NOTE: PG-13 member signature disabled (user requested nothing above the member name line)
+        # NOTE: PG-13 member signature disabled (user requested nothing above the member name line)
         
         c.setFont(FONT_NAME, 10)
         c.drawString(38.8, 83, "SEA PAY CERTIFIER")
@@ -679,8 +679,8 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         # ✅ PG-13 DATE box (YYYYMMDD)
         _draw_pg13_certifier_date(c, get_certifying_date_yyyymmdd())
 
-    # ✅ PG-13 verifying official signature (bottom-right box)
-    _draw_pg13_verifying_official_signature(c)
+        # ✅ PG-13 verifying official signature (bottom-right box)
+        _draw_pg13_verifying_official_signature(c)
 
         c.save()
         buf.seek(0)
