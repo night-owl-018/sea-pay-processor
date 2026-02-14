@@ -196,7 +196,8 @@ def load_signatures():
         'assignments': {
             'toris_certifying_officer': None,
             'pg13_certifying_official': None,
-            'pg13_member': None
+            'pg13_verifying_official': None,
+            'pg13_member': None  # legacy (no longer drawn on PG-13)
         },
         'assignment_rules': {
             'prevent_duplicate_per_document': True,
@@ -299,8 +300,9 @@ def validate_assignments(assignments):
     if not prevent_duplicate:
         return True, None
     
-    # Get non-None assignment values
-    assigned_sigs = [v for v in assignments.values() if v is not None]
+    # Only consider active locations when checking duplicates
+    active_locations = {'toris_certifying_officer', 'pg13_certifying_official', 'pg13_verifying_official'}
+    assigned_sigs = [v for k, v in assignments.items() if k in active_locations and v is not None]
     
     # Check for duplicates
     if len(assigned_sigs) != len(set(assigned_sigs)):
@@ -314,12 +316,12 @@ def assign_signature(location, signature_id):
     Assign a signature to a specific document location with validation.
     
     Args:
-        location: One of 'toris_certifying_officer', 'pg13_certifying_official', 'pg13_member'
+        location: One of 'toris_certifying_officer', 'pg13_certifying_official', 'pg13_verifying_official' (pg13_member is legacy)
         signature_id: The ID of the signature to assign, or None to clear
     
     Returns: (success, message)
     """
-    valid_locations = ['toris_certifying_officer', 'pg13_certifying_official', 'pg13_member']
+    valid_locations = ['toris_certifying_officer', 'pg13_certifying_official', 'pg13_verifying_official']
     
     if location not in valid_locations:
         return False, f"Invalid location. Must be one of: {valid_locations}"
@@ -450,7 +452,7 @@ def auto_assign_signatures():
         return False, "No signatures available to assign", {}
     
     # Locations to fill
-    locations = ['toris_certifying_officer', 'pg13_certifying_official', 'pg13_member']
+    locations = ['toris_certifying_officer', 'pg13_certifying_official', 'pg13_verifying_official']
     
     # Get currently unassigned locations
     unassigned = [loc for loc in locations if assignments.get(loc) is None]
@@ -499,11 +501,11 @@ def get_assignment_status():
         'recommendations': []
     }
     
-    locations = ['toris_certifying_officer', 'pg13_certifying_official', 'pg13_member']
+    locations = ['toris_certifying_officer', 'pg13_certifying_official', 'pg13_verifying_official']
     location_labels = {
         'toris_certifying_officer': 'TORIS Certifying Officer',
         'pg13_certifying_official': 'PG-13 Certifying Official (Top)',
-        'pg13_member': 'PG-13 Member Signature (Bottom)'
+        'pg13_verifying_official': 'PG-13 Verifying Official (Bottom Right)'
     }
     
     for location in locations:
