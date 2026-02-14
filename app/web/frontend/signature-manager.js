@@ -240,9 +240,13 @@ _strokeMove(p) {
     // Ignore micro jitter
     if (dist < 0.35) return;
 
-    // Resample points so fast motion doesn't create corners
-    const step = 0.75; // smaller = smoother curves
-    const n = Math.max(1, Math.floor(dist / step));
+    // Resample points so fast motion doesn't create corners.
+// Adaptive step: when moving fast, use denser sampling to eliminate angular corners.
+const dt = Math.max(1, (p.t - a.t) || 1);          // ms
+const speed = dist / dt;                          // px per ms
+// Base step ~0.8px, down to ~0.30px when speed is high.
+const step = Math.max(0.30, 0.85 - Math.min(0.55, speed * 0.45));
+const n = Math.max(1, Math.ceil(dist / step));
 
     for (let i = 1; i <= n; i++) {
         const t = i / n;
