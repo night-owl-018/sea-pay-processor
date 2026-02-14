@@ -22,9 +22,69 @@ from app.core.config import (
     SEA_PAY_PG13_FOLDER,
     get_certifying_officer_name,
     get_certifying_officer_name_pg13,
-    get_certifying_date_yyyymmdd
+    get_certifying_date_yyyymmdd,
+    get_signature_for_location
 )
 from app.core.rates import resolve_identity
+from reportlab.lib.utils import ImageReader
+
+
+
+# ------------------------------------------------
+# DRAW SIGNATURE IMAGE ON CANVAS
+# ------------------------------------------------
+def _draw_signature_image(c, sig_image_pil, x, y, max_width=150, max_height=40):
+    """
+    Draw a PIL Image signature on the canvas at the specified position.
+    
+    Args:
+        c: reportlab canvas
+        sig_image_pil: PIL Image object containing the signature
+        x: left edge x-coordinate (in points)
+        y: bottom edge y-coordinate (in points)
+        max_width: maximum width in points (default 150pt ~ 2 inches)
+        max_height: maximum height in points (default 40pt ~ 0.5 inches)
+    
+    The signature will be:
+    - Centered horizontally within max_width
+    - Scaled proportionally to fit within max_width × max_height
+    - Positioned with baseline at y coordinate
+    """
+    if sig_image_pil is None:
+        return
+    
+    from io import BytesIO
+    
+    # Get original dimensions
+    orig_w, orig_h = sig_image_pil.size
+    
+    # Calculate scaling to fit within max dimensions
+    scale_w = max_width / orig_w
+    scale_h = max_height / orig_h
+    scale = min(scale_w, scale_h)
+    
+    # Calculate final dimensions
+    final_w = orig_w * scale
+    final_h = orig_h * scale
+    
+    # Center horizontally within max_width
+    x_offset = (max_width - final_w) / 2.0
+    final_x = x + x_offset
+    
+    # Save to temporary buffer as PNG
+    buf = BytesIO()
+    sig_image_pil.save(buf, format='PNG')
+    buf.seek(0)
+    
+    # Draw on canvas
+    c.drawImage(
+        ImageReader(buf),
+        final_x,
+        y,
+        width=final_w,
+        height=final_h,
+        mask='auto'  # Handle transparency
+    )
 
 
 # ------------------------------------------------
@@ -259,6 +319,19 @@ def make_consolidated_all_missions_pdf(
     c.setFont(FONT_NAME, 10)
     c.drawCentredString(sig_mid_x, sig_y - 12, "Certifying Official & Date")
 
+    # NEW: Draw CERTIFYING OFFICIAL signature (top signature)
+    sig_image = get_signature_for_location('pg13_certifying_official')
+    if sig_image is not None:
+        sig_bottom_y = sig_y + 5  # 5pt above the underline
+        _draw_signature_image(
+            c,
+            sig_image,
+            sig_left_x,
+            sig_bottom_y,
+            max_width=sig_line_w,
+            max_height=35
+        )
+
     # Tighten vertical spacing (was sig_y - 72, too large)
     bottom_line_y = sig_y - 52
     c.setFont(FONT_NAME, sig_line_font_size)
@@ -281,6 +354,19 @@ def make_consolidated_all_missions_pdf(
     # FI MI Last Name centered under underline
     c.setFont(FONT_NAME, 10)
     c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
+
+    # NEW: Draw MEMBER signature (bottom signature)
+    sig_image_member = get_signature_for_location('pg13_member')
+    if sig_image_member is not None:
+        sig_bottom_y_member = bottom_line_y + 5
+        _draw_signature_image(
+            c,
+            sig_image_member,
+            sig_left_x,
+            sig_bottom_y_member,
+            max_width=sig_line_w,
+            max_height=30
+        )
 
     c.setFont(FONT_NAME, 10)
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
@@ -390,6 +476,20 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
         c.drawString(sig_right_x - date_w, top_sig_y + 2, sig_date)
     c.setFont(FONT_NAME, 10)
     c.drawCentredString(sig_mid_x, top_sig_y - 12, "Certifying Official & Date")
+    
+    # NEW: Draw CERTIFYING OFFICIAL signature (top signature)
+    sig_image = get_signature_for_location('pg13_certifying_official')
+    if sig_image is not None:
+        sig_bottom_y = top_sig_y + 5
+        _draw_signature_image(
+            c,
+            sig_image,
+            sig_left_x,
+            sig_bottom_y,
+            max_width=sig_line_w,
+            max_height=35
+        )
+    
     c.setFont(FONT_NAME, sig_line_font_size)
 
     c.drawString(sig_left_x, bottom_line_y, sig_line_text)
@@ -410,6 +510,19 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     # FI MI Last Name centered
     c.setFont(FONT_NAME, 10)
     c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
+
+    # NEW: Draw MEMBER signature (bottom signature)
+    sig_image_member = get_signature_for_location('pg13_member')
+    if sig_image_member is not None:
+        sig_bottom_y_member = bottom_line_y + 5
+        _draw_signature_image(
+            c,
+            sig_image_member,
+            sig_left_x,
+            sig_bottom_y_member,
+            max_width=sig_line_w,
+            max_height=30
+        )
 
     c.setFont(FONT_NAME, 10)
     c.drawString(38.8, 83, "SEA PAY CERTIFIER")
@@ -516,6 +629,20 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
             c.drawString(sig_right_x - date_w, top_sig_y + 2, sig_date)
         c.setFont(FONT_NAME, 10)
         c.drawCentredString(sig_mid_x, top_sig_y - 12, "Certifying Official & Date")
+        
+        # NEW: Draw CERTIFYING OFFICIAL signature (top signature)
+        sig_image = get_signature_for_location('pg13_certifying_official')
+        if sig_image is not None:
+            sig_bottom_y = top_sig_y + 5
+            _draw_signature_image(
+                c,
+                sig_image,
+                sig_left_x,
+                sig_bottom_y,
+                max_width=sig_line_w,
+                max_height=35
+            )
+        
         c.setFont(FONT_NAME, sig_line_font_size)
 
         c.drawString(sig_left_x, bottom_line_y, sig_line_text)
@@ -536,6 +663,20 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         # FI MI Last Name centered
         c.setFont(FONT_NAME, 10)
         c.drawCentredString(sig_mid_x, bottom_line_y - 12.3, "FI MI Last Name")
+        
+        # NEW: Draw MEMBER signature (bottom signature)
+        sig_image_member = get_signature_for_location('pg13_member')
+        if sig_image_member is not None:
+            sig_bottom_y_member = bottom_line_y + 5
+            _draw_signature_image(
+                c,
+                sig_image_member,
+                sig_left_x,
+                sig_bottom_y_member,
+                max_width=sig_line_w,
+                max_height=30
+            )
+        
         c.setFont(FONT_NAME, 10)
         c.drawString(38.8, 83, "SEA PAY CERTIFIER")
         c.drawString(503.5, 40, "USN AD")
