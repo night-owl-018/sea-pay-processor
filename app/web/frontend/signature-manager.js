@@ -21,13 +21,6 @@ class SignatureManager {
         window.addEventListener('online', () => this.handleOnline());
         window.addEventListener('offline', () => this.handleOffline());
         
-        // Setup canvas if available (will be initialized when modal opens)
-        this.canvas = document.getElementById('signatureCanvas');
-        if (this.canvas) {
-            this.ctx = this.canvas.getContext('2d');
-            this.setupCanvas();
-        }
-        
         this.loadAllData();
         this.loadLocalSignatures();
     }
@@ -52,33 +45,86 @@ class SignatureManager {
     }
     
     setupCanvas() {
+        if (!this.canvas) {
+            console.error('Canvas element not found in setupCanvas');
+            return;
+        }
+        
         const parent = this.canvas.parentElement;
         const rect = parent.getBoundingClientRect();
         
-        this.canvas.width = Math.min(600, rect.width);
+        // Set canvas size - use actual pixel dimensions
+        this.canvas.width = Math.max(300, Math.min(600, rect.width));
         this.canvas.height = 200;
         
+        console.log(`Canvas initialized: ${this.canvas.width}x${this.canvas.height}`);
+        
+        // Get context
+        this.ctx = this.canvas.getContext('2d');
+        
+        // Configure drawing style
         this.ctx.strokeStyle = '#000';
         this.ctx.lineWidth = 2;
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
         
+        // Remove any existing event listeners first
+        const newCanvas = this.canvas.cloneNode(true);
+        this.canvas.parentNode.replaceChild(newCanvas, this.canvas);
+        this.canvas = newCanvas;
+        this.ctx = this.canvas.getContext('2d');
+        
+        // Reapply drawing style after cloning
+        this.ctx.strokeStyle = '#000';
+        this.ctx.lineWidth = 2;
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+        
+        // Touch events for mobile
         this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
         this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
         this.canvas.addEventListener('touchend', () => this.stopDrawing());
+        this.canvas.addEventListener('touchcancel', () => this.stopDrawing());
         
+        // Mouse events for desktop
         this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
         this.canvas.addEventListener('mousemove', (e) => this.draw(e));
         this.canvas.addEventListener('mouseup', () => this.stopDrawing());
+        this.canvas.addEventListener('mouseleave', () => this.stopDrawing());
+        
+        console.log('Canvas event listeners attached');
     }
     
     attachEventListeners() {
-        document.getElementById('createSignatureBtn').addEventListener('click', () => this.openCreateModal());
-        document.getElementById('closeModalBtn').addEventListener('click', () => this.closeCreateModal());
-        document.getElementById('clearCanvasBtn').addEventListener('click', () => this.clearCanvas());
-        document.getElementById('createSignatureForm').addEventListener('submit', (e) => this.saveSignature(e));
-        document.getElementById('autoAssignBtn').addEventListener('click', () => this.autoAssign());
-        document.getElementById('syncSignaturesBtn').addEventListener('click', () => this.syncSignatures());
+        const createBtn = document.getElementById('createSignatureBtn');
+        if (createBtn) {
+            createBtn.addEventListener('click', () => this.openCreateModal());
+        }
+        
+        const closeBtn = document.getElementById('closeModalBtn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => this.closeCreateModal());
+        }
+        
+        const clearBtn = document.getElementById('clearCanvasBtn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => this.clearCanvas());
+        }
+        
+        const form = document.getElementById('createSignatureForm');
+        if (form) {
+            form.addEventListener('submit', (e) => this.saveSignature(e));
+        }
+        
+        const autoAssignBtn = document.getElementById('autoAssignBtn');
+        if (autoAssignBtn) {
+            autoAssignBtn.addEventListener('click', () => this.autoAssign());
+        }
+        
+        const syncBtn = document.getElementById('syncSignaturesBtn');
+        if (syncBtn) {
+            syncBtn.addEventListener('click', () => this.syncSignatures());
+        }
     }
     
     handleTouchStart(e) {
@@ -92,6 +138,8 @@ class SignatureManager {
         this.ctx.beginPath();
         this.ctx.moveTo(x, y);
         this.points.push({x, y});
+        
+        console.log('Touch start at:', x, y);
     }
     
     handleTouchMove(e) {
@@ -114,6 +162,8 @@ class SignatureManager {
         this.ctx.beginPath();
         this.ctx.moveTo(pos.x, pos.y);
         this.points.push(pos);
+        
+        console.log('Mouse start at:', pos.x, pos.y);
     }
     
     draw(e) {
@@ -126,6 +176,7 @@ class SignatureManager {
     
     stopDrawing() {
         this.isDrawing = false;
+        console.log('Drawing stopped, total points:', this.points.length);
     }
     
     getPosition(e) {
@@ -137,29 +188,55 @@ class SignatureManager {
     }
     
     clearCanvas() {
+        if (!this.ctx || !this.canvas) {
+            console.warn('Canvas not initialized, skipping clear');
+            return;
+        }
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.points = [];
+        console.log('Canvas cleared');
     }
     
     openCreateModal() {
-        document.getElementById('createModal').classList.add('show');
-        
-        // Initialize canvas if not already done
-        if (!this.canvas) {
-            this.canvas = document.getElementById('signatureCanvas');
-            if (this.canvas) {
-                this.ctx = this.canvas.getContext('2d');
-                this.setupCanvas();
-            }
+        const modal = document.getElementById('createModal');
+        if (!modal) {
+            console.error('createModal element not found!');
+            return;
         }
         
-        this.clearCanvas();
-        document.getElementById('signatureName').value = '';
-        document.getElementById('signatureRole').value = '';
+        // Show modal first
+        modal.classList.add('show');
+        
+        // Wait for modal to be fully visible, then initialize canvas
+        setTimeout(() => {
+            this.canvas = document.getElementById('signatureCanvas');
+            if (this.canvas) {
+                console.log('Initializing canvas...');
+                this.setupCanvas();
+                this.clearCanvas();
+            } else {
+                console.error('signatureCanvas element not found!');
+            }
+        }, 100); // Small delay to ensure modal is rendered
+        
+        // Clear form inputs
+        const nameInput = document.getElementById('signatureName');
+        const roleInput = document.getElementById('signatureRole');
+        
+        if (nameInput) nameInput.value = '';
+        if (roleInput) roleInput.value = '';
     }
     
     closeCreateModal() {
-        document.getElementById('createModal').classList.remove('show');
+        const modal = document.getElementById('createModal');
+        if (modal) {
+            modal.classList.remove('show');
+        }
+        
+        // Clean up canvas reference
+        this.canvas = null;
+        this.ctx = null;
+        this.points = [];
     }
     
     async saveSignature(e) {
@@ -309,6 +386,7 @@ class SignatureManager {
     
     renderSignatureLibrary() {
         const container = document.getElementById('signatureLibrary');
+        if (!container) return;
         
         if (this.signatures.length === 0) {
             container.innerHTML = `
@@ -341,6 +419,7 @@ class SignatureManager {
     
     renderAssignments() {
         const container = document.getElementById('assignmentContainer');
+        if (!container) return;
         
         const locations = [
             {
@@ -513,6 +592,7 @@ class SignatureManager {
     
     updateAssignmentAlert(status) {
         const alert = document.getElementById('assignmentAlert');
+        if (!alert) return;
         
         if (status.issues.length > 0) {
             alert.className = 'alert alert-warning';
@@ -532,6 +612,8 @@ class SignatureManager {
     
     showAlert(message, type) {
         const alert = document.getElementById('assignmentAlert');
+        if (!alert) return;
+        
         alert.className = `alert alert-${type}`;
         alert.style.display = 'block';
         alert.textContent = message;
@@ -550,8 +632,11 @@ class SignatureManager {
     }
     
     handleOnline() {
-        document.getElementById('syncIndicator').className = 'sync-indicator';
-        document.getElementById('syncStatusText').textContent = 'Online';
+        const indicator = document.getElementById('syncIndicator');
+        const statusText = document.getElementById('syncStatusText');
+        
+        if (indicator) indicator.className = 'sync-indicator';
+        if (statusText) statusText.textContent = 'Online';
         
         const localSigs = this.loadLocalSignatures();
         if (localSigs.length > 0) {
@@ -560,12 +645,17 @@ class SignatureManager {
     }
     
     handleOffline() {
-        document.getElementById('syncIndicator').className = 'sync-indicator offline';
-        document.getElementById('syncStatusText').textContent = 'Offline';
+        const indicator = document.getElementById('syncIndicator');
+        const statusText = document.getElementById('syncStatusText');
+        
+        if (indicator) indicator.className = 'sync-indicator offline';
+        if (statusText) statusText.textContent = 'Offline';
     }
 }
 
 let app;
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, initializing SignatureManager...');
     app = new SignatureManager();
+    console.log('SignatureManager initialized');
 });
