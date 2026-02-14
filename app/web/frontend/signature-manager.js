@@ -64,35 +64,65 @@ class SignatureManager {
         
         // Configure drawing style
         this.ctx.strokeStyle = '#000';
-        this.ctx.lineWidth = 2;
+        this.ctx.lineWidth = 3;  // Thicker for mobile
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
         
-        // Remove any existing event listeners first
+        // CRITICAL for iOS: Prevent default touch behavior
+        this.canvas.style.touchAction = 'none';
+        
+        // Remove any existing event listeners
         const newCanvas = this.canvas.cloneNode(true);
         this.canvas.parentNode.replaceChild(newCanvas, this.canvas);
         this.canvas = newCanvas;
         this.ctx = this.canvas.getContext('2d');
         
-        // Reapply drawing style after cloning
+        // Reapply drawing style
         this.ctx.strokeStyle = '#000';
-        this.ctx.lineWidth = 2;
+        this.ctx.lineWidth = 3;
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
+        this.canvas.style.touchAction = 'none';
         
-        // Touch events for mobile
-        this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
-        this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e), { passive: false });
-        this.canvas.addEventListener('touchend', () => this.stopDrawing());
-        this.canvas.addEventListener('touchcancel', () => this.stopDrawing());
+        // Touch events - MUST be passive: false for preventDefault to work
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.handleTouchStart(e);
+        }, { passive: false });
         
-        // Mouse events for desktop
-        this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
-        this.canvas.addEventListener('mousemove', (e) => this.draw(e));
-        this.canvas.addEventListener('mouseup', () => this.stopDrawing());
+        this.canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.handleTouchMove(e);
+        }, { passive: false });
+        
+        this.canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            this.stopDrawing();
+        }, { passive: false });
+        
+        this.canvas.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            this.stopDrawing();
+        }, { passive: false });
+        
+        // Mouse events
+        this.canvas.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            this.startDrawing(e);
+        });
+        this.canvas.addEventListener('mousemove', (e) => {
+            e.preventDefault();
+            this.draw(e);
+        });
+        this.canvas.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            this.stopDrawing();
+        });
         this.canvas.addEventListener('mouseleave', () => this.stopDrawing());
         
-        console.log('Canvas event listeners attached');
+        console.log('Canvas event listeners attached - touch enabled');
     }
     
     attachEventListeners() {
