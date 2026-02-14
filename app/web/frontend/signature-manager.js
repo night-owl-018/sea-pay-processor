@@ -63,7 +63,13 @@ class SignatureManager {
         // Measure on-screen size (CSS pixels)
         const rect = this.canvas.getBoundingClientRect();
         const cssWidth = Math.max(1, rect.width);
-        const cssHeight = Math.max(1, rect.height || 200);
+        let cssHeight = rect.height;
+        if (!cssHeight || cssHeight < 1) {
+            const cs = window.getComputedStyle(this.canvas);
+            const h = parseFloat(cs.height);
+            cssHeight = Number.isFinite(h) && h > 0 ? h : 200;
+        }
+        cssHeight = Math.max(1, cssHeight);
 
         // HiDPI backing store for crisp export
         const dpr = window.devicePixelRatio || 1;
@@ -85,9 +91,11 @@ class SignatureManager {
         this.ctx.imageSmoothingQuality = 'high';
 
         this.ctx.strokeStyle = '#000';
-        this.ctx.lineWidth = 3 * dpr;   // keep same apparent thickness
+                // Slightly thinner looks more like ink and less like a marker.
+        this.ctx.lineWidth = 2.25 * dpr;
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
+        this.ctx.miterLimit = 1;
 
         // Touch events - MUST be passive:false so preventDefault works (iOS)
         this.canvas.addEventListener('touchstart', (e) => {
@@ -164,35 +172,29 @@ class SignatureManager {
     
     handleTouchStart(e) {
         const touch = e.touches[0];
-        const rect = this.canvas.getBoundingClientRect();
-        const x = (touch.clientX - rect.left) * (this.scaleX || 1);
-        const y = (touch.clientY - rect.top) * (this.scaleY || 1);
+        const pos = this._clientToCanvasPoint(touch.clientX, touch.clientY);
 
         this.isDrawing = true;
+        this.points = [{x: pos.x, y: pos.y}];
         this.ctx.beginPath();
-        this.ctx.moveTo(x, y);
-        this.points.push({x, y});
+        this.ctx.moveTo(pos.x, pos.y);
     }
-    
+
     handleTouchMove(e) {
         if (!this.isDrawing) return;
 
         const touch = e.touches[0];
-        const rect = this.canvas.getBoundingClientRect();
-        const x = (touch.clientX - rect.left) * (this.scaleX || 1);
-        const y = (touch.clientY - rect.top) * (this.scaleY || 1);
+        const pos = this._clientToCanvasPoint(touch.clientX, touch.clientY);
 
-        this.ctx.lineTo(x, y);
-        this.ctx.stroke();
-        this.points.push({x, y});
+        this._strokeTo(pos.x, pos.y);
     }
-    
+
     startDrawing(e) {
         this.isDrawing = true;
         const pos = this.getPosition(e);
+        this.points = [{x: pos.x, y: pos.y}];
         this.ctx.beginPath();
         this.ctx.moveTo(pos.x, pos.y);
-        this.points.push(pos);
         
         console.log('Mouse start at:', pos.x, pos.y);
     }
@@ -200,9 +202,7 @@ class SignatureManager {
     draw(e) {
         if (!this.isDrawing) return;
         const pos = this.getPosition(e);
-        this.ctx.lineTo(pos.x, pos.y);
-        this.ctx.stroke();
-        this.points.push(pos);
+        this._strokeTo(pos.x, pos.y);
     }
     
     stopDrawing() {
@@ -211,13 +211,22 @@ class SignatureManager {
     }
     
     getPosition(e) {
+        return this._clientToCanvasPoint(e.clientX, e.clientY);
+    }
+
+    _clientToCanvasPoint(clientX, clientY) {
+        // Recompute rect every time. iOS modals can change size after setupCanvas runs,
+        // which makes cached scale factors wrong (tiny/upper-left drawing).
         const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / Math.max(1, rect.width);
+        const scaleY = this.canvas.height / Math.max(1, rect.height);
+
         return {
-            x: (e.clientX - rect.left) * (this.scaleX || 1),
-            y: (e.clientY - rect.top) * (this.scaleY || 1)
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
         };
     }
-    
+
     clearCanvas() {
         if (!this.ctx || !this.canvas) {
             console.warn('Canvas not initialized, skipping clear');
