@@ -968,3 +968,305 @@ def get_certifying_officer_choices():
     except Exception as e:
         log(f"CERTIFYING OFFICER CHOICES ERROR → {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
+
+
+# ============================================================================
+# SIGNATURE MANAGEMENT API ENDPOINTS
+# ============================================================================
+
+@bp.route("/api/signatures/list", methods=["GET"])
+def list_signatures():
+    """
+    Get list of all saved signatures with thumbnails.
+    Optimized for mobile - includes thumbnails for fast loading.
+    """
+    try:
+        from app.core.config import load_signatures, get_all_signatures, get_assignment_status
+        
+        include_thumbnails = request.args.get('include_thumbnails', 'false').lower() == 'true'
+        
+        data = load_signatures()
+        signatures = get_all_signatures(include_thumbnails=include_thumbnails)
+        status = get_assignment_status()
+        
+        return jsonify({
+            'status': 'success',
+            'signatures': signatures,
+            'assignments': data['assignments'],
+            'assignment_status': status,
+            'assignment_rules': data.get('assignment_rules', {})
+        })
+    except Exception as e:
+        log(f"❌ LIST SIGNATURES ERROR → {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@bp.route("/api/signatures/create", methods=["POST"])
+def create_signature():
+    """
+    Create a new signature in the library.
+    Mobile-friendly with device tracking.
+    """
+    try:
+        from app.core.config import save_signature
+        
+        data = request.get_json()
+        name = data.get('name', '').strip()
+        role = data.get('role', '').strip()
+        sig_b64 = data.get('signature_base64', '').strip()
+        device_id = data.get('device_id', 'unknown')
+        device_name = data.get('device_name', 'Unknown Device')
+        
+        if not name:
+            return jsonify({
+                'status': 'error',
+                'message': 'Signature name is required'
+            }), 400
+        
+        if not sig_b64:
+            return jsonify({
+                'status': 'error',
+                'message': 'Signature image is required'
+            }), 400
+        
+        # Validate base64
+        try:
+            import base64
+            base64.b64decode(sig_b64)
+        except:
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid base64 encoding'
+            }), 400
+        
+        sig_id = save_signature(name, role, sig_b64, device_id, device_name)
+        
+        if sig_id:
+            log(f"✅ SIGNATURE CREATED → {name} (ID: {sig_id}) from {device_name}")
+            return jsonify({
+                'status': 'success',
+                'signature_id': sig_id,
+                'message': 'Signature created successfully'
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to save signature'
+            }), 500
+            
+    except Exception as e:
+        log(f"❌ CREATE SIGNATURE ERROR → {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@bp.route("/api/signatures/assign", methods=["POST"])
+def assign_signature_to_location():
+    """
+    Assign a signature to a specific document location.
+    Includes validation to prevent duplicate assignments.
+    """
+    try:
+        from app.core.config import assign_signature
+        
+        data = request.get_json()
+        location = data.get('location', '').strip()
+        signature_id = data.get('signature_id')
+        
+        if not location:
+            return jsonify({
+                'status': 'error',
+                'message': 'Location is required'
+            }), 400
+        
+        success, message = assign_signature(location, signature_id)
+        
+        if success:
+            log(f"✅ SIGNATURE ASSIGNED → {location} = {signature_id}")
+            return jsonify({
+                'status': 'success',
+                'message': message
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': message
+            }), 400
+            
+    except Exception as e:
+        log(f"❌ ASSIGN SIGNATURE ERROR → {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@bp.route("/api/signatures/auto-assign", methods=["POST"])
+def auto_assign_signatures_endpoint():
+    """
+    Automatically assign available signatures to unassigned locations.
+    Smart algorithm prevents duplicate assignments.
+    """
+    try:
+        from app.core.config import auto_assign_signatures
+        
+        success, message, assignments_made = auto_assign_signatures()
+        
+        if success:
+            log(f"✅ AUTO-ASSIGN → {message}")
+            return jsonify({
+                'status': 'success',
+                'message': message,
+                'assignments_made': assignments_made
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': message
+            }), 400
+            
+    except Exception as e:
+        log(f"❌ AUTO-ASSIGN ERROR → {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@bp.route("/api/signatures/get/<signature_id>", methods=["GET"])
+def get_signature(signature_id):
+    """
+    Get a specific signature with full image data.
+    """
+    try:
+        from app.core.config import load_signatures
+        
+        thumbnail_only = request.args.get('thumbnail_only', 'false').lower() == 'true'
+        
+        data = load_signatures()
+        signature = next((s for s in data['signatures'] if s['id'] == signature_id), None)
+        
+        if signature:
+            result = {
+                'id': signature['id'],
+                'name': signature['name'],
+                'role': signature['role'],
+                'created': signature['created'],
+                'device_name': signature.get('device_name', 'Unknown'),
+                'metadata': signature.get('metadata', {})
+            }
+            
+            if thumbnail_only:
+                result['thumbnail_base64'] = signature.get('thumbnail_base64', '')
+            else:
+                result['image_base64'] = signature['image_base64']
+                result['thumbnail_base64'] = signature.get('thumbnail_base64', '')
+            
+            return jsonify({
+                'status': 'success',
+                'signature': result
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Signature not found'
+            }), 404
+            
+    except Exception as e:
+        log(f"❌ GET SIGNATURE ERROR → {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@bp.route("/api/signatures/delete/<signature_id>", methods=["DELETE"])
+def delete_signature_endpoint(signature_id):
+    """Delete a signature from the library."""
+    try:
+        from app.core.config import delete_signature
+        
+        success = delete_signature(signature_id)
+        
+        if success:
+            log(f"✅ SIGNATURE DELETED → {signature_id}")
+            return jsonify({
+                'status': 'success',
+                'message': 'Signature deleted successfully'
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to delete signature'
+            }), 500
+            
+    except Exception as e:
+        log(f"❌ DELETE SIGNATURE ERROR → {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+
+@bp.route("/api/signatures/sync", methods=["POST"])
+def sync_signatures():
+    """
+    Sync signatures from mobile device to server.
+    Accepts batch upload of multiple signatures.
+    """
+    try:
+        from app.core.config import save_signature
+        
+        data = request.get_json()
+        signatures_to_sync = data.get('signatures', [])
+        
+        synced = []
+        errors = []
+        
+        for sig_data in signatures_to_sync:
+            try:
+                local_id = sig_data.get('local_id')
+                name = sig_data.get('name', '').strip()
+                role = sig_data.get('role', '').strip()
+                sig_b64 = sig_data.get('signature_base64', '').strip()
+                device_id = sig_data.get('device_id', 'unknown')
+                device_name = sig_data.get('device_name', 'Unknown Device')
+                
+                if not name or not sig_b64:
+                    errors.append({'local_id': local_id, 'error': 'Missing required fields'})
+                    continue
+                
+                server_id = save_signature(name, role, sig_b64, device_id, device_name)
+                
+                if server_id:
+                    synced.append({
+                        'local_id': local_id,
+                        'server_id': server_id
+                    })
+                else:
+                    errors.append({'local_id': local_id, 'error': 'Failed to save'})
+                    
+            except Exception as e:
+                errors.append({'local_id': sig_data.get('local_id'), 'error': str(e)})
+        
+        log(f"✅ SYNC COMPLETE → {len(synced)} signatures synced, {len(errors)} errors")
+        
+        return jsonify({
+            'status': 'success' if len(synced) > 0 else 'error',
+            'synced': synced,
+            'errors': errors,
+            'message': f"Synced {len(synced)} signature(s)"
+        })
+        
+    except Exception as e:
+        log(f"❌ SYNC ERROR → {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
