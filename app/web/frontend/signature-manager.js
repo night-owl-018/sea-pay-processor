@@ -49,14 +49,26 @@ class SignatureManager {
             console.error('Canvas element not found in setupCanvas');
             return;
         }
-        
+
+        // Remove any existing event listeners by swapping the canvas node FIRST.
+        // If we clone AFTER applying HiDPI transforms, we lose the transform and
+        // drawing ends up tiny in the upper-left with pointer offset.
+        const cloned = this.canvas.cloneNode(true);
+        this.canvas.parentNode.replaceChild(cloned, this.canvas);
+        this.canvas = cloned;
+
         const parent = this.canvas.parentElement;
         const rect = parent.getBoundingClientRect();
 
         // HiDPI canvas for crisp signatures on PDF (prevents pixelated output)
-        const cssWidth = Math.max(300, Math.min(600, rect.width));
+        const cssWidth = Math.max(300, Math.min(700, rect.width));
         const cssHeight = 200;
         const dpr = window.devicePixelRatio || 1;
+
+        // Save for correct clearing and any future coordinate math
+        this.canvasDpr = dpr;
+        this.canvasCssWidth = cssWidth;
+        this.canvasCssHeight = cssHeight;
 
         // Set CSS size (what user sees)
         this.canvas.style.width = cssWidth + 'px';
@@ -70,29 +82,21 @@ class SignatureManager {
 
         // Get context
         this.ctx = this.canvas.getContext('2d');
+
         // Scale so drawing coordinates remain in CSS pixels
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // Smoothing helps when downscaling the exported PNG into PDFs
         this.ctx.imageSmoothingEnabled = true;
-// Configure drawing style
+        this.ctx.imageSmoothingQuality = 'high';
+
+        // Configure drawing style
         this.ctx.strokeStyle = '#000';
-        this.ctx.lineWidth = 3;  // Thicker for mobile
+        this.ctx.lineWidth = 3; // in CSS pixels (transform keeps it consistent)
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
-        
+
         // CRITICAL for iOS: Prevent default touch behavior
-        this.canvas.style.touchAction = 'none';
-        
-        // Remove any existing event listeners
-        const newCanvas = this.canvas.cloneNode(true);
-        this.canvas.parentNode.replaceChild(newCanvas, this.canvas);
-        this.canvas = newCanvas;
-        this.ctx = this.canvas.getContext('2d');
-        
-        // Reapply drawing style
-        this.ctx.strokeStyle = '#000';
-        this.ctx.lineWidth = 3;
-        this.ctx.lineCap = 'round';
-        this.ctx.lineJoin = 'round';
         this.canvas.style.touchAction = 'none';
         
         // Touch events - MUST be passive: false for preventDefault to work
@@ -233,7 +237,11 @@ class SignatureManager {
             console.warn('Canvas not initialized, skipping clear');
             return;
         }
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        // When HiDPI scaling is active, our drawing units are CSS pixels.
+        // Clearing with internal bitmap dimensions can be inconsistent under transforms.
+        const w = this.canvasCssWidth || this.canvas.width;
+        const h = this.canvasCssHeight || this.canvas.height;
+        this.ctx.clearRect(0, 0, w, h);
         this.points = [];
         console.log('Canvas cleared');
     }
