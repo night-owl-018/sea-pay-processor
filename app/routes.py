@@ -106,6 +106,12 @@ def home():
     return send_from_directory(FRONTEND_DIR, "index.html")
 
 
+@bp.route("/signatures.html")
+def signatures_page():
+    """Serve the signature management page"""
+    return send_from_directory(FRONTEND_DIR, "signatures.html")
+
+
 @bp.route("/process", methods=["POST"])
 def process_route():
     global processing_cancelled, processing_thread
@@ -1269,4 +1275,3 @@ def sync_signatures():
             'status': 'error',
             'message': str(e)
         }), 500
-
