@@ -720,33 +720,56 @@ closeCreateModal() {
         try {
             // Load full library + all per-member assignments (no signature reuse is enforced server-side)
             const response = await fetch('/api/signatures/list?include_thumbnails=true');
+            
+            // Check HTTP status first
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Server error (${response.status}): ${errorText || response.statusText}`);
+            }
+            
             const result = await response.json();
 
-            if (result.status === 'success') {
-                this.signatures = result.signatures || [];
-                this.assignmentsByMember = result.assignments_by_member || {};
-
-                // Ensure we have a selected member
-                if (!this.currentMemberKey) {
-                    const sel = document.getElementById('memberSelect');
-                    const fromSelect = sel && sel.value ? sel.value : null;
-                    this.currentMemberKey = fromSelect || Object.keys(this.assignmentsByMember)[0] || null;
-                }
-
-                // Default empty assignment set for new members
-                this.assignments = this.assignmentsByMember[this.currentMemberKey] || {
-                    toris_certifying_officer: null,
-                    pg13_certifying_official: null,
-                    pg13_verifying_official: null
-                };
-
-                
-                this.renderSignatureLibrary();
-                this.renderAssignments();
-                this.updateAssignmentAlert();
+            if (result.status !== 'success') {
+                throw new Error(result.message || 'Failed to load signatures');
             }
+
+            this.signatures = result.signatures || [];
+            this.assignmentsByMember = result.assignments_by_member || {};
+
+            // Ensure we have a selected member
+            if (!this.currentMemberKey) {
+                const sel = document.getElementById('memberSelect');
+                const fromSelect = sel && sel.value ? sel.value : null;
+                this.currentMemberKey = fromSelect || Object.keys(this.assignmentsByMember)[0] || null;
+            }
+
+            // Default empty assignment set for new members
+            this.assignments = this.assignmentsByMember[this.currentMemberKey] || {
+                toris_certifying_officer: null,
+                pg13_certifying_official: null,
+                pg13_verifying_official: null
+            };
+
+            
+            this.renderSignatureLibrary();
+            this.renderAssignments();
+            this.updateAssignmentAlert();
         } catch (error) {
             console.error('Load error:', error);
+            this.showAlert(`❌ Failed to load signatures: ${error.message}`, 'warning');
+            
+            // Initialize empty state so UI still works
+            this.signatures = [];
+            this.assignmentsByMember = {};
+            this.assignments = {
+                toris_certifying_officer: null,
+                pg13_certifying_official: null,
+                pg13_verifying_official: null
+            };
+            
+            // Render empty state
+            this.renderSignatureLibrary();
+            this.renderAssignments();
         }
     }
     
