@@ -1015,7 +1015,11 @@ def list_signatures():
         elif member_key:
             assignments_for_member = assignments_by_member.get(member_key)
         else:
-            assignments_for_member = None
+            assignments_for_member = {
+                "toris_certifying_officer": None,
+                "pg13_certifying_official": None,
+                "pg13_verifying_official": None,
+            }
 
         status = get_assignment_status(member_key=member_key) if member_key else get_assignment_status()
 
