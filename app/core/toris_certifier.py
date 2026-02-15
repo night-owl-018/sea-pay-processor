@@ -469,21 +469,19 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path):
                 c.setFont(font_name, font_size)
                 c.drawString(name_x, name_y, certifying_officer_name)
                 
-                # NEW: Draw TORIS CERTIFYING OFFICER signature ON THE SIGNATURE LINE at date level
+                # FIXED: Draw TORIS signature LOWER and LEFT-ALIGNED
                 sig_image = get_signature_for_location('toris_certifying_officer')
                 if sig_image is not None and underline_y_from_bottom is not None:
-                    # Position signature at SAME HEIGHT as date (not above the line)
-                    # The date is drawn at date_y, so signature should be at approximately the same level
-                    sig_bottom_y = underline_y_from_bottom - 12  # Lower so it sits on the line (not floating high)
+                    # FIXED: LOWER position - closer to line (was -12, now -4)
+                    sig_bottom_y = underline_y_from_bottom - 4  # Only 4pts below line (was 12)
                     
-                    # Calculate signature horizontal position (centered on left portion of line, before date)
-                    sig_width = 220
-                    sig_height = 40
-                    # Center the signature on the left side of the underline (leave room for date on right)
+                    # FIXED: Adjusted sizing
+                    sig_width = 180   # Slightly narrower (was 220)
+                    sig_height = 38   # Slightly shorter (was 40)
+                    
+                    # FIXED: Shift MORE to the LEFT (was +20, now -15)
                     underline_left_x = best["x0"] if best else name_x
-                    underline_width = (best["x1"] - best["x0"]) if best else 200
-                    # Position signature on left half of line
-                    sig_left_x = underline_left_x + 20  # Small margin from left
+                    sig_left_x = underline_left_x - 15  # SHIFTED LEFT 35pts (was +20)
                     
                     _draw_signature_image_toris(
                         c,
