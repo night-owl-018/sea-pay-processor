@@ -18,11 +18,14 @@ class SignatureManager {
     
     init() {
         // ============================================
-        // ULTRA-VISIBLE FIX VERSION - v2.0
+        // NUCLEAR VERSION - v3.0 - IMPOSSIBLE TO MISS!
         // ============================================
-        console.log('%c🚀 SIGNATURE MANAGER FIXED VERSION LOADED! 🚀', 'background: #00ff00; color: #000; font-size: 20px; padding: 10px;');
-        console.log('%cIf you see this message, the fix IS deployed!', 'background: #ffff00; color: #000; font-size: 16px; padding: 5px;');
+        console.log('%c🚀 NUCLEAR FIX VERSION LOADED! 🚀', 'background: #00ff00; color: #000; font-size: 30px; padding: 20px; border: 5px solid red;');
+        console.log('%cTHIS IS THE NEW VERSION!', 'background: #ffff00; color: #ff0000; font-size: 24px; padding: 10px;');
         console.log('%c============================================', 'color: #00ff00; font-size: 14px;');
+        
+        // SHOW ALERT SO USER CAN'T MISS IT
+        alert('🚀 NUCLEAR FIX VERSION LOADED!\n\nIf you see this popup, the new code IS running!\n\nClick OK to continue.');
         
         // Always attach event listeners first - critical for button functionality
         this.attachEventListeners();
@@ -744,10 +747,14 @@ closeCreateModal() {
     }
     
     async loadAllData() {
+        console.log('%c🔄🔄🔄 LOAD ALL DATA STARTING! 🔄🔄🔄', 'background: #0000ff; color: #fff; font-size: 18px; padding: 10px;');
         console.log('🔄 Loading all data...');
         try {
             // Load full library + all per-member assignments (no signature reuse is enforced server-side)
+            console.log('%c📡 ABOUT TO FETCH /api/signatures/list', 'background: #ff00ff; color: #fff; font-size: 16px; padding: 5px;');
             const response = await fetch('/api/signatures/list?include_thumbnails=true');
+            console.log('%c📡 FETCH COMPLETED!', 'background: #00ff00; color: #000; font-size: 16px; padding: 5px;');
+            console.log('Response status:', response.status, response.statusText);
             
             // Check HTTP status
             if (!response.ok) {
@@ -785,7 +792,7 @@ closeCreateModal() {
             this.renderSignatureLibrary();
             this.renderAssignments();
             this.updateAssignmentAlert();
-            console.log('✅ UI updated successfully');
+            console.log('%c✅✅✅ UI UPDATED SUCCESSFULLY! ✅✅✅', 'background: #00ff00; color: #000; font-size: 18px; padding: 10px;');
             
         } catch (error) {
             console.error('%c❌❌❌ LOAD ERROR CAUGHT ❌❌❌', 'background: #ff0000; color: #fff; font-size: 18px; padding: 10px;');
