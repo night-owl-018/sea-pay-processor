@@ -8,6 +8,9 @@ set -eu
 # -------------------------------------------------
 mkdir -p /app/pdf_template /app/config /app/data /app/output
 
+# Ensure output directory is writable (fixes signature save issues)
+chmod -R 755 /app/output 2>/dev/null || echo "[WARN] Could not set permissions on /app/output"
+
 # -------------------------------------------------
 # Install default template if missing (seed into mounted /app/pdf_template)
 # -------------------------------------------------
