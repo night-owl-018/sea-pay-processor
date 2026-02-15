@@ -513,7 +513,7 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
         from app.core.toris_certifier import add_certifying_officer_to_toris
         temp_toris = toris_path + ".tmp"
         try:
-            add_certifying_officer_to_toris(toris_path, temp_toris)
+            add_certifying_officer_to_toris(toris_path, temp_toris, member_key=member_key)
             if os.path.exists(temp_toris):
                 os.replace(temp_toris, toris_path)
         except Exception as e:
@@ -868,7 +868,7 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
         from app.core.toris_certifier import add_certifying_officer_to_toris
         temp_toris = toris_path + ".tmp"
         try:
-            add_certifying_officer_to_toris(toris_path, temp_toris)
+            add_certifying_officer_to_toris(toris_path, temp_toris, member_key=member_key)
             if os.path.exists(temp_toris):
                 os.replace(temp_toris, toris_path)
         except Exception as e:
