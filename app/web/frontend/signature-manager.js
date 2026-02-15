@@ -284,14 +284,12 @@ if (lp && lpp) {
     }
 }
 
-// Base step tightened to eliminate visible corners on circles/curves.
-// We keep sampling dense even at slow speed; tighter turns get even denser.
-const baseStep = 0.40;   // px
-const minStep = 0.08;    // px (very dense)
-// Speed reduces step; turnBoost reduces it further.
-const step = Math.max(minStep, (baseStep - Math.min(0.30, speed * 0.50)) / turnBoost);
-// Never under-sample long jumps.
-const n = Math.max(1, Math.ceil(dist / step));
+// FIXED: Much denser sampling for perfectly smooth curves - NO CORNERS!
+const baseStep = 0.25;   // TIGHTER! (was 0.40)
+const minStep = 0.05;    // DENSER! (was 0.08)
+// More points = smoother curves, especially on corners
+const step = Math.max(minStep, (baseStep - Math.min(0.20, speed * 0.40)) / turnBoost);
+const n = Math.max(2, Math.ceil(dist / step));  // Minimum 2 points
 
 
     for (let i = 1; i <= n; i++) {
@@ -307,21 +305,21 @@ const n = Math.max(1, Math.ceil(dist / step));
 }
 
 _addPoint(p) {
-    // PERFECT: Ultra-responsive pressure-sensitive pen simulation
+    // FIXED: Thinner, more realistic signature line widths
     const dt = Math.max(8, p.t - this._stroke.lastT);
     const lp = this._stroke.pts[this._stroke.pts.length - 1];
     const v = Math.hypot(p.x - lp.x, p.y - lp.y) / dt; // px/ms
 
-    // PERFECT: Maximum range for dramatic heavy/light variation
-    const maxW = 5.0;  // Heavy pressure = very thick (was 4.5)
-    const minW = 1.2;  // Light/fast = very thin (was 1.5)
-    const k = 6.0;     // Maximum responsiveness (was 5.5)
+    // FIXED: Realistic signature pen widths (thinner than before)
+    const maxW = 3.0;  // Heavy pressure (was 5.0 - TOO THICK!)
+    const minW = 0.8;  // Light/fast (was 1.2)
+    const k = 5.5;     // Good responsiveness (was 6.0)
     
-    // ENHANCED: Power curve for natural pen feel (0.8 exponent)
+    // Power curve for natural pen feel
     const vf = Math.min(1, Math.pow(v * k / maxW, 0.8));
     const wRaw = maxW - vf * (maxW - minW);
 
-    // ENHANCED: More responsive width transitions (was 0.75/0.25, now 0.65/0.35)
+    // Smooth width transitions
     const w = this._stroke.lastW * 0.65 + wRaw * 0.35;
     this._stroke.lastW = w;
     this._stroke.lastT = p.t;
@@ -350,19 +348,18 @@ _addPoint(p) {
     const p2 = pts[pts.length - 2];
     const p3 = pts[pts.length - 1];
 
-    // Catmull-Rom -> Bezier control points (adaptive tension).
-// Classic /6 can still show corners when the pointer moves fast and points are sparse.
-// We increase the divisor at higher velocity to damp sharp bends.
-const vForTension = v; // px/ms from above
-const denom = 12 + Math.min(20, vForTension * 60); // 12..32 (smoother control points)
-const cp1 = {
-    x: p1.x + (p2.x - p0.x) / denom,
-    y: p1.y + (p2.y - p0.y) / denom
-};
-const cp2 = {
-    x: p2.x - (p3.x - p1.x) / denom,
-    y: p2.y - (p3.y - p1.y) / denom
-};
+    // FIXED: Ultra-smooth Catmull-Rom curves - NO ANGULAR CORNERS
+    // Much higher divisor = smoother, rounder corners
+    const vForTension = v; // px/ms from above
+    const denom = 20 + Math.min(40, vForTension * 100); // 20..60 (MUCH smoother!)
+    const cp1 = {
+        x: p1.x + (p2.x - p0.x) / denom,
+        y: p1.y + (p2.y - p0.y) / denom
+    };
+    const cp2 = {
+        x: p2.x - (p3.x - p1.x) / denom,
+        y: p2.y - (p3.y - p1.y) / denom
+    };
 
 
     // Line width based on destination point (smooth enough with resampling)
@@ -375,9 +372,9 @@ const cp2 = {
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
     
-    // PERFECT: Shadow for depth (very subtle, adds smoothness perception)
-    this.ctx.shadowBlur = 0.3;
-    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+    // FIXED: Very subtle shadow for thinner lines
+    this.ctx.shadowBlur = 0.15;  // Reduced (was 0.3)
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.05)';  // Lighter (was 0.1)
     this.ctx.shadowOffsetX = 0;
     this.ctx.shadowOffsetY = 0;
     
