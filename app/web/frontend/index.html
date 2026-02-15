@@ -739,27 +739,7 @@
       margin: 0 auto;
       touch-action: none;
     }
-  
-    /* Signature modal input readability (override global dark inputs) */
-    .signature-modal-content .signature-canvas-container input[type="text"]{
-      background: #ffffff;
-      color: #111827;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-size: 14px;
-      line-height: 1.2;
-    }
-    .signature-modal-content .signature-canvas-container input[type="text"]::placeholder{
-      color: #6b7280;
-      opacity: 1;
-    }
-    .signature-modal-content .signature-canvas-container input[type="text"]:focus{
-      outline: none;
-      border-color: rgba(111, 183, 255, 0.9);
-      box-shadow: 0 0 0 3px rgba(111, 183, 255, 0.25);
-    }
-</style>
+  </style>
 </head>
 
 <body>
@@ -2141,77 +2121,27 @@ function updateCertDatePreview() {
     // ============================================================
 
     async function updateSignatureStatus() {
-      try {
-        const response = await fetch('/api/signatures/list');
-        const data = await response.json();
-        
-        if (data.status === 'success') {
-          const total = data.signatures.length;
-          const assignments = data.assignments;
-          const assigned = Object.values(assignments).filter(v => v !== null).length;
-          
-          const statusDisplay = document.getElementById('signatureStatusDisplay');
-          
-          if (total === 0) {
-            // No signatures created
-            statusDisplay.innerHTML = `
-              <div style="text-align: center; color: rgba(255,183,77,0.95);">
-                ⚠️ No signatures created
-              </div>
-              <div style="text-align: center; font-size: 10px; margin-top: 4px; color: rgba(245,248,255,0.55);">
-                Click "Manage Signatures" to create
-              </div>
-            `;
-          } else if (assigned === 0) {
-            // Signatures created but not assigned
-            statusDisplay.innerHTML = `
-              <div style="color: rgba(255,183,77,0.95);">
-                ⚠️ ${total} signature${total > 1 ? 's' : ''} created
-              </div>
-              <div style="color: rgba(255,183,77,0.95);">
-                ⚠️ Not assigned to documents
-              </div>
-              <div style="font-size: 10px; margin-top: 4px; color: rgba(245,248,255,0.55);">
-                Click "Manage Signatures" to assign
-              </div>
-            `;
-          } else if (assigned < 3) {
-            // Partially assigned
-            statusDisplay.innerHTML = `
-              <div style="color: rgba(22,199,132,0.95);">
-                ✓ ${total} signature${total > 1 ? 's' : ''} created
-              </div>
-              <div style="color: rgba(255,183,77,0.95);">
-                ⚠️ ${assigned}/3 locations assigned
-              </div>
-              <div style="font-size: 10px; margin-top: 4px; color: rgba(245,248,255,0.55);">
-                TORIS, PG-13 Top, PG-13 Bottom
-              </div>
-            `;
-          } else {
-            // All assigned - ready!
-            statusDisplay.innerHTML = `
-              <div style="color: rgba(22,199,132,0.95);">
-                ✅ ${total} signature${total > 1 ? 's' : ''} created
-              </div>
-              <div style="color: rgba(22,199,132,0.95);">
-                ✅ All 3 locations assigned
-              </div>
-              <div style="font-size: 10px; margin-top: 4px; color: rgba(245,248,255,0.55);">
-                Ready for processing
-              </div>
-            `;
-          }
-        }
-      } catch (error) {
-        // API not available yet or error
-        document.getElementById('signatureStatusDisplay').innerHTML = `
-          <div style="text-align: center; color: rgba(245,248,255,0.45); font-size: 10px;">
-            Status unavailable
-          </div>
-        `;
+    const display = document.getElementById('signatureStatusDisplay');
+    if (!display) return;
+    try {
+      const resp = await fetch('/api/signatures/status');
+      const data = await resp.json();
+      if (!data || data.status !== 'success') {
+        display.innerHTML = '<div style="text-align:center; padding:4px 0;">Status unavailable</div>';
+        return;
       }
+      const s = data.assignment_status || {};
+      const total = s.total_members || 0;
+      const complete = s.complete_members || 0;
+      const incomplete = s.incomplete_members || 0;
+      display.innerHTML = `
+        <div>Members complete: <b>${complete}</b> / ${total}</div>
+        <div>Members incomplete: <b>${incomplete}</b></div>
+      `;
+    } catch (e) {
+      display.innerHTML = '<div style="text-align:center; padding:4px 0;">Status unavailable</div>';
     }
+  }
 
     // Update signature status on page load and periodically
     updateSignatureStatus();
@@ -2246,6 +2176,13 @@ function updateCertDatePreview() {
         </div>
         <div style="margin-top: 30px; padding-top: 30px; border-top: 1px solid rgba(111, 183, 255, 0.2);">
           <h3 style="margin-top: 0; color: #f5f8ff;">Document Assignments</h3>
+          <div style="margin: 12px 0 14px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <label style="min-width: 70px; color: rgba(245,248,255,0.92); font-size: 12px;">Member</label>
+            <select id="modalMemberSelect" style="flex: 1; min-width: 260px;"></select>
+            <button class="btn btn-secondary" id="modalAutoAssignBtn" type="button">⚙️ Auto Assign</button>
+            <button class="btn btn-secondary" id="modalBulkAutoAssignBtn" type="button">⚙️ Auto Assign All</button>
+          </div>
+
           <div id="modalAssignmentContainer"></div>
         </div>
       </div>
@@ -2275,6 +2212,9 @@ function updateCertDatePreview() {
       this.points = [];
       this.signatures = [];
       this.assignments = {};
+      this.memberKey = null;
+      this.members = [];
+      this._bound = false;
       this.setupCanvas();
       setInterval(() => this.loadAllData(), 5000); // Auto-refresh every 5 seconds
     }
@@ -2391,17 +2331,34 @@ function updateCertDatePreview() {
     
     async loadAllData() {
       try {
-        const response = await fetch('/api/signatures/list?include_thumbnails=true');
+        // Load members once, then refresh signatures/assignments for the selected member
+        if (!this._bound) {
+          this.bindUI();
+          await this.loadMembers();
+          this._bound = true;
+        }
+
+        // Ensure we have a selected member
+        const sel = document.getElementById('modalMemberSelect');
+        this.memberKey = (sel && sel.value) ? sel.value : (this.members[0] || null);
+
+        // Fetch signatures + assignments for this member
+        const url = this.memberKey ? `/api/signatures/list?include_thumbnails=true&member_key=${encodeURIComponent(this.memberKey)}` : `/api/signatures/list?include_thumbnails=true`;
+        const response = await fetch(url);
         const result = await response.json();
-        
+
         if (result.status === 'success') {
           this.signatures = result.signatures || [];
           this.assignments = result.assignments || {};
-          this.renderLibrary();
+          this.renderSignatureLibrary();
           this.renderAssignments();
+          this.updateModalStatus(result.assignment_status || null);
+        } else {
+          this.showAlert('❌ ' + (result.message || 'Failed to load signatures'), 'error');
         }
-      } catch (error) {
-        console.error('Load error:', error);
+      } catch (err) {
+        console.error(err);
+        this.showAlert('❌ Failed to load signatures', 'error');
       }
     }
     
@@ -2463,6 +2420,7 @@ function updateCertDatePreview() {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
+            member_key: this.memberKey,
             location,
             signature_id: signatureId || null
           })
