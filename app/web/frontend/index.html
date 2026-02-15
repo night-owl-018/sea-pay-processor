@@ -671,6 +671,74 @@
         flex-wrap: wrap;
       }
     }
+
+    /* ========== SIGNATURE MODAL STYLES ========== */
+    .signature-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 10000;
+      overflow-y: auto;
+    }
+    .signature-modal.show {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .signature-modal-content {
+      background: #0a3854;
+      border-radius: 12px;
+      max-width: 900px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    }
+    .signature-modal-header {
+      padding: 20px 30px;
+      border-bottom: 1px solid rgba(111, 183, 255, 0.2);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .signature-modal-header h2 {
+      margin: 0;
+      color: #f5f8ff;
+      font-size: 20px;
+    }
+    .signature-modal-close {
+      background: none;
+      border: none;
+      color: #6fb7ff;
+      font-size: 28px;
+      cursor: pointer;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      line-height: 1;
+    }
+    .signature-modal-close:hover {
+      color: #fff;
+    }
+    .signature-canvas-container {
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    #signatureCanvasModal {
+      border: 2px dashed #ccc;
+      border-radius: 4px;
+      cursor: crosshair;
+      display: block;
+      margin: 0 auto;
+      touch-action: none;
+    }
   </style>
 </head>
 
@@ -750,7 +818,7 @@
           <button type="button"
                   class="btn-secondary"
                   style="width: 100%;"
-                  onclick="window.location.href='/signatures.html'">
+                  onclick="openSignatureModal()">
             ✍️ Manage Signatures
           </button>
           
@@ -2130,5 +2198,305 @@ function updateCertDatePreview() {
     setInterval(updateSignatureStatus, 30000); // Refresh every 30 seconds
 
   </script>
+
+  <!-- ========== SIGNATURE MODAL ========== -->
+  <div id="signatureModal" class="signature-modal" onclick="if(event.target.id==='signatureModal')closeSignatureModal()">
+    <div class="signature-modal-content">
+      <div class="signature-modal-header">
+        <h2>✍️ Manage Signatures</h2>
+        <button class="signature-modal-close" onclick="closeSignatureModal()">&times;</button>
+      </div>
+      <div style="padding: 30px;">
+        <div id="modalSignatureStatus" class="alert" style="display: none;"></div>
+        <div class="signature-canvas-container">
+          <h3 style="margin-top: 0; color: #333;">Create New Signature</h3>
+          <canvas id="signatureCanvasModal" width="600" height="200"></canvas>
+          <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+            <button class="btn btn-secondary" onclick="clearModalCanvas()">Clear</button>
+            <button class="btn btn-primary" onclick="saveModalSignature()">💾 Save</button>
+          </div>
+          <div style="margin-top: 15px;">
+            <input type="text" id="modalSignatureName" placeholder="Name (e.g., Ryan Nivera)" style="width: 100%; padding: 8px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ccc;">
+            <input type="text" id="modalSignatureRole" placeholder="Role (optional, e.g., Certifier)" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+          </div>
+        </div>
+        <div style="margin-top: 30px; padding-top: 30px; border-top: 1px solid rgba(111, 183, 255, 0.2);">
+          <h3 style="margin-top: 0; color: #f5f8ff;">Saved Signatures</h3>
+          <div id="modalSignatureLibrary" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;"></div>
+        </div>
+        <div style="margin-top: 30px; padding-top: 30px; border-top: 1px solid rgba(111, 183, 255, 0.2);">
+          <h3 style="margin-top: 0; color: #f5f8ff;">Document Assignments</h3>
+          <div id="modalAssignmentContainer"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // Signature Modal Manager
+  let modalSigApp = null;
+
+  function openSignatureModal() {
+    document.getElementById('signatureModal').classList.add('show');
+    if (!modalSigApp) modalSigApp = new ModalSignatureManager();
+    modalSigApp.loadAllData();
+  }
+
+  function closeSignatureModal() {
+    document.getElementById('signatureModal').classList.remove('show');
+    if (typeof updateSignatureStatus === 'function') updateSignatureStatus();
+  }
+
+  class ModalSignatureManager {
+    constructor() {
+      this.canvas = document.getElementById('signatureCanvasModal');
+      this.ctx = this.canvas.getContext('2d');
+      this.isDrawing = false;
+      this.points = [];
+      this.signatures = [];
+      this.assignments = {};
+      this.setupCanvas();
+      setInterval(() => this.loadAllData(), 5000); // Auto-refresh every 5 seconds
+    }
+    
+    setupCanvas() {
+      this.ctx.strokeStyle = '#000';
+      this.ctx.lineWidth = 2;
+      this.ctx.lineCap = 'round';
+      this.ctx.lineJoin = 'round';
+      
+      this.canvas.onmousedown = (e) => this.startDraw(e);
+      this.canvas.onmousemove = (e) => this.draw(e);
+      this.canvas.onmouseup = () => this.stopDraw();
+      this.canvas.onmouseleave = () => this.stopDraw();
+      
+      this.canvas.ontouchstart = (e) => { e.preventDefault(); this.startDrawTouch(e); };
+      this.canvas.ontouchmove = (e) => { e.preventDefault(); this.drawTouch(e); };
+      this.canvas.ontouchend = () => this.stopDraw();
+    }
+    
+    startDraw(e) {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      this.isDrawing = true;
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, y);
+      this.points.push({x, y});
+    }
+    
+    draw(e) {
+      if (!this.isDrawing) return;
+      const rect = this.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      this.ctx.lineTo(x, y);
+      this.ctx.stroke();
+      this.points.push({x, y});
+    }
+    
+    startDrawTouch(e) {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = e.touches[0].clientX - rect.left;
+      const y = e.touches[0].clientY - rect.top;
+      this.isDrawing = true;
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, y);
+      this.points.push({x, y});
+    }
+    
+    drawTouch(e) {
+      if (!this.isDrawing) return;
+      const rect = this.canvas.getBoundingClientRect();
+      const x = e.touches[0].clientX - rect.left;
+      const y = e.touches[0].clientY - rect.top;
+      this.ctx.lineTo(x, y);
+      this.ctx.stroke();
+      this.points.push({x, y});
+    }
+    
+    stopDraw() {
+      this.isDrawing = false;
+    }
+    
+    async saveModalSignature() {
+      const name = document.getElementById('modalSignatureName').value.trim();
+      const role = document.getElementById('modalSignatureRole').value.trim();
+      
+      if (!name) {
+        alert('Please enter a name');
+        return;
+      }
+      
+      if (this.points.length < 10) {
+        alert('Please draw your signature');
+        return;
+      }
+      
+      const base64 = this.canvas.toDataURL('image/png').split(',')[1];
+      
+      try {
+        const response = await fetch('/api/signatures/create', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            name,
+            role,
+            signature_base64: base64,
+            device_id: 'modal_' + Date.now(),
+            device_name: 'Modal Editor'
+          })
+        });
+        
+        const result = await response.json();
+        if (result.status === 'success') {
+          this.showAlert('✅ Signature saved!', 'success');
+          this.clearCanvas();
+          document.getElementById('modalSignatureName').value = '';
+          document.getElementById('modalSignatureRole').value = '';
+          this.loadAllData();
+          if (typeof updateSignatureStatus === 'function') updateSignatureStatus();
+        } else {
+          this.showAlert('❌ ' + (result.message || 'Save failed'), 'warning');
+        }
+      } catch (error) {
+        this.showAlert('❌ Network error', 'warning');
+      }
+    }
+    
+    clearCanvas() {
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.points = [];
+    }
+    
+    async loadAllData() {
+      try {
+        const response = await fetch('/api/signatures/list?include_thumbnails=true');
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+          this.signatures = result.signatures || [];
+          this.assignments = result.assignments || {};
+          this.renderLibrary();
+          this.renderAssignments();
+        }
+      } catch (error) {
+        console.error('Load error:', error);
+      }
+    }
+    
+    renderLibrary() {
+      const container = document.getElementById('modalSignatureLibrary');
+      
+      if (this.signatures.length === 0) {
+        container.innerHTML = '<p style="color: #f5f8ff;">No signatures yet. Create one above!</p>';
+        return;
+      }
+      
+      container.innerHTML = this.signatures.map(sig => `
+        <div style="background: rgba(111,183,255,0.08); border: 1px solid rgba(111,183,255,0.2); border-radius: 8px; padding: 15px;">
+          <div style="background: white; border-radius: 4px; padding: 10px; margin-bottom: 10px; min-height: 80px; display: flex; align-items: center; justify-content: center;">
+            <img src="data:image/png;base64,${sig.thumbnail_base64}" style="max-width: 100%; height: auto;">
+          </div>
+          <div style="color: #f5f8ff; font-weight: bold; margin-bottom: 5px;">${sig.name}</div>
+          <div style="color: #6fb7ff; font-size: 12px; margin-bottom: 10px;">${sig.role || 'No role'}</div>
+          <button class="btn btn-danger btn-sm" onclick="modalSigApp.deleteSignature('${sig.id}')">🗑️ Delete</button>
+        </div>
+      `).join('');
+    }
+    
+    renderAssignments() {
+      const container = document.getElementById('modalAssignmentContainer');
+      
+      const locations = [
+        {key: 'toris_certifying_officer', label: 'TORIS Certifying Officer'},
+        {key: 'pg13_certifying_official', label: 'PG-13 Certifying Official (Top)'},
+        {key: 'pg13_verifying_official', label: 'PG-13 Verifying Official (Bottom)'}
+      ];
+      
+      container.innerHTML = locations.map(loc => {
+        const assigned = this.assignments[loc.key];
+        const boxClass = assigned ? 'assigned' : '';
+        const borderColor = assigned ? '#4ade80' : 'rgba(111,183,255,0.2)';
+        const bgColor = assigned ? 'rgba(74,222,128,0.05)' : 'rgba(111,183,255,0.05)';
+        
+        return `
+          <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 20px; margin-bottom: 15px;">
+            <h4 style="margin-top: 0; color: #f5f8ff;">${loc.label}</h4>
+            <select onchange="modalSigApp.assignSignature('${loc.key}', this.value)" 
+                    style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+              <option value="">-- No Signature --</option>
+              ${this.signatures.map(sig => 
+                `<option value="${sig.id}" ${assigned === sig.id ? 'selected' : ''}>
+                  ${sig.name} ${sig.role ? '(' + sig.role + ')' : ''}
+                </option>`
+              ).join('')}
+            </select>
+          </div>
+        `;
+      }).join('');
+    }
+    
+    async assignSignature(location, signatureId) {
+      try {
+        const response = await fetch('/api/signatures/assign', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            location,
+            signature_id: signatureId || null
+          })
+        });
+        
+        const result = await response.json();
+        if (result.status === 'success') {
+          this.showAlert('✅ ' + result.message, 'success');
+          this.loadAllData();
+          if (typeof updateSignatureStatus === 'function') updateSignatureStatus();
+        } else {
+          this.showAlert('❌ Assignment failed', 'warning');
+        }
+      } catch (error) {
+        this.showAlert('❌ Network error', 'warning');
+      }
+    }
+    
+    async deleteSignature(id) {
+      if (!confirm('Delete this signature?')) return;
+      
+      try {
+        const response = await fetch(`/api/signatures/delete/${id}`, {method: 'DELETE'});
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+          this.showAlert('✅ Deleted', 'success');
+          this.loadAllData();
+          if (typeof updateSignatureStatus === 'function') updateSignatureStatus();
+        } else {
+          this.showAlert('❌ Delete failed', 'warning');
+        }
+      } catch (error) {
+        this.showAlert('❌ Network error', 'warning');
+      }
+    }
+    
+    showAlert(message, type) {
+      const alert = document.getElementById('modalSignatureStatus');
+      alert.className = `alert alert-${type}`;
+      alert.style.display = 'block';
+      alert.textContent = message;
+      setTimeout(() => alert.style.display = 'none', 3000);
+    }
+  }
+
+  function clearModalCanvas() {
+    if (modalSigApp) modalSigApp.clearCanvas();
+  }
+
+  function saveModalSignature() {
+    if (modalSigApp) modalSigApp.saveModalSignature();
+  }
+  </script>
+
 </body>
 </html>
