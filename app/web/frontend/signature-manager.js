@@ -882,14 +882,14 @@ closeCreateModal() {
                     ${isDuplicate ? '<div class="alert alert-warning" style="margin-bottom: 15px;">⚠️ Warning: This signature is also used for another location</div>' : ''}
                     
                     <div class="signature-selector">
-                        ${this.renderSignatureOptions(loc.key)}
+                        ${this.renderSignatureOptions(loc.key, usedElsewhere)}
                     </div>
                 </div>
             `;
         }).join('');
     }
     
-    renderSignatureOptions(location) {
+    renderSignatureOptions(location, usedElsewhere = new Set()) {
         const currentAssignment = this.assignments[location];
         const otherAssignments = Object.entries(this.assignments)
             .filter(([key, value]) => key !== location && value !== null)
