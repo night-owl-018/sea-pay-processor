@@ -2311,32 +2311,6 @@ function updateCertDatePreview() {
         };
       }
 
-      // Bind action buttons
-      const resetBtn = document.getElementById('modalResetAssignmentsBtn');
-      if (resetBtn) {
-        resetBtn.onclick = () => this.resetAssignmentsForSelectedMember();
-      }
-      const autoAssignBtn = document.getElementById('modalAutoAssignBtn');
-      if (autoAssignBtn) {
-        autoAssignBtn.onclick = () => this.autoAssign();
-      }
-      const autoAssignAllBtn = document.getElementById('modalAutoAssignAllBtn');
-      if (autoAssignAllBtn) {
-        autoAssignAllBtn.onclick = () => this.autoAssignAllMembers();
-      }
-      const exportAllBtn = document.getElementById('modalExportAllBtn');
-      if (exportAllBtn) {
-        exportAllBtn.onclick = () => this.exportAllSignatures();
-      }
-      const importJsonFile = document.getElementById('modalImportJsonFile');
-      if (importJsonFile) {
-        importJsonFile.onchange = async (e) => {
-          const f = e.target.files && e.target.files[0];
-          if (!f) return;
-          await this.importBackupJson(f);
-          importJsonFile.value = '';
-        };
-      }
 
     }
 
@@ -2812,6 +2786,47 @@ try {
         this.showAlert('⚠️ Import failed (bad JSON?)', 'warning');
       }
     }
+
+    async autoAssignAllMembers() {
+      const ok = confirm('Auto-assign signatures for ALL members?\n\nRules: signatures cannot be reused across members.');
+      if (!ok) return;
+
+      try {
+        // /api/members can be either [] or {status:'success', members:[]}
+        const r = await fetch('/api/members');
+        const data = await r.json().catch(() => ([]));
+        const members = Array.isArray(data) ? data : (data && data.status === 'success' ? (data.members || []) : []);
+        if (!members || members.length === 0) {
+          this.showAlert('⚠️ No members found.', 'warning');
+          return;
+        }
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const mk of members) {
+          const resp = await fetch('/api/signatures/auto-assign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ member_key: mk })
+          });
+          const result = await resp.json().catch(() => ({}));
+          if (resp.ok && result.status === 'success') {
+            successCount += 1;
+          } else {
+            failCount += 1;
+            console.warn('Auto-assign failed for', mk, result);
+          }
+        }
+
+        await this.loadAllData();
+        this.showAlert(`✅ Auto-assign complete: ${successCount} ok, ${failCount} failed`, failCount ? 'warning' : 'success');
+      } catch (e) {
+        console.error('Modal autoAssignAllMembers error', e);
+        this.showAlert('⚠️ Auto-assign all failed', 'warning');
+      }
+    }
+
 
 
 
