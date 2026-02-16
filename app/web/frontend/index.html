@@ -2236,6 +2236,7 @@ function updateCertDatePreview() {
             <select id="modalMemberSelect" style="flex: 1; min-width: 260px;"></select>
             <button class="btn btn-secondary" id="modalAutoAssignBtn" type="button">⚙️ Auto Assign</button>
             <button class="btn btn-secondary" id="modalBulkAutoAssignBtn" type="button">⚙️ Auto Assign All</button>
+            <button class="btn btn-secondary" id="modalResetAssignmentsBtn" type="button">🧹 Reset Assignments</button>
           </div>
 
           <div id="modalAssignmentContainer"></div>
@@ -2304,6 +2305,12 @@ function updateCertDatePreview() {
           this.memberKey = sel.value || null;
           this.loadAllData();
         };
+      }
+
+
+      const resetBtn = document.getElementById('modalResetAssignmentsBtn');
+      if (resetBtn) {
+        resetBtn.onclick = () => this.resetAssignments();
       }
 
 
@@ -2583,7 +2590,58 @@ try {
       }
     }
     
-    async deleteSignature(id) {
+    
+
+    async resetAssignments() {
+      const sel = document.getElementById('modalMemberSelect');
+      const mk = (this.memberKey || (sel && sel.value) || '').trim();
+      if (!mk) {
+        this.showAlert('⚠️ Select a Member first.', 'warning');
+        return;
+      }
+      this.memberKey = mk;
+
+      const proceed = confirm(`Reset ALL signature assignments for ${mk}?\n\nThis will set all 3 blocks back to "-- No Signature --".`);
+      if (!proceed) return;
+
+      const locations = ['toris_certifying_officer', 'pg13_certifying_official', 'pg13_verifying_official'];
+
+      try {
+        for (const location of locations) {
+          const response = await fetch('/api/signatures/assign', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              member_key: mk,
+              location,
+              signature_id: null
+            })
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            console.error('❌ /api/signatures/assign HTTP error:', response.status, errorText);
+            this.showAlert('❌ Reset failed', 'warning');
+            return;
+          }
+
+          const result = await response.json();
+          if (result.status !== 'success') {
+            this.showAlert('❌ Reset failed', 'warning');
+            return;
+          }
+        }
+
+        this.showAlert('✅ Assignments reset', 'success');
+        this.loadAllData();
+        if (typeof updateSignatureStatus === 'function') updateSignatureStatus();
+      } catch (error) {
+        console.error('Reset error:', error);
+        this.showAlert('❌ Reset failed', 'warning');
+      }
+    }
+
+async deleteSignature(id) {
       if (!confirm('Delete this signature?')) return;
       
       try {
