@@ -2235,8 +2235,11 @@ function updateCertDatePreview() {
             <label style="min-width: 70px; color: rgba(245,248,255,0.92); font-size: 12px;">Member</label>
             <select id="modalMemberSelect" style="flex: 1; min-width: 260px;"></select>
             <button class="btn btn-secondary" id="modalAutoAssignBtn" type="button">⚙️ Auto Assign</button>
+                <button class="btn btn-secondary" id="modalExportAllBtn">💾 Export All</button>
+                <label class="btn btn-outline" style="cursor:pointer;">📥 Import JSON
+                  <input type="file" id="modalImportJsonFile" accept="application/json" style="display:none;">
+                </label>
             <button class="btn btn-secondary" id="modalBulkAutoAssignBtn" type="button">⚙️ Auto Assign All</button>
-            <button class="btn btn-secondary" id="modalResetAssignmentsBtn" type="button">🧹 Reset Assignments</button>
           </div>
 
           <div id="modalAssignmentContainer"></div>
@@ -2305,12 +2308,6 @@ function updateCertDatePreview() {
           this.memberKey = sel.value || null;
           this.loadAllData();
         };
-      }
-
-
-      const resetBtn = document.getElementById('modalResetAssignmentsBtn');
-      if (resetBtn) {
-        resetBtn.onclick = () => this.resetAssignments();
       }
 
 
@@ -2590,58 +2587,7 @@ try {
       }
     }
     
-    
-
-    async resetAssignments() {
-      const sel = document.getElementById('modalMemberSelect');
-      const mk = (this.memberKey || (sel && sel.value) || '').trim();
-      if (!mk) {
-        this.showAlert('⚠️ Select a Member first.', 'warning');
-        return;
-      }
-      this.memberKey = mk;
-
-      const proceed = confirm(`Reset ALL signature assignments for ${mk}?\n\nThis will set all 3 blocks back to "-- No Signature --".`);
-      if (!proceed) return;
-
-      const locations = ['toris_certifying_officer', 'pg13_certifying_official', 'pg13_verifying_official'];
-
-      try {
-        for (const location of locations) {
-          const response = await fetch('/api/signatures/assign', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-              member_key: mk,
-              location,
-              signature_id: null
-            })
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text().catch(() => '');
-            console.error('❌ /api/signatures/assign HTTP error:', response.status, errorText);
-            this.showAlert('❌ Reset failed', 'warning');
-            return;
-          }
-
-          const result = await response.json();
-          if (result.status !== 'success') {
-            this.showAlert('❌ Reset failed', 'warning');
-            return;
-          }
-        }
-
-        this.showAlert('✅ Assignments reset', 'success');
-        this.loadAllData();
-        if (typeof updateSignatureStatus === 'function') updateSignatureStatus();
-      } catch (error) {
-        console.error('Reset error:', error);
-        this.showAlert('❌ Reset failed', 'warning');
-      }
-    }
-
-async deleteSignature(id) {
+    async deleteSignature(id) {
       if (!confirm('Delete this signature?')) return;
       
       try {
@@ -2702,6 +2648,97 @@ async deleteSignature(id) {
       alert.className = 'alert alert-success';
       alert.textContent = `✅ All 3 signature blocks assigned for ${member}`;
     }
+
+    downloadJsonFile(filename, obj) {
+      try {
+        const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error('Modal export failed', e);
+        this.showAlert('⚠️ Export failed', 'warning');
+      }
+    }
+
+    buildExportPayload(signatures) {
+      return {
+        version: 1,
+        exported_at: new Date().toISOString(),
+        note: "This backup contains thumbnail images (smaller).",
+        signatures: (signatures || []).map(s => ({
+          name: s.name || '',
+          role: s.role || '',
+          signature_base64: s.thumbnail_base64 || s.signature_base64 || '',
+        }))
+      };
+    }
+
+    exportAllSignatures() {
+      if (!this.signatures || this.signatures.length === 0) {
+        this.showAlert('⚠️ No signatures to export', 'warning');
+        return;
+      }
+      const payload = this.buildExportPayload(this.signatures);
+      const ymd = new Date().toISOString().slice(0,10).replace(/-/g,'');
+      this.downloadJsonFile(`sea-pay-signatures-backup-${ymd}.json`, payload);
+      this.showAlert('✅ Exported backup file', 'success');
+    }
+
+    async importBackupJson(file) {
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+
+        const sigs = Array.isArray(data?.signatures) ? data.signatures : [];
+        if (sigs.length === 0) {
+          this.showAlert('⚠️ No signatures found in backup', 'warning');
+          return;
+        }
+
+        let imported = 0;
+        for (const s of sigs) {
+          const name = String(s.name || '').trim();
+          if (!name) continue;
+
+          const body = {
+            local_id: 'import_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+            name,
+            role: String(s.role || ''),
+            signature_base64: String(s.signature_base64 || '').split(',').pop(),
+            device_id: this.deviceId,
+            device_name: this.deviceName,
+            created: new Date().toISOString()
+          };
+
+          const resp = await fetch('/api/signatures/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+
+          const result = await resp.json().catch(() => ({}));
+          if (resp.ok && result.status === 'success') {
+            imported += 1;
+          } else {
+            console.warn('Modal import failed for', name, result);
+          }
+        }
+
+        await this.loadAllData();
+        this.showAlert(`✅ Imported ${imported} signature(s)`, 'success');
+      } catch (e) {
+        console.error('Modal import backup failed', e);
+        this.showAlert('⚠️ Import failed (bad JSON?)', 'warning');
+      }
+    }
+
 
     showAlert(message, type) {
       const alert = document.getElementById('modalSignatureStatus');
