@@ -2310,6 +2310,15 @@ function updateCertDatePreview() {
         const prev = sel.value || this.memberKey || '';
 
         sel.innerHTML = '<option value="">-- Select member --</option>' +
+        // Default selection
+        const prev = (this.memberKey || sel.value || '').trim();
+        if (prev && this.members.includes(prev)) {
+          sel.value = prev;
+          this.memberKey = prev;
+        } else if (!this.memberKey && this.members.length > 0) {
+          sel.value = this.members[0];
+          this.memberKey = this.members[0];
+        }
           this.members.map(m => `<option value="${this.escapeHtml(m)}">${this.escapeHtml(m)}</option>`).join('');
 
         if (prev && this.members.includes(prev)) {
@@ -2515,7 +2524,16 @@ function updateCertDatePreview() {
     }
     
     async assignSignature(location, signatureId) {
-      try {
+      // Guard: assignments require a selected member
+      const sel = document.getElementById('modalMemberSelect');
+      const mk = (this.memberKey || (sel && sel.value) || '').trim();
+      if (!mk) {
+        this.showAlert('⚠️ Select a Member first before assigning signatures.', 'warning');
+        return;
+      }
+      this.memberKey = mk;
+
+try {
         const response = await fetch('/api/signatures/assign', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
