@@ -1135,6 +1135,65 @@ async deleteSignature(signatureId) {
         alert.innerHTML = `<strong>✅ All 3 signature blocks assigned for ${this.escapeHtml(member)}</strong>`;
     }
 
+    async resetAssignmentsForCurrentMember() {
+        if (!this.currentMemberKey) {
+            alert('Please select a member first');
+            return;
+        }
+
+        if (!confirm(`Reset all signature assignments for ${this.currentMemberKey}?\n\nThis will clear all 3 signature blocks for this member.`)) {
+            return;
+        }
+
+        try {
+            // Clear all assignments for current member
+            this.assignments = {
+                toris_certifying_officer: null,
+                pg13_certifying_official: null,
+                pg13_verifying_official: null
+            };
+
+            // Save to backend
+            const response = await fetch('/api/signatures/assign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    member_key: this.currentMemberKey,
+                    location: 'toris_certifying_officer',
+                    signature_id: null
+                })
+            });
+
+            await fetch('/api/signatures/assign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    member_key: this.currentMemberKey,
+                    location: 'pg13_certifying_official',
+                    signature_id: null
+                })
+            });
+
+            await fetch('/api/signatures/assign', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    member_key: this.currentMemberKey,
+                    location: 'pg13_verifying_official',
+                    signature_id: null
+                })
+            });
+
+            this.showAlert('✅ Assignments reset successfully', 'success');
+            this.renderAssignments();
+            this.updateAssignmentAlert();
+
+        } catch (error) {
+            console.error('Reset assignments error:', error);
+            this.showAlert('❌ Failed to reset assignments', 'warning');
+        }
+    }
+
     downloadJsonFile(filename, obj) {
         try {
             const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
@@ -1294,9 +1353,8 @@ async deleteSignature(signatureId) {
     }
 }
 
-let app;
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded, initializing SignatureManager...');
-    app = new SignatureManager();
+    window.app = new SignatureManager();
     console.log('SignatureManager initialized');
 });
