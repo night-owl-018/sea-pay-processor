@@ -514,7 +514,7 @@
                 <label class="btn btn-outline" style="cursor:pointer;">📥 Import Backup (JSON)
                     <input type="file" id="importBackupJsonFile" accept="application/json" style="display:none;">
                 </label>
-                <button class="btn btn-danger" id="resetAssignmentsBtn">🧹 Reset Assignments (Member)</button>
+                <button type="button" class="btn btn-danger" id="resetAssignmentsBtn" onclick="(window.app && window.app.resetAssignmentsForCurrentMember ? window.app.resetAssignmentsForCurrentMember() : alert('Signature Manager not initialized. Refresh the page.'))">🧹 Reset Assignments (Member)</button>
             </div>
         </div>
         
