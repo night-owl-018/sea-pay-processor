@@ -2280,6 +2280,47 @@ function updateCertDatePreview() {
           this.loadAllData();
         };
       }
+
+
+    // Escape HTML for safe innerHTML usage (prevents crashes and bad markup)
+    escapeHtml(value) {
+      const s = String(value ?? '');
+      return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // Load members for the modal dropdown (fixes: this.loadMembers is not a function)
+    async loadMembers() {
+      try {
+        const resp = await fetch('/api/members');
+        const result = await resp.json();
+        if (!result || result.status !== 'success') return;
+
+        this.members = (result.members || []).slice().sort();
+
+        const sel = document.getElementById('modalMemberSelect');
+        if (!sel) return;
+
+        const prev = sel.value || this.memberKey || '';
+
+        sel.innerHTML = '<option value="">-- Select member --</option>' +
+          this.members.map(m => `<option value="${this.escapeHtml(m)}">${this.escapeHtml(m)}</option>`).join('');
+
+        if (prev && this.members.includes(prev)) {
+          sel.value = prev;
+          this.memberKey = prev;
+        } else if (this.members.length > 0) {
+          sel.value = this.members[0];
+          this.memberKey = this.members[0];
+        }
+      } catch (e) {
+        console.warn('Modal: failed to load members', e);
+      }
+    }
     }
     
     startDraw(e) {
@@ -2402,7 +2443,7 @@ function updateCertDatePreview() {
 
         if (result.status === 'success') {
           this.signatures = result.signatures || [];
-          this.assignments = result.assignments || {};
+          this.assignments = result.assignments || (result.assignments_by_member && this.memberKey ? (result.assignments_by_member[this.memberKey] || {}) : {}) || {};
           this.renderLibrary();
           this.renderAssignments();
           this.updateModalStatus(result.assignment_status || null);
