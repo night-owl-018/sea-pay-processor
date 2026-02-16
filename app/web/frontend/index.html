@@ -2311,6 +2311,32 @@ function updateCertDatePreview() {
         };
       }
 
+      // Bind action buttons
+      const resetBtn = document.getElementById('modalResetAssignmentsBtn');
+      if (resetBtn) {
+        resetBtn.onclick = () => this.resetAssignmentsForSelectedMember();
+      }
+      const autoAssignBtn = document.getElementById('modalAutoAssignBtn');
+      if (autoAssignBtn) {
+        autoAssignBtn.onclick = () => this.autoAssign();
+      }
+      const autoAssignAllBtn = document.getElementById('modalAutoAssignAllBtn');
+      if (autoAssignAllBtn) {
+        autoAssignAllBtn.onclick = () => this.autoAssignAllMembers();
+      }
+      const exportAllBtn = document.getElementById('modalExportAllBtn');
+      if (exportAllBtn) {
+        exportAllBtn.onclick = () => this.exportAllSignatures();
+      }
+      const importJsonFile = document.getElementById('modalImportJsonFile');
+      if (importJsonFile) {
+        importJsonFile.onchange = async (e) => {
+          const f = e.target.files && e.target.files[0];
+          if (!f) return;
+          await this.importBackupJson(f);
+          importJsonFile.value = '';
+        };
+      }
 
     }
 
