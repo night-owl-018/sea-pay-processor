@@ -2215,14 +2215,36 @@ function updateCertDatePreview() {
         <div id="modalSignatureStatus" class="alert" style="display: none;"></div>
         <div class="signature-canvas-container">
           <h3 style="margin-top: 0; color: #333;">Create New Signature</h3>
-          <canvas id="signatureCanvasModal" width="600" height="200"></canvas>
-          <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
-            <button class="btn btn-secondary" onclick="clearModalCanvas()">Clear</button>
-            <button class="btn btn-primary" onclick="saveModalSignature()">💾 Save</button>
+          
+          <!-- Form Fields -->
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">#</label>
+            <input type="text" id="modalSignatureNumber" value="001" 
+                   style="width: 80px; padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-family: monospace; font-size: 16px; text-align: center;">
           </div>
-          <div style="margin-top: 15px;">
-            <input type="text" id="modalSignatureName" placeholder="Name (e.g., Ryan Nivera)" style="width: 100%; padding: 8px; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ccc;">
-            <input type="text" id="modalSignatureRole" placeholder="Role (optional, e.g., Certifier)" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+          
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">Signature Name *</label>
+            <input type="text" id="modalSignatureName" placeholder="e.g., NIVERA Official Signature" 
+                   style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+          </div>
+          
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">Role/Purpose</label>
+            <input type="text" id="modalSignatureRole" placeholder="e.g., Certifying Officer" 
+                   style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+          </div>
+          
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #333;">Draw Your Signature *</label>
+            <canvas id="signatureCanvasModal" width="600" height="200" style="border: 2px solid #ddd; border-radius: 4px; background: white;"></canvas>
+            <p style="font-size: 12px; color: #666; margin-top: 5px;">Sign using your finger or stylus</p>
+          </div>
+          
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-secondary" onclick="clearModalCanvas()" style="background: #6c757d; color: white; border: 1px solid #5a6268; font-weight: 600;">🗑️ Clear</button>
+            <button class="btn btn-secondary" onclick="newModalSignature()" style="background: #17a2b8; color: white; border: 1px solid #138496; font-weight: 600;">🆕 New Signature</button>
+            <button class="btn btn-primary" onclick="saveModalSignature()" style="background: #0d6efd; color: white; border: 1px solid #0d6efd; font-weight: 600;">💾 Save Signature</button>
           </div>
         </div>
         <div style="margin-top: 30px; padding-top: 30px; border-top: 1px solid rgba(111, 183, 255, 0.2);">
@@ -2281,34 +2303,70 @@ function updateCertDatePreview() {
       this.memberKey = null;
       this.members = [];
       this._bound = false;
-      this.dpr = window.devicePixelRatio || 2; // Use device pixel ratio or 2x minimum
       this.setupCanvas();
+      this.loadPersistedFormData(); // Load saved form values
       setInterval(() => this.loadAllData(), 5000); // Auto-refresh every 5 seconds
     }
     
+    loadPersistedFormData() {
+      // Load persisted signature name and number from localStorage
+      const savedName = localStorage.getItem('modal_signature_base_name') || '';
+      const savedNumber = localStorage.getItem('modal_signature_next_number') || '001';
+      
+      document.getElementById('modalSignatureName').value = savedName;
+      document.getElementById('modalSignatureNumber').value = savedNumber;
+      
+      // Add number field validation on blur
+      const numberField = document.getElementById('modalSignatureNumber');
+      numberField.addEventListener('blur', () => this.formatNumberField());
+      numberField.addEventListener('input', (e) => {
+        // Only allow digits
+        e.target.value = e.target.value.replace(/[^0-9]/g, '');
+      });
+    }
+    
+    formatNumberField() {
+      const numberField = document.getElementById('modalSignatureNumber');
+      let value = numberField.value.trim();
+      
+      // If empty or invalid, revert to last saved or 001
+      if (!value || isNaN(value)) {
+        value = localStorage.getItem('modal_signature_next_number') || '001';
+      }
+      
+      // Convert to number and format with padding
+      const num = parseInt(value);
+      if (num > 999) {
+        // Option A: Allow numbers > 999 without padding
+        numberField.value = num.toString();
+      } else {
+        // Zero-pad to 3 digits
+        numberField.value = num.toString().padStart(3, '0');
+      }
+    }
+    
+    incrementNumber() {
+      const numberField = document.getElementById('modalSignatureNumber');
+      const currentNum = parseInt(numberField.value) || 1;
+      const nextNum = currentNum + 1;
+      
+      if (nextNum > 999) {
+        // Continue as 1000+ without padding
+        numberField.value = nextNum.toString();
+      } else {
+        // Zero-pad to 3 digits
+        numberField.value = nextNum.toString().padStart(3, '0');
+      }
+      
+      // Persist the new number
+      localStorage.setItem('modal_signature_next_number', numberField.value);
+    }
+    
     setupCanvas() {
-      // HIGH QUALITY: Scale canvas for better resolution
-      const displayWidth = 600;
-      const displayHeight = 200;
-      
-      // Set actual canvas size (scaled by DPR for high quality)
-      this.canvas.width = displayWidth * this.dpr;
-      this.canvas.height = displayHeight * this.dpr;
-      
-      // Set display size (CSS)
-      this.canvas.style.width = displayWidth + 'px';
-      this.canvas.style.height = displayHeight + 'px';
-      
-      // Scale context to match
-      this.ctx.scale(this.dpr, this.dpr);
-      
-      // HIGH QUALITY SETTINGS
-      this.ctx.strokeStyle = '#000000';    // Pure black
-      this.ctx.lineWidth = 3;              // Thicker line for print quality
-      this.ctx.lineCap = 'round';          // Smooth ends
-      this.ctx.lineJoin = 'round';         // Smooth corners
-      this.ctx.imageSmoothingEnabled = true;
-      this.ctx.imageSmoothingQuality = 'high';
+      this.ctx.strokeStyle = '#000';
+      this.ctx.lineWidth = 2;
+      this.ctx.lineCap = 'round';
+      this.ctx.lineJoin = 'round';
       
       this.canvas.onmousedown = (e) => this.startDraw(e);
       this.canvas.onmousemove = (e) => this.draw(e);
@@ -2448,11 +2506,17 @@ function updateCertDatePreview() {
     }
     
     async saveModalSignature() {
-      const name = document.getElementById('modalSignatureName').value.trim();
+      const baseName = document.getElementById('modalSignatureName').value.trim();
+      const number = document.getElementById('modalSignatureNumber').value.trim();
       const role = document.getElementById('modalSignatureRole').value.trim();
       
-      if (!name) {
-        alert('Please enter a name');
+      if (!baseName) {
+        alert('Please enter a signature name');
+        return;
+      }
+      
+      if (!number || isNaN(number)) {
+        alert('Invalid signature number');
         return;
       }
       
@@ -2461,6 +2525,9 @@ function updateCertDatePreview() {
         return;
       }
       
+      // Build final name: BaseName + Number
+      const finalName = baseName + number;
+      
       const base64 = this.canvas.toDataURL('image/png').split(',')[1];
       
       try {
@@ -2468,7 +2535,7 @@ function updateCertDatePreview() {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({
-            name,
+            name: finalName,  // Use final name with number appended
             role,
             signature_base64: base64,
             device_id: 'modal_' + Date.now(),
@@ -2478,10 +2545,21 @@ function updateCertDatePreview() {
         
         const result = await response.json();
         if (result.status === 'success') {
-          this.showAlert('✅ Signature saved!', 'success');
+          this.showAlert(`✅ Signature saved as ${finalName}!`, 'success');
+          
+          // Clear canvas only
           this.clearCanvas();
-          document.getElementById('modalSignatureName').value = '';
+          
+          // Clear role field
           document.getElementById('modalSignatureRole').value = '';
+          
+          // DO NOT clear base name - keep it for next signature
+          // Auto-increment the number
+          this.incrementNumber();
+          
+          // Persist the base name
+          localStorage.setItem('modal_signature_base_name', baseName);
+          
           this.loadAllData();
           if (typeof updateSignatureStatus === 'function') updateSignatureStatus();
         } else {
@@ -2495,6 +2573,22 @@ function updateCertDatePreview() {
     clearCanvas() {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       this.points = [];
+    }
+    
+    newSignature() {
+      // Clear all form fields
+      document.getElementById('modalSignatureName').value = '';
+      document.getElementById('modalSignatureRole').value = '';
+      document.getElementById('modalSignatureNumber').value = '001';
+      
+      // Clear canvas
+      this.clearCanvas();
+      
+      // Reset persisted values in localStorage
+      localStorage.setItem('modal_signature_base_name', '');
+      localStorage.setItem('modal_signature_next_number', '001');
+      
+      this.showAlert('✨ Ready for new signature series', 'success');
     }
     
     async loadAllData() {
@@ -2922,6 +3016,12 @@ try {
   }
 
   window.saveModalSignature = saveModalSignature;
+
+  function newModalSignature() {
+    if (modalSigApp) modalSigApp.newSignature();
+  }
+
+  window.newModalSignature = newModalSignature;
 
   </script>
 
