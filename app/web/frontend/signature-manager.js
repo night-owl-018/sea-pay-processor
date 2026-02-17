@@ -573,28 +573,61 @@ _strokeEnd() {
         const importFile = document.getElementById('importSignatureFile');
         if (importFile) {
             importFile.addEventListener('change', async (e) => {
-                const file = e.target.files && e.target.files[0];
-                if (!file) return;
+                const files = Array.from(e.target.files || []);
+                if (!files.length) return;
+
                 try {
-                    const name = prompt('Name for this signature (required):');
-                    if (!name) { importFile.value = ''; return; }
-                    const role = prompt('Role (optional):') || '';
+                    const baseName = prompt(`Name for these signature(s) (required):\nIf importing multiple files, they'll be named Name001, Name002, etc.`);
+                    if (!baseName || !baseName.trim()) { importFile.value = ''; return; }
+                    const role = prompt('Role (optional, press OK to skip):') || '';
 
-                    const form = new FormData();
-                    form.append('file', file);
-                    form.append('name', name);
-                    form.append('role', role);
-                    form.append('device_id', this.deviceId);
-                    form.append('device_name', this.deviceName);
+                    if (files.length === 1) {
+                        // Single import — use existing endpoint
+                        const form = new FormData();
+                        form.append('file', files[0]);
+                        form.append('name', baseName.trim());
+                        form.append('role', role);
+                        form.append('device_id', this.deviceId);
+                        form.append('device_name', this.deviceName);
 
-                    const resp = await fetch('/api/signatures/import', { method: 'POST', body: form });
-                    const result = await resp.json();
+                        const resp = await fetch('/api/signatures/import', { method: 'POST', body: form });
+                        const result = await resp.json();
 
-                    if (result.status === 'success') {
-                        this.showAlert('✅ Signature imported', 'success');
-                        await this.loadAllData();
+                        if (result.status === 'success') {
+                            this.showAlert('✅ Signature imported', 'success');
+                            await this.loadAllData();
+                        } else {
+                            this.showAlert('⚠️ Import failed: ' + (result.message || 'unknown error'), 'warning');
+                        }
                     } else {
-                        this.showAlert('⚠️ Import failed: ' + (result.message || 'unknown error'), 'warning');
+                        // Multi import — use new multi endpoint
+                        const form = new FormData();
+                        files.forEach(f => form.append('files[]', f));
+                        form.append('base_name', baseName.trim());
+                        form.append('role', role);
+                        form.append('device_id', this.deviceId);
+                        form.append('device_name', this.deviceName);
+
+                        this.showAlert(`⏳ Importing ${files.length} signatures...`, 'info');
+                        const resp = await fetch('/api/signatures/import-multi', { method: 'POST', body: form });
+                        const result = await resp.json();
+
+                        if (result.status === 'success') {
+                            await this.loadAllData();
+                            // Show result summary
+                            const summary = [
+                                `✅ Import complete!`,
+                                `Imported: ${result.imported}`,
+                                result.skipped > 0 ? `Skipped (duplicates): ${result.skipped}` : null,
+                                result.failed > 0 ? `Failed: ${result.failed}` : null,
+                            ].filter(Boolean).join('\n');
+                            this.showAlert(summary.split('\n')[0], result.failed > 0 ? 'warning' : 'success');
+                            if (result.imported > 0) {
+                                console.log('Import results:', result.results);
+                            }
+                        } else {
+                            this.showAlert('⚠️ Multi-import failed: ' + (result.message || 'unknown error'), 'warning');
+                        }
                     }
                 } catch (err) {
                     console.error('Import error', err);
@@ -1350,39 +1383,66 @@ async deleteSignature(signatureId) {
 
     buildExportPayload(signatures) {
         return {
-            version: 1,
+            version: 2,
             exported_at: new Date().toISOString(),
-            note: "This backup contains thumbnail images (smaller). If you want full-resolution exports later, we can add a backend export endpoint.",
+            note: "Full-resolution signature backup. Compatible with v1 imports.",
             signatures: (signatures || []).map(s => ({
                 name: s.name || '',
                 role: s.role || '',
-                signature_base64: s.thumbnail_base64 || s.signature_base64 || '',
+                // Use full-res image_base64 if available, fallback to thumbnail for old data
+                signature_base64: s.image_base64 || s.thumbnail_base64 || s.signature_base64 || '',
             }))
         };
     }
 
-    exportAllSignatures() {
+    async exportAllSignatures() {
         if (!this.signatures || this.signatures.length === 0) {
             this.showAlert('⚠️ No signatures to export', 'warning');
             return;
         }
-        const payload = this.buildExportPayload(this.signatures);
-        const ymd = new Date().toISOString().slice(0,10).replace(/-/g,'');
-        this.downloadJsonFile(`sea-pay-signatures-backup-${ymd}.json`, payload);
-        this.showAlert('✅ Exported backup file', 'success');
+        try {
+            // Fetch full-resolution images for export (not thumbnails)
+            const resp = await fetch('/api/signatures/list?include_thumbnails=true&include_full_res=true');
+            const result = await resp.json();
+            const fullSigs = (result.status === 'success') ? result.signatures : this.signatures;
+            const payload = this.buildExportPayload(fullSigs);
+            const ymd = new Date().toISOString().slice(0,10).replace(/-/g,'');
+            this.downloadJsonFile(`sea-pay-signatures-backup-${ymd}.json`, payload);
+            this.showAlert('✅ Exported full-resolution backup', 'success');
+        } catch (e) {
+            // Fallback to thumbnail export if full-res fetch fails
+            const payload = this.buildExportPayload(this.signatures);
+            const ymd = new Date().toISOString().slice(0,10).replace(/-/g,'');
+            this.downloadJsonFile(`sea-pay-signatures-backup-${ymd}.json`, payload);
+            this.showAlert('✅ Exported backup file', 'success');
+        }
     }
 
-    exportOneSignature(signatureId) {
+    async exportOneSignature(signatureId) {
         const sig = (this.signatures || []).find(s => String(s.id) === String(signatureId));
         if (!sig) {
             this.showAlert('⚠️ Signature not found', 'warning');
             return;
         }
-        const payload = this.buildExportPayload([sig]);
-        const safe = (sig.name || 'signature').replace(/[^a-z0-9]+/gi,'_').slice(0,40) || 'signature';
-        const ymd = new Date().toISOString().slice(0,10).replace(/-/g,'');
-        this.downloadJsonFile(`sea-pay-signature-${safe}-${ymd}.json`, payload);
-        this.showAlert('✅ Exported signature file', 'success');
+        try {
+            // Fetch full-res for this single signature
+            const resp = await fetch(`/api/signatures/list?include_thumbnails=true&include_full_res=true`);
+            const result = await resp.json();
+            const fullSig = (result.status === 'success')
+                ? (result.signatures || []).find(s => String(s.id) === String(signatureId)) || sig
+                : sig;
+            const payload = this.buildExportPayload([fullSig]);
+            const safe = (sig.name || 'signature').replace(/[^a-z0-9]+/gi,'_').slice(0,40) || 'signature';
+            const ymd = new Date().toISOString().slice(0,10).replace(/-/g,'');
+            this.downloadJsonFile(`sea-pay-signature-${safe}-${ymd}.json`, payload);
+            this.showAlert('✅ Exported full-resolution signature', 'success');
+        } catch (e) {
+            const payload = this.buildExportPayload([sig]);
+            const safe = (sig.name || 'signature').replace(/[^a-z0-9]+/gi,'_').slice(0,40) || 'signature';
+            const ymd = new Date().toISOString().slice(0,10).replace(/-/g,'');
+            this.downloadJsonFile(`sea-pay-signature-${safe}-${ymd}.json`, payload);
+            this.showAlert('✅ Exported signature file', 'success');
+        }
     }
 
     async importBackupJson(file) {
