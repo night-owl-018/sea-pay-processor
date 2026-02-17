@@ -1542,6 +1542,7 @@ function updateCertDatePreview() {
           await loadSheets();
           alert('✅ Reset complete');
           $('actionSelect').value = '';
+          updateSignatureStatus(); // Refresh status after reset
         }
       } catch (err) {
         alert(err.message);
@@ -2202,6 +2203,9 @@ function updateCertDatePreview() {
     updateSignatureStatus();
     setInterval(updateSignatureStatus, 30000); // Refresh every 30 seconds
 
+    // Real-time refresh: listen for changes from Signature Manager page/modal
+    window.addEventListener('signaturesChanged', () => updateSignatureStatus());
+
   </script>
 
   <!-- ========== SIGNATURE MODAL ========== -->
@@ -2624,6 +2628,8 @@ function updateCertDatePreview() {
           this.renderLibrary();
           this.renderAssignments();
           this.updateModalStatus(result.assignment_status || null);
+          // Notify main page to refresh signature status
+          window.dispatchEvent(new CustomEvent('signaturesChanged'));
         } else {
           this.showAlert('❌ ' + (result.message || 'Failed to load signatures'), 'error');
         }
@@ -2645,17 +2651,49 @@ function updateCertDatePreview() {
         container.innerHTML = '<p style="color: #f5f8ff;">No signatures yet. Create one above!</p>';
         return;
       }
-      
-      container.innerHTML = this.signatures.map(sig => `
-        <div style="background: rgba(111,183,255,0.08); border: 1px solid rgba(111,183,255,0.2); border-radius: 8px; padding: 15px;">
-          <div style="background: white; border-radius: 4px; padding: 10px; margin-bottom: 10px; min-height: 80px; display: flex; align-items: center; justify-content: center;">
-            <img src="data:image/png;base64,${sig.thumbnail_base64}" style="max-width: 100%; height: auto;">
+
+      // Group by base name (strip trailing digits)
+      const groups = {};
+      this.signatures.forEach(sig => {
+        const base = sig.name.replace(/\d+$/, '').trim() || sig.name;
+        if (!groups[base]) groups[base] = [];
+        groups[base].push(sig);
+      });
+
+      const groupKeys = Object.keys(groups).sort();
+
+      container.innerHTML = groupKeys.map((groupName, gi) => {
+        const sigs = groups[groupName];
+        const groupId = `msigg_${gi}`;
+        const cards = sigs.map(sig => `
+          <div style="background:rgba(111,183,255,0.08); border:1px solid rgba(111,183,255,0.2); border-radius:8px; padding:15px;">
+            <div style="background:white; border-radius:4px; padding:10px; margin-bottom:10px; min-height:80px; display:flex; align-items:center; justify-content:center;">
+              <img src="data:image/png;base64,${sig.thumbnail_base64}" style="max-width:100%; height:auto;">
+            </div>
+            <div style="color:#f5f8ff; font-weight:bold; margin-bottom:5px;">${sig.name}</div>
+            <div style="color:#6fb7ff; font-size:12px; margin-bottom:10px;">${sig.role || 'No role'}</div>
+            <button class="btn btn-danger btn-sm" onclick="modalSigApp.deleteSignature('${sig.id}')">🗑️ Delete</button>
           </div>
-          <div style="color: #f5f8ff; font-weight: bold; margin-bottom: 5px;">${sig.name}</div>
-          <div style="color: #6fb7ff; font-size: 12px; margin-bottom: 10px;">${sig.role || 'No role'}</div>
-          <button class="btn btn-danger btn-sm" onclick="modalSigApp.deleteSignature('${sig.id}')">🗑️ Delete</button>
-        </div>
-      `).join('');
+        `).join('');
+
+        return `
+          <div style="margin-bottom:10px; border:1px solid rgba(111,183,255,0.2); border-radius:8px; overflow:hidden;">
+            <div onclick="(function(el){var c=document.getElementById('${groupId}');var open=c.style.display!=='none';c.style.display=open?'none':'block';el.querySelector('.msig-arrow').textContent=open?'▶':'▼';})(this)"
+                 style="cursor:pointer; padding:10px 15px; background:rgba(111,183,255,0.08); display:flex; justify-content:space-between; align-items:center; user-select:none; color:#f5f8ff;">
+              <span style="font-weight:600;">
+                📁 ${groupName}
+                <span style="font-size:11px; opacity:0.7; margin-left:8px;">${sigs.length} signature${sigs.length !== 1 ? 's' : ''}</span>
+              </span>
+              <span class="msig-arrow" style="font-size:12px;">▶</span>
+            </div>
+            <div id="${groupId}" style="display:none; padding:15px;">
+              <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:15px;">
+                ${cards}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
     
     renderAssignments() {
