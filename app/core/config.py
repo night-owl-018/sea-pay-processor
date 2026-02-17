@@ -451,7 +451,7 @@ def get_signature_for_member_location(member_key, location):
         return None
 
 
-def get_all_signatures(include_thumbnails=False):
+def get_all_signatures(include_thumbnails=False, include_full_res=False):
     data = load_signatures()
     result = []
     for s in data.get("signatures", []):
@@ -465,6 +465,8 @@ def get_all_signatures(include_thumbnails=False):
         }
         if include_thumbnails:
             sig_info["thumbnail_base64"] = s.get("thumbnail_base64", "")
+        if include_full_res:
+            sig_info["image_base64"] = s.get("image_base64", "")
         result.append(sig_info)
     return result
 
