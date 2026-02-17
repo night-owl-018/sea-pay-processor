@@ -501,7 +501,7 @@
                 
                 <label class="btn btn-outline" style="cursor:pointer;">
                     ⬆️ Import PNG
-                    <input type="file" id="importSignatureFile" accept="image/png" style="display:none;">
+                    <input type="file" id="importSignatureFile" accept="image/png" multiple style="display:none;">
                 </label>
 
                 <button class="btn btn-success" id="autoAssignBtn">
@@ -555,15 +555,6 @@
             <div class="modal-body">
                 <form id="createSignatureForm">
                     <div class="form-group">
-                        <label for="signatureNumber">#</label>
-                        <input type="text" 
-                               id="signatureNumber" 
-                               class="form-control" 
-                               value="001"
-                               style="width: 100px; font-family: monospace; font-size: 16px; text-align: center;">
-                    </div>
-                    
-                    <div class="form-group">
                         <label for="signatureName">Signature Name *</label>
                         <input type="text" 
                                id="signatureName" 
@@ -590,13 +581,10 @@
                     
                     <div class="action-bar">
                         <button type="button" class="btn btn-secondary" id="clearCanvasBtn">
-                            🗑️ Clear
-                        </button>
-                        <button type="button" class="btn btn-secondary" id="newSignatureBtn" style="background: #17a2b8; border-color: #17a2b8;">
-                            🆕 New Signature
+                            Clear
                         </button>
                         <button type="submit" class="btn btn-primary" id="saveSignatureBtn">
-                            💾 Save Signature
+                            Save Signature
                         </button>
                     </div>
                 </form>
