@@ -16,7 +16,6 @@ from reportlab.lib.utils import ImageReader
 # 🔎 PATCH: prove what file is actually executing
 log(f"TORIS CERT MODULE PATH → {__file__}")
 
-
 # ------------------------------------------------
 # HELPER: Draw signature image on canvas
 # ------------------------------------------------
@@ -71,7 +70,6 @@ def _draw_signature_image_toris(c, sig_image_pil, x, y, max_width=150, max_heigh
         mask='auto'  # Handle transparency
     )
 
-
 # ------------------------------------------------
 # INTERNAL HELPER: Format YYYYMMDD -> MM/DD/YYYY
 # ------------------------------------------------
@@ -82,8 +80,6 @@ def _fmt_mmddyyyy(date_yyyymmdd: str) -> str:
     if len(s) == 8 and s.isdigit():
         return f"{s[4:6]}/{s[6:8]}/{s[0:4]}"
     return s
-
-
 
 def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path, member_key=None):
     """
@@ -354,7 +350,6 @@ def add_certifying_officer_to_toris(input_pdf_path, output_pdf_path, member_key=
                 # 🔎 PATCH: prove what we are about to draw
                 log(f"TORIS DRAW DEBUG → name_x={name_x:.2f} name_y={name_y:.2f} font={font_name} size={font_size}")
 
-                
                 # ------------------------------------------------
                 # NEW: Draw date above SIGNATURE OF CERTIFYING OFFICER & DATE underline (right-aligned)
                 # ------------------------------------------------
