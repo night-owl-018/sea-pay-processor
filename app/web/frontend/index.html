@@ -2369,22 +2369,155 @@ function updateCertDatePreview() {
     }
     
     setupCanvas() {
-      this.ctx.strokeStyle = '#000';
-      this.ctx.lineWidth = 2;
+      const displayW = 600;
+      const displayH = 200;
+
+      // HiDPI: minimum 2x, use devicePixelRatio if higher
+      this.dpr = Math.max(2, Math.min(4, window.devicePixelRatio || 2));
+
+      // Physical buffer at high resolution
+      this.canvas.width  = displayW * this.dpr;
+      this.canvas.height = displayH * this.dpr;
+
+      // CSS display size stays the same
+      this.canvas.style.width  = displayW + 'px';
+      this.canvas.style.height = displayH + 'px';
+
+      // Scale context so we draw in CSS pixels, rendered at HiDPI
+      this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+
+      // Quality settings
+      this.ctx.strokeStyle = '#000000';
       this.ctx.lineCap = 'round';
       this.ctx.lineJoin = 'round';
-      
-      this.canvas.onmousedown = (e) => this.startDraw(e);
-      this.canvas.onmousemove = (e) => this.draw(e);
-      this.canvas.onmouseup = () => this.stopDraw();
-      this.canvas.onmouseleave = () => this.stopDraw();
-      
-      this.canvas.ontouchstart = (e) => { e.preventDefault(); this.startDrawTouch(e); };
-      this.canvas.ontouchmove = (e) => { e.preventDefault(); this.drawTouch(e); };
-      this.canvas.ontouchend = () => this.stopDraw();
+      this.ctx.imageSmoothingEnabled = true;
+      this.ctx.imageSmoothingQuality = 'high';
+      this.ctx.globalAlpha = 1.0;
+
+      // Prevent scroll while signing on touch devices
+      this.canvas.style.touchAction = 'none';
+
+      // Stroke state (matches full-page engine)
+      this._mstroke = { raw: null, pts: [], lastT: 0, lastW: 2.5 };
+
+      // Unbind old events if re-initialized
+      if (this._boundPointerDown) {
+        this.canvas.removeEventListener('pointerdown', this._boundPointerDown);
+        this.canvas.removeEventListener('pointermove', this._boundPointerMove);
+        this.canvas.removeEventListener('pointerup',   this._boundPointerUp);
+        this.canvas.removeEventListener('pointercancel', this._boundPointerUp);
+      }
+
+      if (window.PointerEvent) {
+        this._boundPointerDown   = (e) => { e.preventDefault(); try { this.canvas.setPointerCapture(e.pointerId); } catch(_){} this._mStrokeStart(this._mPt(e)); };
+        this._boundPointerMove   = (e) => { if (!this.isDrawing) return; e.preventDefault(); this._mStrokeMove(this._mPt(e)); };
+        this._boundPointerUp     = (e) => { if (!this.isDrawing) return; e.preventDefault(); this._mStrokeEnd(); };
+        this.canvas.addEventListener('pointerdown',   this._boundPointerDown,  { passive: false });
+        this.canvas.addEventListener('pointermove',   this._boundPointerMove,  { passive: false });
+        this.canvas.addEventListener('pointerup',     this._boundPointerUp,    { passive: false });
+        this.canvas.addEventListener('pointercancel', this._boundPointerUp,    { passive: false });
+      } else {
+        // Fallback for old browsers
+        this.canvas.onmousedown = (e) => this._mStrokeStart(this._mPt(e));
+        this.canvas.onmousemove = (e) => { if (this.isDrawing) this._mStrokeMove(this._mPt(e)); };
+        this.canvas.onmouseup   = () => this._mStrokeEnd();
+        this.canvas.onmouseleave = () => this._mStrokeEnd();
+        this.canvas.ontouchstart = (e) => { e.preventDefault(); this._mStrokeStart(this._mPtTouch(e)); };
+        this.canvas.ontouchmove  = (e) => { e.preventDefault(); if (this.isDrawing) this._mStrokeMove(this._mPtTouch(e)); };
+        this.canvas.ontouchend   = () => this._mStrokeEnd();
+      }
     }
-    
-    bindUI() {
+
+    _mPt(e) {
+      const r = this.canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now() };
+    }
+
+    _mPtTouch(e) {
+      const r = this.canvas.getBoundingClientRect();
+      return { x: e.touches[0].clientX - r.left, y: e.touches[0].clientY - r.top, t: performance.now() };
+    }
+
+    _mStrokeStart(p) {
+      this.isDrawing = true;
+      this.points = [];
+      this._mstroke = { raw: { x: p.x, y: p.y, t: p.t }, pts: [], lastT: p.t, lastW: 2.5 };
+      const sp = { x: p.x, y: p.y, t: p.t, w: 2.5 };
+      this._mstroke.pts.push(sp, sp, sp, sp);
+      this.points.push({ x: p.x, y: p.y });
+      // Draw tap dot
+      this.ctx.beginPath();
+      this.ctx.lineWidth = 2.5;
+      this.ctx.moveTo(p.x, p.y);
+      this.ctx.lineTo(p.x + 0.01, p.y + 0.01);
+      this.ctx.stroke();
+    }
+
+    _mStrokeMove(p) {
+      if (!this.isDrawing || !this._mstroke.raw) return;
+      const a = this._mstroke.raw;
+      const dx = p.x - a.x, dy = p.y - a.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 0.5) return;
+
+      const dt = Math.max(1, (p.t - a.t) || 1);
+      const speed = dist / dt;
+      const n = Math.max(2, Math.ceil(dist / Math.max(0.05, 0.3 - Math.min(0.25, speed * 0.4))));
+
+      for (let i = 1; i <= n; i++) {
+        const t = i / n;
+        this._mAddPoint({ x: a.x + dx * t, y: a.y + dy * t, t: a.t + (p.t - a.t) * t });
+        this.points.push({ x: a.x + dx * t, y: a.y + dy * t });
+      }
+      this._mstroke.raw = { x: p.x, y: p.y, t: p.t };
+    }
+
+    _mAddPoint(p) {
+      const dt = Math.max(8, p.t - this._mstroke.lastT);
+      const lp = this._mstroke.pts[this._mstroke.pts.length - 1];
+      const v = Math.hypot(p.x - lp.x, p.y - lp.y) / dt;
+
+      const maxW = 3.0, minW = 0.8, k = 5.5;
+      const vf = Math.min(1, Math.pow(v * k / maxW, 0.8));
+      const w = (this._mstroke.lastW * 0.65) + ((maxW - vf * (maxW - minW)) * 0.35);
+      this._mstroke.lastW = w;
+      this._mstroke.lastT = p.t;
+
+      const prev = this._mstroke.pts[this._mstroke.pts.length - 1];
+      const pt = {
+        x: prev.x * 0.25 + p.x * 0.75,
+        y: prev.y * 0.25 + p.y * 0.75,
+        t: p.t, w
+      };
+      this._mstroke.pts.push(pt);
+
+      if (this._mstroke.pts.length < 4) return;
+      const pts = this._mstroke.pts;
+      const p0 = pts[pts.length - 4], p1 = pts[pts.length - 3];
+      const p2 = pts[pts.length - 2], p3 = pts[pts.length - 1];
+
+      const denom = 20 + Math.min(40, v * 100);
+      const cp1 = { x: p1.x + (p2.x - p0.x) / denom, y: p1.y + (p2.y - p0.y) / denom };
+      const cp2 = { x: p2.x - (p3.x - p1.x) / denom, y: p2.y - (p3.y - p1.y) / denom };
+
+      this.ctx.lineWidth = (p1.w + p2.w) / 2;
+      this.ctx.beginPath();
+      this.ctx.moveTo(p1.x, p1.y);
+      this.ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, p2.x, p2.y);
+      this.ctx.stroke();
+    }
+
+    _mStrokeEnd() {
+      this.isDrawing = false;
+      this._mstroke = { raw: null, pts: [], lastT: 0, lastW: 2.5 };
+    }
+
+    // Legacy stubs — kept so nothing calling these breaks (they now delegate)
+    startDraw(e)      { this._mStrokeStart(this._mPt(e)); }
+    draw(e)           { this._mStrokeMove(this._mPt(e)); }
+    startDrawTouch(e) { this._mStrokeStart(this._mPtTouch(e)); }
+    drawTouch(e)      { this._mStrokeMove(this._mPtTouch(e)); }
+    stopDraw()        { this._mStrokeEnd(); }
       // Bind member select dropdown
       const sel = document.getElementById('modalMemberSelect');
       if (sel) {
@@ -2467,50 +2600,6 @@ function updateCertDatePreview() {
       }
     }
 
-    startDraw(e) {
-      const rect = this.canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      this.isDrawing = true;
-      this.ctx.beginPath();
-      this.ctx.moveTo(x, y);
-      this.points.push({x, y});
-    }
-    
-    draw(e) {
-      if (!this.isDrawing) return;
-      const rect = this.canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      this.ctx.lineTo(x, y);
-      this.ctx.stroke();
-      this.points.push({x, y});
-    }
-    
-    startDrawTouch(e) {
-      const rect = this.canvas.getBoundingClientRect();
-      const x = e.touches[0].clientX - rect.left;
-      const y = e.touches[0].clientY - rect.top;
-      this.isDrawing = true;
-      this.ctx.beginPath();
-      this.ctx.moveTo(x, y);
-      this.points.push({x, y});
-    }
-    
-    drawTouch(e) {
-      if (!this.isDrawing) return;
-      const rect = this.canvas.getBoundingClientRect();
-      const x = e.touches[0].clientX - rect.left;
-      const y = e.touches[0].clientY - rect.top;
-      this.ctx.lineTo(x, y);
-      this.ctx.stroke();
-      this.points.push({x, y});
-    }
-    
-    stopDraw() {
-      this.isDrawing = false;
-    }
-    
     async saveModalSignature() {
       const baseName = document.getElementById('modalSignatureName').value.trim();
       const number = document.getElementById('modalSignatureNumber').value.trim();
@@ -2577,8 +2666,10 @@ function updateCertDatePreview() {
     }
     
     clearCanvas() {
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      // Clear in CSS coordinate space (transform handles HiDPI scaling)
+      this.ctx.clearRect(0, 0, this.canvas.width / (this.dpr || 2), this.canvas.height / (this.dpr || 2));
       this.points = [];
+      this._mstroke = { raw: null, pts: [], lastT: 0, lastW: 2.5 };
     }
     
     newSignature() {
