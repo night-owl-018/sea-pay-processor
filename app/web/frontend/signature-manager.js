@@ -903,6 +903,9 @@ closeCreateModal() {
             this.updateAssignmentAlert();
             console.log('✅ loadAllData() complete');
             
+            // Notify index.html to refresh signature status
+            window.dispatchEvent(new CustomEvent('signaturesChanged'));
+            
         } catch (error) {
             console.error('❌ Load error:', error);
             console.error('❌ Error message:', error.message);
@@ -929,35 +932,65 @@ closeCreateModal() {
     renderSignatureLibrary() {
         const container = document.getElementById('signatureLibrary');
         if (!container) return;
-        
+
         if (this.signatures.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">✍️</div>
                     <div>No Signatures Yet</div>
                     <p>Create your first signature to get started</p>
-                    <button class="btn btn-primary" onclick="app.openCreateModal()">Create Signature</button>
+                    <button class="btn btn-primary" onclick="window.app.openCreateModal()">Create Signature</button>
                 </div>
             `;
             return;
         }
-        
-        container.innerHTML = this.signatures.map(sig => `
-            <div class="signature-card">
-                <div class="signature-preview">
-                    <img src="data:image/png;base64,${sig.thumbnail_base64}" alt="${sig.name}">
+
+        // Group signatures by base name (strip trailing digits)
+        const groups = {};
+        this.signatures.forEach(sig => {
+            const base = sig.name.replace(/\d+$/, '').trim() || sig.name;
+            if (!groups[base]) groups[base] = [];
+            groups[base].push(sig);
+        });
+
+        const groupKeys = Object.keys(groups).sort();
+
+        container.innerHTML = groupKeys.map((groupName, gi) => {
+            const sigs = groups[groupName];
+            const groupId = `siggroup_${gi}`;
+            const cards = sigs.map(sig => `
+                <div class="signature-card">
+                    <div class="signature-preview">
+                        <img src="data:image/png;base64,${sig.thumbnail_base64}" alt="${this.escapeHtml(sig.name)}">
+                    </div>
+                    <div class="signature-name">${this.escapeHtml(sig.name)}</div>
+                    <div class="signature-meta">${this.escapeHtml(sig.role || 'No role specified')}</div>
+                    <div class="signature-meta">📱 ${this.escapeHtml(sig.device_name || '')}</div>
+                    <div class="signature-actions">
+                        <button class="btn btn-secondary" onclick="window.app.exportOneSignature('${sig.id}')">💾 Export</button>
+                        <button class="btn btn-danger" onclick="window.app.deleteSignature('${sig.id}')">🗑️ Delete</button>
+                    </div>
                 </div>
-                <div class="signature-name">${sig.name}</div>
-                <div class="signature-meta">${sig.role || 'No role specified'}</div>
-                <div class="signature-meta">📱 ${sig.device_name}</div>
-                <div class="signature-actions">
-                    <button class="btn btn-secondary" onclick="app.exportOneSignature('${sig.id}')">💾 Export</button>
-                    <button class="btn btn-danger" onclick="app.deleteSignature('${sig.id}')">
-                        🗑️ Delete
-                    </button>
+            `).join('');
+
+            return `
+                <div style="margin-bottom:10px; border:1px solid rgba(111,183,255,0.2); border-radius:8px; overflow:hidden;">
+                    <div onclick="(function(el){var c=document.getElementById('${groupId}');var open=c.style.display!=='none';c.style.display=open?'none':'block';el.querySelector('.sig-group-arrow').textContent=open?'▶':'▼';})(this)"
+                         style="cursor:pointer; padding:10px 15px; background:rgba(111,183,255,0.08); display:flex; justify-content:space-between; align-items:center; user-select:none;">
+                        <span style="font-weight:600;">
+                            📁 ${this.escapeHtml(groupName)}
+                            <span style="font-size:11px; opacity:0.7; margin-left:8px;">${sigs.length} signature${sigs.length !== 1 ? 's' : ''}</span>
+                        </span>
+                        <span class="sig-group-arrow" style="font-size:12px;">▶</span>
+                    </div>
+                    <div id="${groupId}" style="display:none; padding:15px;">
+                        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:15px;">
+                            ${cards}
+                        </div>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
     
     renderAssignments() {
