@@ -2309,11 +2309,13 @@ function updateCertDatePreview() {
     }
     
     loadPersistedFormData() {
-      // Load persisted signature name and number from localStorage
+      // Load persisted signature name, role, and number from localStorage
       const savedName = localStorage.getItem('modal_signature_base_name') || '';
+      const savedRole = localStorage.getItem('modal_signature_role') || '';
       const savedNumber = localStorage.getItem('modal_signature_next_number') || '001';
       
       document.getElementById('modalSignatureName').value = savedName;
+      document.getElementById('modalSignatureRole').value = savedRole;
       document.getElementById('modalSignatureNumber').value = savedNumber;
       
       // Add number field validation on blur
@@ -2550,15 +2552,15 @@ function updateCertDatePreview() {
           // Clear canvas only
           this.clearCanvas();
           
-          // Clear role field
-          document.getElementById('modalSignatureRole').value = '';
+          // DO NOT clear role - keep it for next signature (same as name)
           
           // DO NOT clear base name - keep it for next signature
           // Auto-increment the number
           this.incrementNumber();
           
-          // Persist the base name
+          // Persist the base name AND role
           localStorage.setItem('modal_signature_base_name', baseName);
+          localStorage.setItem('modal_signature_role', role);
           
           this.loadAllData();
           if (typeof updateSignatureStatus === 'function') updateSignatureStatus();
@@ -2584,8 +2586,9 @@ function updateCertDatePreview() {
       // Clear canvas
       this.clearCanvas();
       
-      // Reset persisted values in localStorage
+      // Reset persisted values in localStorage (including role)
       localStorage.setItem('modal_signature_base_name', '');
+      localStorage.setItem('modal_signature_role', '');
       localStorage.setItem('modal_signature_next_number', '001');
       
       this.showAlert('✨ Ready for new signature series', 'success');
