@@ -27,6 +27,7 @@ from app.core.parser import (
     parse_rows,
     extract_year_from_filename,
     group_by_ship,
+    _safe_strptime,
 )
 from app.core.pdf_writer import make_pdf_for_ship
 from app.core.strikeout import mark_sheet_with_strikeouts
@@ -246,6 +247,32 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
     toris_total = 0
 
     # --------------------------------------------------
+    # HELPER: detect if a PDF is a standard TORIS Sea Duty sheet
+    # --------------------------------------------------
+    _TORIS_KEYWORDS = [
+        "SEA DUTY CERTIFICATION",
+        "TORIS",
+        "PRINTED NAME OF CERTIFYING OFFICER",
+        "SEA PAY",
+        "FROM:",
+        "REPORTING PERIOD",
+    ]
+
+    def _is_toris_sheet(ocr_text: str, filename: str) -> bool:
+        """
+        Heuristic: a file is treated as a TORIS Sea Duty sheet when either
+        its OCR text contains known TORIS keywords, or its filename matches
+        the "NAME Sea Pay MM_DD_YYYY - MM_DD_YYYY.pdf" pattern.
+        Non-TORIS files are safely skipped from TORIS-specific processing.
+        """
+        up = ocr_text.upper()
+        if any(kw in up for kw in _TORIS_KEYWORDS):
+            return True
+        if re.search(r"Sea[\s_]Pay", filename, re.IGNORECASE):
+            return True
+        return False
+
+    # --------------------------------------------------
     # PROCESS EACH INPUT PDF
     # --------------------------------------------------
     for idx, file in enumerate(sorted(files)):
@@ -262,7 +289,11 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
         log(f"OCR → {file}")
 
         # 1. OCR and basic text cleanup
-        raw = strip_times(ocr_pdf(path))
+        try:
+            raw = strip_times(ocr_pdf(path))
+        except Exception as ocr_exc:
+            log(f"PROCESS ERROR → OCR failed for {file}: {ocr_exc}")
+            continue
 
         # 🔹 PATCH: OCR complete (20% of this file)
         progress.update(idx, progress.STEP_OCR, f"[{idx+1}/{total_files}] OCR complete: {file}")
@@ -273,11 +304,16 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
             set_progress(status="CANCELLED", percent=0, current_step="Cancelled by user")
             return
 
+        # PATCH: Input routing safety – skip non-TORIS files gracefully
+        if not _is_toris_sheet(raw, file):
+            log(f"SKIP NON-TORIS FILE → '{file}' does not look like a Sea Duty Certification Sheet")
+            continue
+
         sheet_start, sheet_end, _ = extract_reporting_period(raw, file)
 
         # 2. Member name detection
         try:
-            name = extract_member_name(raw)
+            name = extract_member_name(raw, filename=file)
             log(f"NAME → {name}")
         except Exception as e:
             log(f"NAME ERROR → {e}")
@@ -771,16 +807,15 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
         ]
 
         summary_data[member_key]["invalid_events"] = [
-            (e["ship"], datetime.strptime(e["date"], "%m/%d/%Y"), e["reason"])
-            for e in all_invalid_events if e.get("date")
+            (e["ship"], _safe_strptime(e["date"], "%m/%d/%Y", context=f"invalid_events {member_key}"), e["reason"])
+            for e in all_invalid_events if e.get("date") and _safe_strptime(e["date"], "%m/%d/%Y")
         ]
 
-        events_followed = []
         for p in valid_periods_list:
             from datetime import datetime as dt
             if isinstance(p["start"], str):
-                start_dt = dt.strptime(p["start"], "%m/%d/%Y")
-                end_dt = dt.strptime(p["end"], "%m/%d/%Y")
+                start_dt = _safe_strptime(p["start"], "%m/%d/%Y", context=f"events_followed start {member_key}") or dt.now()
+                end_dt = _safe_strptime(p["end"], "%m/%d/%Y", context=f"events_followed end {member_key}") or dt.now()
             else:
                 start_dt = p["start"]
                 end_dt = p["end"]
@@ -810,8 +845,8 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
         for p in valid_periods_list:
             from datetime import datetime as dt
             if isinstance(p["start"], str):
-                start_dt = dt.strptime(p["start"], "%m/%d/%Y")
-                end_dt = dt.strptime(p["end"], "%m/%d/%Y")
+                start_dt = _safe_strptime(p["start"], "%m/%d/%Y", context=f"tracker_lines start {member_key}") or dt.now()
+                end_dt = _safe_strptime(p["end"], "%m/%d/%Y", context=f"tracker_lines end {member_key}") or dt.now()
             else:
                 start_dt = p["start"]
                 end_dt = p["end"]
@@ -902,9 +937,9 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
                         s = x.get("start") or x.get("from")
                         e = x.get("end") or x.get("to")
                         if isinstance(s, str):
-                            s = datetime.strptime(s, "%m/%d/%Y")
+                            s = _safe_strptime(s, "%m/%d/%Y", context=f"consolidation rp start {member_key}")
                         if isinstance(e, str):
-                            e = datetime.strptime(e, "%m/%d/%Y")
+                            e = _safe_strptime(e, "%m/%d/%Y", context=f"consolidation rp end {member_key}")
                         if s:
                             rp_starts.append(s)
                         if e:
@@ -1065,9 +1100,9 @@ def rebuild_single_member(member_key, consolidate_pg13=False, consolidate_all_mi
                     s = x.get("start")
                     e = x.get("end")
                     if isinstance(s, str):
-                        s = datetime.strptime(s, "%m/%d/%Y")
+                        s = _safe_strptime(s, "%m/%d/%Y", context=f"all_missions rp start {member_key}")
                     if isinstance(e, str):
-                        e = datetime.strptime(e, "%m/%d/%Y")
+                        e = _safe_strptime(e, "%m/%d/%Y", context=f"all_missions rp end {member_key}")
                     if s:
                         rp_starts.append(s)
                     if e:
