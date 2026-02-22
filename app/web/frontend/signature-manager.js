@@ -1052,7 +1052,7 @@ closeCreateModal() {
                 description: 'Top signature on PG-13 above "Certifying Official & Date"'
             },
             {
-                key: 'pg13_member',
+                key: 'pg13_verifying_official',
                 label: 'PG-13 Member Signature (Bottom)',
                 description: 'Bottom signature on PG-13 above "FI MI Last Name"'
             }
@@ -1074,7 +1074,7 @@ closeCreateModal() {
         
         container.innerHTML = locations.map(loc => {
             const assignedId = this.assignments[loc.key];
-            const isAssigned = assignedId !== null;
+            const isAssigned = assignedId !== null && assignedId !== undefined && assignedId !== '';
             const isDuplicate = hasDuplicates && assignedIds.filter(id => id === assignedId).length > 1;
             
             const boxClass = isDuplicate ? 'assignment-box duplicate-warning' : 
