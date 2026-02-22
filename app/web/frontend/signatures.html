@@ -554,7 +554,19 @@
             </div>
             <div class="modal-body">
                 <form id="createSignatureForm">
+                    
                     <div class="form-group">
+                        <label for="signatureNumber">#</label>
+                        <input type="text"
+                               id="signatureNumber"
+                               class="form-control"
+                               value="001"
+                               style="width:120px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; text-align:center;"
+                               inputmode="numeric"
+                               pattern="[0-9]*">
+                    </div>
+                    
+<div class="form-group">
                         <label for="signatureName">Signature Name *</label>
                         <input type="text" 
                                id="signatureName" 
