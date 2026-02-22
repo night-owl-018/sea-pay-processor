@@ -40,7 +40,18 @@ class SignatureManager {
         // Load persisted signature name, role, and number from localStorage
         const savedName = localStorage.getItem('signature_base_name') || '';
         const savedRole = localStorage.getItem('signature_role') || '';
-        const savedNumber = localStorage.getItem('signature_next_number') || '001';
+        // Unified serial counter (shared with modal)
+let savedNumber =
+    localStorage.getItem('signature_next_number') ||
+    localStorage.getItem('modal_signature_next_number') ||
+    '001';
+
+// Normalize to 3 digits
+savedNumber = parseInt(savedNumber || '1').toString().padStart(3, '0');
+
+// Sync both keys
+localStorage.setItem('signature_next_number', savedNumber);
+localStorage.setItem('modal_signature_next_number', savedNumber);
         
         const nameField = document.getElementById('signatureName');
         const roleField = document.getElementById('signatureRole');
@@ -95,6 +106,7 @@ class SignatureManager {
         
         // Persist the new number
         localStorage.setItem('signature_next_number', numberField.value);
+localStorage.setItem('modal_signature_next_number', numberField.value);
     }
     
     getOrCreateDeviceId() {
