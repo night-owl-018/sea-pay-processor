@@ -2316,7 +2316,7 @@ function updateCertDatePreview() {
       // Load persisted signature name, role, and number from localStorage
       const savedName = localStorage.getItem('modal_signature_base_name') || '';
       const savedRole = localStorage.getItem('modal_signature_role') || '';
-      const savedNumber = localStorage.getItem('modal_signature_next_number') || '001';
+      const savedNumber = localStorage.getItem('signature_next_number') || localStorage.getItem('modal_signature_next_number') || '001';
       
       document.getElementById('modalSignatureName').value = savedName;
       document.getElementById('modalSignatureRole').value = savedRole;
@@ -2337,7 +2337,7 @@ function updateCertDatePreview() {
       
       // If empty or invalid, revert to last saved or 001
       if (!value || isNaN(value)) {
-        value = localStorage.getItem('modal_signature_next_number') || '001';
+        value = localStorage.getItem('signature_next_number') || localStorage.getItem('modal_signature_next_number') || '001';
       }
       
       // Convert to number and format with padding
