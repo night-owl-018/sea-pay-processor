@@ -40,8 +40,6 @@ def _build_member_key(rate: str, last: str, first: str, name_fallback: str = "")
     """
     Build the member_key used across the app for signature lookup:
       "RATE LAST,FIRST"
-
-    Falls back to the raw `name_fallback` if rate/last/first are missing.
     """
     rate = (rate or "").strip()
     last = (last or "").strip()
@@ -54,21 +52,16 @@ def _build_member_key(rate: str, last: str, first: str, name_fallback: str = "")
     return (name_fallback or "").strip()
 
 
+# ------------------------------------------------
+# SIGNATURE HELPERS
+# ------------------------------------------------
+
 def _signature_to_pil(sig: Union[Image.Image, str, None]) -> Optional[Image.Image]:
-    """
-    Normalize a signature into a high-quality PIL RGBA image.
-    Preserves resolution and prevents DPI degradation.
-    """
     if sig is None:
         return None
 
     if isinstance(sig, Image.Image):
-        try:
-            img = sig.convert("RGBA")
-            img.info.pop("dpi", None)
-            return img
-        except Exception:
-            return sig
+        return sig.convert("RGBA")
 
     if isinstance(sig, str):
         s = sig.strip()
@@ -76,12 +69,11 @@ def _signature_to_pil(sig: Union[Image.Image, str, None]) -> Optional[Image.Imag
             return None
         if "," in s:
             s = s.split(",", 1)[1]
+
         try:
             raw = base64.b64decode(s)
             img = Image.open(io.BytesIO(raw))
-            img = img.convert("RGBA")
-            img.info.pop("dpi", None)
-            return img
+            return img.convert("RGBA")
         except Exception as e:
             log(f"SIGNATURE DECODE ERROR → {e}")
             return None
@@ -90,89 +82,141 @@ def _signature_to_pil(sig: Union[Image.Image, str, None]) -> Optional[Image.Imag
 
 
 # ------------------------------------------------
-# DRAW SIGNATURE IMAGE ON CANVAS
+# VECTOR SIGNATURE RENDERER
 # ------------------------------------------------
-def _draw_signature_image(c, sig_image, x, y, max_width=150, max_height=40, allow_upscale=True):
-    """
-    Draw a signature on the canvas at the specified position.
+def _draw_signature_vector(c, stroke_data, x, y, max_width=150, max_height=40):
 
-    Args:
-        c: reportlab canvas
-        sig_image: PIL Image OR base64 PNG string
-        x: left edge x-coordinate (in points)
-        y: bottom edge y-coordinate (in points)
-        max_width: maximum width in points (default 150pt ~ 2 inches)
-        max_height: maximum height in points (default 40pt ~ 0.5 inches)
-        allow_upscale: keep legacy behavior by allowing upscaling (default True)
+    if not stroke_data:
+        return False
 
-    Behavior:
-    - Centered horizontally within max_width
-    - Scaled proportionally to fit within max_width × max_height
-    - Positioned with baseline at y coordinate
-    """
+    all_points = [pt for stroke in stroke_data for pt in stroke]
+    if not all_points:
+        return False
+
+    min_x = min(pt["x"] for pt in all_points)
+    max_x = max(pt["x"] for pt in all_points)
+    min_y = min(pt["y"] for pt in all_points)
+    max_y = max(pt["y"] for pt in all_points)
+
+    width = max_x - min_x
+    height = max_y - min_y
+
+    if width <= 0 or height <= 0:
+        return False
+
+    scale = min(max_width / width, max_height / height)
+    final_w = width * scale
+    x_offset = (max_width - final_w) / 2.0
+
+    c.saveState()
+    c.translate(x + x_offset, y)
+    c.scale(scale, scale)
+
+    c.setLineCap(1)
+    c.setLineJoin(1)
+    c.setStrokeColor(black)
+
+    for stroke in stroke_data:
+        if len(stroke) < 2:
+            continue
+    
+        path = c.beginPath()
+    
+        # Move to first point
+        first = stroke[0]
+        path.moveTo(first["x"] - min_x, first["y"] - min_y)
+    
+        # Smooth using quadratic-style midpoint interpolation
+        for i in range(1, len(stroke) - 1):
+            p0 = stroke[i]
+            p1 = stroke[i + 1]
+    
+            mid_x = (p0["x"] + p1["x"]) / 2.0
+            mid_y = (p0["y"] + p1["y"]) / 2.0
+    
+            path.curveTo(
+                p0["x"] - min_x,
+                p0["y"] - min_y,
+                p0["x"] - min_x,
+                p0["y"] - min_y,
+                mid_x - min_x,
+                mid_y - min_y
+            )
+    
+        # Finish final segment
+        last = stroke[-1]
+        path.lineTo(last["x"] - min_x, last["y"] - min_y)
+    
+        avg_width = sum(pt.get("w", 2.0) for pt in stroke) / len(stroke)
+        c.setLineWidth(avg_width)
+        c.drawPath(path, stroke=1, fill=0)
+
+    c.restoreState()
+    return True
+
+
+# ------------------------------------------------
+# VECTOR-AWARE SIGNATURE DRAW
+# ------------------------------------------------
+def _draw_signature_image(
+    c,
+    sig_image,
+    x,
+    y,
+    max_width=150,
+    max_height=40,
+    allow_upscale=True,
+):
+
+    # Try vector first
+    if isinstance(sig_image, dict) and sig_image.get("stroke_data"):
+        if _draw_signature_vector(
+            c,
+            sig_image["stroke_data"],
+            x,
+            y,
+            max_width=max_width,
+            max_height=max_height,
+        ):
+            return
+
+    # PNG fallback
     sig_image_pil = _signature_to_pil(sig_image)
     if sig_image_pil is None:
         return
 
-    # Trim transparent padding so signatures look like real ink on the line
-    try:
-        if sig_image_pil.mode in ("RGBA", "LA") or ("transparency" in sig_image_pil.info):
-            alpha = sig_image_pil.split()[-1]
-            bbox = alpha.getbbox()
-            if bbox:
-                sig_image_pil = sig_image_pil.crop(bbox)
-    except Exception:
-        pass
-
-    # Get original dimensions (pixels)
-    orig_w, orig_h = sig_image_pil.size
-        # 🔹 FORCE HIGH-QUALITY RESAMPLING TO REMOVE JAGGED EDGES
-    # Prevent ReportLab from scaling low-res bitmap directly
-    target_scale = 3  # upscale internally before PDF embed
-    sig_image_pil = sig_image_pil.resize(
-        (orig_w * target_scale, orig_h * target_scale),
-        resample=Image.LANCZOS
-    )
     orig_w, orig_h = sig_image_pil.size
     if not orig_w or not orig_h:
         return
 
-    # Calculate scaling to fit within max dimensions
-    scale_w = max_width / orig_w
-    scale_h = max_height / orig_h
-    scale = min(scale_w, scale_h)
+    target_scale = 3
+    sig_image_pil = sig_image_pil.resize(
+        (orig_w * target_scale, orig_h * target_scale),
+        Image.LANCZOS,
+    )
 
-    # Preserve legacy sizing unless explicitly disabled
+    orig_w, orig_h = sig_image_pil.size
+
+    scale = min(max_width / orig_w, max_height / orig_h)
     if not allow_upscale and scale > 1:
         scale = 1
 
-    # Calculate final dimensions (points)
     final_w = orig_w * scale
     final_h = orig_h * scale
+    final_x = x + (max_width - final_w) / 2.0
 
-    # Center horizontally within max_width
-    x_offset = (max_width - final_w) / 2.0
-    final_x = x + x_offset
-
-    # Save to temporary buffer as PNG (lossless)
     buf = io.BytesIO()
-    try:
-        sig_image_pil.save(buf, format="PNG", optimize=False)
-        buf.seek(0)
-        img_src = ImageReader(buf)
-    except Exception:
-        # Fallback: let ImageReader handle the PIL image directly
-        img_src = ImageReader(sig_image_pil)
+    sig_image_pil.save(buf, format="PNG")
+    buf.seek(0)
 
     c.drawImage(
-        img_src,
+        ImageReader(buf),
         final_x,
         y,
         width=final_w,
         height=final_h,
         mask="auto"
     )
-
 
 # ------------------------------------------------
 # FLATTEN PDF  (UNCHANGED ORIGINAL)
