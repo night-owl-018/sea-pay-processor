@@ -1,5 +1,8 @@
 import os
 import io
+import base64
+from typing import Optional, Union
+from PIL import Image
 from datetime import datetime
 
 from PyPDF2 import PdfReader, PdfWriter
@@ -33,27 +36,81 @@ from reportlab.lib.utils import ImageReader
 # ------------------------------------------------
 # DRAW SIGNATURE IMAGE ON CANVAS
 # ------------------------------------------------
-def _draw_signature_image(c, sig_image_pil, x, y, max_width=150, max_height=40):
+def _build_member_key(rate: str, last: str, first: str, name_fallback: str = "") -> str:
     """
-    Draw a PIL Image signature on the canvas at the specified position.
-    
+    Build the member_key used across the app for signature lookup:
+      "RATE LAST,FIRST"
+
+    Falls back to the raw `name_fallback` if rate/last/first are missing.
+    """
+    rate = (rate or "").strip()
+    last = (last or "").strip()
+    first = (first or "").strip()
+
+    if rate and last and first:
+        return f"{rate} {last},{first}"
+    if last and first:
+        return f"{last},{first}"
+    return (name_fallback or "").strip()
+
+
+def _signature_to_pil(sig: Union[Image.Image, str, None]) -> Optional[Image.Image]:
+    """
+    Normalize a signature into a PIL RGBA image.
+
+    Accepts:
+      - PIL.Image.Image
+      - base64 PNG string (with or without data URI header)
+    """
+    if sig is None:
+        return None
+
+    if isinstance(sig, Image.Image):
+        try:
+            return sig.convert("RGBA")
+        except Exception:
+            return sig
+
+    if isinstance(sig, str):
+        s = sig.strip()
+        if not s:
+            return None
+        if "," in s:
+            s = s.split(",", 1)[1]
+        try:
+            raw = base64.b64decode(s)
+            img = Image.open(io.BytesIO(raw))
+            return img.convert("RGBA")
+        except Exception:
+            return None
+
+    return None
+
+
+# ------------------------------------------------
+# DRAW SIGNATURE IMAGE ON CANVAS
+# ------------------------------------------------
+def _draw_signature_image(c, sig_image, x, y, max_width=150, max_height=40, allow_upscale=True):
+    """
+    Draw a signature on the canvas at the specified position.
+
     Args:
         c: reportlab canvas
-        sig_image_pil: PIL Image object containing the signature
+        sig_image: PIL Image OR base64 PNG string
         x: left edge x-coordinate (in points)
         y: bottom edge y-coordinate (in points)
         max_width: maximum width in points (default 150pt ~ 2 inches)
         max_height: maximum height in points (default 40pt ~ 0.5 inches)
-    
-    The signature will be:
+        allow_upscale: keep legacy behavior by allowing upscaling (default True)
+
+    Behavior:
     - Centered horizontally within max_width
     - Scaled proportionally to fit within max_width × max_height
     - Positioned with baseline at y coordinate
     """
+    sig_image_pil = _signature_to_pil(sig_image)
     if sig_image_pil is None:
         return
-
-    from io import BytesIO
 
     # Trim transparent padding so signatures look like real ink on the line
     try:
@@ -65,35 +122,45 @@ def _draw_signature_image(c, sig_image_pil, x, y, max_width=150, max_height=40):
     except Exception:
         pass
 
-    # Get original dimensions
+    # Get original dimensions (pixels)
     orig_w, orig_h = sig_image_pil.size
-    
+    if not orig_w or not orig_h:
+        return
+
     # Calculate scaling to fit within max dimensions
     scale_w = max_width / orig_w
     scale_h = max_height / orig_h
     scale = min(scale_w, scale_h)
-    
-    # Calculate final dimensions
+
+    # Preserve legacy sizing unless explicitly disabled
+    if not allow_upscale and scale > 1:
+        scale = 1
+
+    # Calculate final dimensions (points)
     final_w = orig_w * scale
     final_h = orig_h * scale
-    
+
     # Center horizontally within max_width
     x_offset = (max_width - final_w) / 2.0
     final_x = x + x_offset
-    
-    # Save to temporary buffer as PNG
-    buf = BytesIO()
-    sig_image_pil.save(buf, format='PNG')
-    buf.seek(0)
-    
-    # Draw on canvas
+
+    # Save to temporary buffer as PNG (lossless)
+    buf = io.BytesIO()
+    try:
+        sig_image_pil.save(buf, format="PNG")
+        buf.seek(0)
+        img_src = ImageReader(buf)
+    except Exception:
+        # Fallback: let ImageReader handle the PIL image directly
+        img_src = ImageReader(sig_image_pil)
+
     c.drawImage(
-        ImageReader(buf),
+        img_src,
         final_x,
         y,
         width=final_w,
         height=final_h,
-        mask='auto'  # Handle transparency
+        mask="auto"
     )
 
 
@@ -245,7 +312,7 @@ def make_consolidated_all_missions_pdf(
         rate, last, first = resolve_identity(name)
 
     # Per-member signatures use the member_key (RATE LAST,FIRST) as the lookup key.
-    member_key = name
+    member_key = _build_member_key(rate, last, first, name_fallback=name)
 
     # Sort ships alphabetically for consistency
     sorted_ships = sorted(ship_groups.items())
@@ -404,7 +471,7 @@ def make_consolidated_all_missions_pdf(
     _draw_pg13_certifier_date(c, get_certifying_date_yyyymmdd())
 
     # ✅ PG-13 verifying official signature (bottom-right box)
-    _draw_pg13_verifying_official_signature(c, name)
+    _draw_pg13_verifying_official_signature(c, member_key)
 
     c.save()
     buf.seek(0)
@@ -435,6 +502,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
         return
 
     rate, last, first = resolve_identity(name)
+    member_key = _build_member_key(rate, last, first, name_fallback=name)
     periods_sorted = sorted(periods, key=lambda g: g["start"])
 
     first_period = periods_sorted[0]
@@ -544,7 +612,7 @@ def make_consolidated_pdf_for_ship(ship, periods, name):
     _draw_pg13_certifier_date(c, get_certifying_date_yyyymmdd())
 
     # ✅ PG-13 verifying official signature (bottom-right box)
-    _draw_pg13_verifying_official_signature(c, name)
+    _draw_pg13_verifying_official_signature(c, member_key)
 
     c.save()
     buf.seek(0)
@@ -578,6 +646,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         return
 
     rate, last, first = resolve_identity(name)
+    member_key = _build_member_key(rate, last, first, name_fallback=name)
     periods_sorted = sorted(periods, key=lambda g: g["start"])
 
     for g in periods_sorted:
@@ -681,7 +750,7 @@ def make_pdf_for_ship(ship, periods, name, consolidate=False):
         _draw_pg13_certifier_date(c, get_certifying_date_yyyymmdd())
 
         # ✅ PG-13 verifying official signature (bottom-right box)
-        _draw_pg13_verifying_official_signature(c, name)
+        _draw_pg13_verifying_official_signature(c, member_key)
 
         c.save()
         buf.seek(0)
