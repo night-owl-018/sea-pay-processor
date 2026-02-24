@@ -652,6 +652,9 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
             computed_total_days,
             strike_color=strike_color,
         )
+        
+        if _cancel_and_exit("❌ CANCELLED DURING TORIS GENERATION"):
+            return
 
         _apply_toris_certifier(toris_path, member_key)
 
@@ -694,9 +697,10 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
 
         progress.update(idx, 100, f"[{idx+1}/{total_files}] Complete: {file}")
 
-    # Consolidated all missions PG-13 (unchanged behavior, refactored range calc only)
+    # Consolidated all missions PG-13 (unchanged behavior + cancel support)
     if consolidate_all_missions:
         log("=== CREATING CONSOLIDATED ALL MISSIONS PG-13 FORMS ===")
+
         try:
             from app.core.pdf_writer import make_consolidated_all_missions_pdf
         except Exception as e:
@@ -704,6 +708,11 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
             raise
 
         for member_key, member_data in summary_data.items():
+
+            # ✅ PROPER CANCEL LOCATION
+            if _cancel_and_exit("❌ CANCELLED DURING ALL-MISSIONS PG-13 GENERATION"):
+                return
+
             try:
                 ship_groups = {}
                 for period in member_data.get("periods", []):
@@ -712,7 +721,10 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
 
                 if ship_groups:
                     rp = member_data.get("reporting_periods", []) or []
-                    overall_start, overall_end = _compute_overall_reporting_range(rp, context=f"process_all {member_key}")
+                    overall_start, overall_end = _compute_overall_reporting_range(
+                        rp,
+                        context=f"process_all {member_key}"
+                    )
 
                     make_consolidated_all_missions_pdf(
                         ship_groups,
@@ -727,6 +739,7 @@ def process_all(strike_color: str = "black", consolidate_pg13: bool = False, con
                     pg13_total += 1
                     add_progress_detail("pg13_created", 1)
                     log(f"Created consolidated all missions PG-13 for {member_key}")
+
             except Exception as e:
                 log(f"❌ ALL MISSIONS PG-13 FAILED for {member_key} → {e}")
                 raise
@@ -899,20 +912,28 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
         _apply_toris_certifier(toris_path, member_key)
         toris_total += 1
 
-    # Consolidated all missions (rebuild) (unchanged behavior, refactored range calc only)
+    # Consolidated all missions (rebuild) (unchanged behavior + cancel support)
     if consolidate_all_missions:
         log("=== CREATING CONSOLIDATED ALL MISSIONS PG-13 FORMS (REBUILD) ===")
         from app.core.pdf_writer import make_consolidated_all_missions_pdf
-
+    
         for member_key, member_data in summary_data.items():
+    
+            # 🔹 PATCH: cancel support during rebuild consolidated generation
+            if _cancel_and_exit("❌ REBUILD CANCELLED DURING ALL-MISSIONS", "Cancelled by user"):
+                return
+    
             ship_groups = {}
             for ship, start, end in member_data.get("valid_periods", []):
                 ship_groups.setdefault(ship, []).append({"start": start, "end": end})
-
+    
             if ship_groups:
                 rp = member_data.get("reporting_periods", []) or []
-                overall_start, overall_end = _compute_overall_reporting_range(rp, context=f"rebuild {member_key}")
-
+                overall_start, overall_end = _compute_overall_reporting_range(
+                    rp,
+                    context=f"rebuild {member_key}"
+                )
+    
                 make_consolidated_all_missions_pdf(
                     ship_groups,
                     member_key,
@@ -922,9 +943,10 @@ def rebuild_outputs_from_review(consolidate_pg13: bool = False, consolidate_all_
                     last=member_data.get("last"),
                     first=member_data.get("first"),
                 )
+    
                 pg13_total += 1
                 log(f"Created consolidated all missions PG-13 for {member_key}")
-
+    
         log(f"=== COMPLETED {pg13_total} CONSOLIDATED ALL MISSIONS PG-13 FORMS (REBUILD) ===")
 
     set_progress(percent=90, current_step="Writing summary files")
@@ -1074,3 +1096,4 @@ def rebuild_single_member(member_key, consolidate_pg13=False, consolidate_all_mi
         "valid_rows": len(all_valid_rows),
         "invalid_events": len(all_invalid_events),
     }
+
