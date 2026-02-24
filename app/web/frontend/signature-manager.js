@@ -177,7 +177,7 @@ setupCanvas() {
     // PERFECT SETTINGS: Maximum resolution for ultra-smooth signatures
     // Force minimum 3x, allow up to 5x for extreme quality
     const deviceDPR = window.devicePixelRatio || 2;
-    this._dpr = Math.max(3, Math.min(5, deviceDPR));  // 3x-5x = PERFECT quality
+    this._dpr = Math.min(2, deviceDPR || 1);  // 3x-5x = PERFECT quality
 
     this.canvas.style.width = this._cssW + 'px';
     this.canvas.style.height = this._cssH + 'px';
@@ -208,9 +208,6 @@ setupCanvas() {
     // PERFECT: Additional quality settings
     this.ctx.globalCompositeOperation = 'source-over';  // Standard blending
     this.ctx.globalAlpha = 1.0;                         // Full opacity
-    
-    // PERFECT: Subpixel rendering (critical for smoothness)
-    this.ctx.translate(0.5, 0.5);  // Half-pixel offset for subpixel rendering
     
     // iOS: prevent scroll/zoom while signing
     this.canvas.style.touchAction = 'none';
@@ -348,7 +345,7 @@ _clientToPoint(clientX, clientY) {
 _strokeStart(p) {
     if (!this.ctx) return;
     this.isDrawing = true;
-    this.points = [];
+    this.points = [{ x: p.x, y: p.y }];
 
     this._stroke.raw = { x: p.x, y: p.y, t: p.t };
     this._stroke.pts = [];
