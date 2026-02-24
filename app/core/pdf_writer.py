@@ -56,18 +56,17 @@ def _build_member_key(rate: str, last: str, first: str, name_fallback: str = "")
 
 def _signature_to_pil(sig: Union[Image.Image, str, None]) -> Optional[Image.Image]:
     """
-    Normalize a signature into a PIL RGBA image.
-
-    Accepts:
-      - PIL.Image.Image
-      - base64 PNG string (with or without data URI header)
+    Normalize a signature into a high-quality PIL RGBA image.
+    Preserves resolution and prevents DPI degradation.
     """
     if sig is None:
         return None
 
     if isinstance(sig, Image.Image):
         try:
-            return sig.convert("RGBA")
+            img = sig.convert("RGBA")
+            img.info.pop("dpi", None)
+            return img
         except Exception:
             return sig
 
@@ -80,8 +79,11 @@ def _signature_to_pil(sig: Union[Image.Image, str, None]) -> Optional[Image.Imag
         try:
             raw = base64.b64decode(s)
             img = Image.open(io.BytesIO(raw))
-            return img.convert("RGBA")
-        except Exception:
+            img = img.convert("RGBA")
+            img.info.pop("dpi", None)
+            return img
+        except Exception as e:
+            log(f"SIGNATURE DECODE ERROR → {e}")
             return None
 
     return None
@@ -124,6 +126,14 @@ def _draw_signature_image(c, sig_image, x, y, max_width=150, max_height=40, allo
 
     # Get original dimensions (pixels)
     orig_w, orig_h = sig_image_pil.size
+        # 🔹 FORCE HIGH-QUALITY RESAMPLING TO REMOVE JAGGED EDGES
+    # Prevent ReportLab from scaling low-res bitmap directly
+    target_scale = 3  # upscale internally before PDF embed
+    sig_image_pil = sig_image_pil.resize(
+        (orig_w * target_scale, orig_h * target_scale),
+        resample=Image.LANCZOS
+    )
+    orig_w, orig_h = sig_image_pil.size
     if not orig_w or not orig_h:
         return
 
@@ -147,7 +157,7 @@ def _draw_signature_image(c, sig_image, x, y, max_width=150, max_height=40, allo
     # Save to temporary buffer as PNG (lossless)
     buf = io.BytesIO()
     try:
-        sig_image_pil.save(buf, format="PNG")
+        sig_image_pil.save(buf, format="PNG", optimize=False)
         buf.seek(0)
         img_src = ImageReader(buf)
     except Exception:
