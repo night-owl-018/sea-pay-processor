@@ -346,6 +346,7 @@ _strokeStart(p) {
     if (!this.ctx) return;
     this.isDrawing = true;
     this.points = [{ x: p.x, y: p.y }];
+    this.strokes.push([]); // ✅ START NEW VECTOR STROKE
 
     this._stroke.raw = { x: p.x, y: p.y, t: p.t };
     this._stroke.pts = [];
@@ -438,6 +439,14 @@ _addPoint(p) {
     this._stroke.lastT = p.t;
 
     const pt = { x: p.x, y: p.y, t: p.t, w };
+    // ✅ STORE VECTOR DATA FOR PDF
+    if (this.strokes.length > 0) {
+        this.strokes[this.strokes.length - 1].push({
+            x: pt.x,
+            y: pt.y,
+            w: pt.w
+        });
+    }
 
     // Light position smoothing (reduces tiny kinks on curves without drifting)
     const prev = this._stroke.pts.length ? this._stroke.pts[this._stroke.pts.length - 1] : null;
@@ -658,6 +667,7 @@ clearCanvas() {
     this.ctx.clearRect(0, 0, this._cssW || (this.canvas.width / this._dpr), this._cssH || (this.canvas.height / this._dpr));
 
     this.points = [];
+    this.strokes = []; // ✅ RESET VECTOR DATA
     this.isDrawing = false;
 
     if (this._stroke) {
@@ -768,9 +778,10 @@ closeCreateModal() {
         
         const signatureData = {
             local_id: 'local_' + Date.now(),
-            name: finalName,  // Use final name with number appended
+            name: finalName,
             role: role,
             signature_base64: base64,
+            stroke_data: this.strokes, // ✅ VECTOR DATA ADDED
             device_id: this.deviceId,
             device_name: this.deviceName,
             created: new Date().toISOString()
