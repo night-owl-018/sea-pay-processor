@@ -49,6 +49,7 @@ FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "web", "frontend")
 processing_cancelled = False
 processing_lock = threading.Lock()
 processing_thread = None
+processing_active = False
 
 
 def _get_override_path(member_key):
@@ -120,12 +121,15 @@ def signature_manager_js():
 
 @bp.route("/process", methods=["POST"])
 def process_route():
-    global processing_cancelled, processing_thread
-    
-    # 🔹 PATCH: Thread-safe cancellation reset
+    global processing_cancelled, processing_thread, processing_active
+
     with processing_lock:
+        if processing_active:
+            return jsonify({"status": "ERROR", "message": "Processing already running"}), 400
+
         processing_cancelled = False
-    
+        processing_active = True
+
     clear_logs()
     reset_progress()
     log("=== PROCESS STARTED ===")
@@ -154,30 +158,31 @@ def process_route():
     strike_color = request.form.get("strikeout_color", "Black")
     consolidate_pg13 = request.form.get("consolidate_pg13", "false").lower() == "true"
     consolidate_all_missions = request.form.get("consolidate_all_missions", "false").lower() == "true"
-    
-    if consolidate_pg13:
-        log("PG-13 CONSOLIDATION ENABLED → Will create one form per ship")
-    if consolidate_all_missions:
-        log("ALL MISSIONS CONSOLIDATION ENABLED → Will create one form per member with all ships")
 
     def _run():
-        global processing_cancelled
+        global processing_cancelled, processing_active
+
         try:
-            # 🔹 PATCH: Check cancellation at start
             with processing_lock:
                 if processing_cancelled:
                     log("PROCESSING CANCELLED BEFORE START")
                     set_progress(status="CANCELLED", percent=0, current_step="Cancelled")
+                    processing_active = False
                     return
-                
-            set_progress(status="PROCESSING", percent=5, current_step="Processing")
-            process_all(strike_color=strike_color, consolidate_pg13=consolidate_pg13, consolidate_all_missions=consolidate_all_missions)
 
-            # 🔹 PATCH: Check cancellation after processing
+            set_progress(status="PROCESSING", percent=5, current_step="Processing")
+
+            process_all(
+                strike_color=strike_color,
+                consolidate_pg13=consolidate_pg13,
+                consolidate_all_missions=consolidate_all_missions,
+            )
+
             with processing_lock:
                 if processing_cancelled:
                     log("PROCESSING CANCELLED AFTER COMPLETION")
                     set_progress(status="CANCELLED", percent=0, current_step="Cancelled")
+                    processing_active = False
                     return
 
             original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
@@ -187,20 +192,24 @@ def process_route():
 
             set_progress(status="COMPLETE", percent=100, current_step="Complete")
             log("PROCESS COMPLETE")
+
         except Exception as e:
             log(f"PROCESS ERROR → {e}")
             set_progress(status="ERROR", percent=0, current_step=f"Error: {str(e)}")
 
-    # 🔹 PATCH: Store thread reference
+        finally:
+            with processing_lock:
+                processing_active = False
+                processing_cancelled = False
+
     processing_thread = threading.Thread(target=_run, daemon=True)
     processing_thread.start()
-    
+
     return jsonify({"status": "STARTED"})
 
 
 @bp.route("/cancel_process", methods=["POST"])
 def cancel_process():
-    """🔹 PATCH: Enhanced cancel with thread-safe flag management"""
     global processing_cancelled
     
     with processing_lock:
@@ -209,11 +218,9 @@ def cancel_process():
     log("=== CANCEL REQUEST RECEIVED ===")
     set_progress(status="CANCELLING", percent=0, current_step="Cancelling operation...")
     
-    # Give the process a moment to detect cancellation
     import time
     time.sleep(0.5)
     
-    # Force set to cancelled state
     set_progress(status="CANCELLED", percent=0, current_step="Processing cancelled by user")
     
     return jsonify({"status": "cancelled", "message": "Cancellation signal sent"})
@@ -1501,3 +1508,4 @@ def sync_signatures():
             'status': 'error',
             'message': str(e)
         }), 500
+
