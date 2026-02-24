@@ -1466,7 +1466,9 @@ function updateCertDatePreview() {
           statusEl.removeAttribute('data-has-pct');
         }
 
-        $('cancelOption').disabled = !['IDLE', 'COMPLETE', 'CANCELLED', 'CANCELLING'].includes(statusUpper);
+        // Enable Cancel ONLY while actively processing
+        $('cancelOption').disabled = 
+          !['PROCESSING', 'CANCELLING'].includes(statusUpper);
 
         if (log) {
           const logEl = $('liveLog');
