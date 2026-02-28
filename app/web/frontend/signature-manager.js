@@ -393,16 +393,17 @@ if (lp && lpp) {
     if (d1 > 0.001 && d2 > 0.001) {
         const cos = (v1x * v2x + v1y * v2y) / (d1 * d2);
         const angle = Math.acos(Math.max(-1, Math.min(1, cos))) * (180 / Math.PI);
-        if (angle > 35) turnBoost = 1.35;
-        if (angle > 70) turnBoost = 1.65;
+        if (angle > 20) turnBoost = 1.6;
+        if (angle > 45) turnBoost = 2.2;
+        if (angle > 70) turnBoost = 3.0;
     }
 }
 
 // FIXED: Much denser sampling for perfectly smooth curves - NO CORNERS!
-const baseStep = 0.25;   // TIGHTER! (was 0.40)
-const minStep = 0.05;    // DENSER! (was 0.08)
+const baseStep = 0.18;   // TIGHTER! (was 0.25)
+const minStep = 0.04;    // DENSER! (was 0.05)
 // More points = smoother curves, especially on corners
-const step = Math.max(minStep, (baseStep - Math.min(0.20, speed * 0.40)) / turnBoost);
+const step = Math.max(minStep, (baseStep - Math.min(0.14, speed * 0.30)) / turnBoost);
 const n = Math.max(2, Math.ceil(dist / step));  // Minimum 2 points
 
 
@@ -452,8 +453,8 @@ _addPoint(p) {
     const prev = this._stroke.pts.length ? this._stroke.pts[this._stroke.pts.length - 1] : null;
     if (prev) {
         // Slightly stronger smoothing to remove micro-kinks (helps iPhone curves).
-        pt.x = prev.x * 0.25 + pt.x * 0.75;
-        pt.y = prev.y * 0.25 + pt.y * 0.75;
+        pt.x = prev.x * 0.50 + pt.x * 0.50;
+        pt.y = prev.y * 0.50 + pt.y * 0.50;
     }
 
     this._stroke.pts.push(pt);
@@ -473,7 +474,7 @@ _addPoint(p) {
     // FIXED: Ultra-smooth Catmull-Rom curves - NO ANGULAR CORNERS
     // Much higher divisor = smoother, rounder corners
     const vForTension = v; // px/ms from above
-    const denom = 20 + Math.min(40, vForTension * 100); // 20..60 (MUCH smoother!)
+    const denom = 40 + Math.min(40, vForTension * 60); // 40..80 (smoother than 20..60)
     const cp1 = {
         x: p1.x + (p2.x - p0.x) / denom,
         y: p1.y + (p2.y - p0.y) / denom
