@@ -352,6 +352,7 @@ _strokeStart(p) {
     this._stroke.pts = [];
     this._stroke.lastT = p.t;
     this._stroke.lastW = 2.8;
+    this._rawHistory = []; // reset spline history for new stroke
 
     // Seed points for curve engine
     const sp = { x: p.x, y: p.y, t: p.t, w: 2.8 };
@@ -377,41 +378,48 @@ _strokeMove(p) {
     // Ignore micro jitter
     if (dist < 0.35) return;
 
-    // Resample points so fast motion doesn't create corners.
-// Key idea: when the pointer moves quickly (or curvature is high), sample much more densely.
-const dt = Math.max(1, (p.t - a.t) || 1);                 // ms
-const speed = dist / dt;                                  // px/ms
+    // Keep a short history of raw pointer positions for spline interpolation.
+    // On iPhone with a pen, events arrive ~50-100ms apart with large gaps.
+    // Linear interpolation between two raw points creates straight chords —
+    // where two chords meet at an angle you see the "kink". Instead we use
+    // Catmull-Rom through the last 4 raw points so each segment is curved.
+    if (!this._rawHistory) this._rawHistory = [];
+    this._rawHistory.push({ x: a.x, y: a.y, t: a.t });
+    if (this._rawHistory.length > 4) this._rawHistory.shift();
 
-// Curvature hint: if direction changed sharply, we densify even more.
-let turnBoost = 1.0;
-const lp = this.points.length >= 2 ? this.points[this.points.length - 1] : null;
-const lpp = this.points.length >= 3 ? this.points[this.points.length - 2] : null;
-if (lp && lpp) {
-    const v1x = lp.x - lpp.x, v1y = lp.y - lpp.y;
-    const v2x = p.x - lp.x,  v2y = p.y - lp.y;
-    const d1 = Math.hypot(v1x, v1y), d2 = Math.hypot(v2x, v2y);
-    if (d1 > 0.001 && d2 > 0.001) {
-        const cos = (v1x * v2x + v1y * v2y) / (d1 * d2);
-        const angle = Math.acos(Math.max(-1, Math.min(1, cos))) * (180 / Math.PI);
-        if (angle > 20) turnBoost = 1.6;
-        if (angle > 45) turnBoost = 2.2;
-        if (angle > 70) turnBoost = 3.0;
-    }
-}
+    const dt = Math.max(1, (p.t - a.t) || 1); // ms
+    const speed = dist / dt;                   // px/ms
 
-// FIXED: Much denser sampling for perfectly smooth curves - NO CORNERS!
-const baseStep = 0.18;   // TIGHTER! (was 0.25)
-const minStep = 0.04;    // DENSER! (was 0.05)
-// More points = smoother curves, especially on corners
-const step = Math.max(minStep, (baseStep - Math.min(0.14, speed * 0.30)) / turnBoost);
-const n = Math.max(2, Math.ceil(dist / step));  // Minimum 2 points
+    // Use Catmull-Rom spline through raw history to get smooth interpolated points.
+    // This replaces the straight-line lerp that caused iPhone angle artifacts.
+    const rh = this._rawHistory;
+    const p1 = rh[rh.length - 1];                              // previous raw point (= a)
+    const p2 = { x: p.x, y: p.y, t: p.t };                   // current raw point
+    const p0 = rh.length >= 2 ? rh[rh.length - 2] : p1;      // two back
+    const p3 = { x: p.x + (p.x - p1.x), y: p.y + (p.y - p1.y), t: p.t }; // phantom ahead
 
+    // Sample density: fixed fine step so curves are always smooth on iPhone
+    const step = 0.5; // px per sample — fine enough for smooth curves at any speed
+    const n = Math.max(4, Math.ceil(dist / step));
 
     for (let i = 1; i <= n; i++) {
         const t = i / n;
-        const x = a.x + dx * t;
-        const y = a.y + dy * t;
-        const ts = a.t + (p.t - a.t) * t;
+        // Catmull-Rom formula
+        const t2 = t * t;
+        const t3 = t2 * t;
+        const x = 0.5 * (
+            (2 * p1.x) +
+            (-p0.x + p2.x) * t +
+            (2*p0.x - 5*p1.x + 4*p2.x - p3.x) * t2 +
+            (-p0.x + 3*p1.x - 3*p2.x + p3.x) * t3
+        );
+        const y = 0.5 * (
+            (2 * p1.y) +
+            (-p0.y + p2.y) * t +
+            (2*p0.y - 5*p1.y + 4*p2.y - p3.y) * t2 +
+            (-p0.y + 3*p1.y - 3*p2.y + p3.y) * t3
+        );
+        const ts = p1.t + (p2.t - p1.t) * t;
         this._addPoint({ x, y, t: ts });
         this.points.push({ x, y });
     }
