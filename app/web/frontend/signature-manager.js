@@ -353,9 +353,16 @@ _strokeStart(p) {
     this._stroke.lastT = p.t;
     this._stroke.lastW = 2.8;
 
-    // Seed points for curve engine
-    const sp = { x: p.x, y: p.y, t: p.t, w: 2.8 };
-    this._stroke.pts.push(sp, sp, sp, sp);
+    // Collect raw pointer events for whole-stroke smooth redraw approach.
+    // We store raw events (not resampled), smooth them, and redraw entire stroke each move.
+    this._stroke.rawPts = [{ x: p.x, y: p.y, t: p.t }];
+    // Snapshot canvas before stroke so we can erase+redraw cleanly each pointermove.
+    this._stroke.snapshot = this.ctx.getImageData(
+        0, 0,
+        Math.round(this._cssW * this._dpr),
+        Math.round(this._cssH * this._dpr)
+    );
+
     this.points.push({ x: p.x, y: p.y });
 
     // dot for taps
@@ -377,114 +384,112 @@ _strokeMove(p) {
     // Ignore micro jitter
     if (dist < 0.35) return;
 
-    // Resample at ~1px steps so _addPoint's Catmull-Rom engine always has
-    // dense enough data to draw smooth arcs on both desktop and iPhone pen.
-    const n = Math.max(2, Math.ceil(dist)); // ~1px per sample
+    // Collect raw pointer position
+    this._stroke.rawPts.push({ x: p.x, y: p.y, t: p.t });
+    this.points.push({ x: p.x, y: p.y });
+    this._stroke.raw = { x: p.x, y: p.y, t: p.t };
 
-    for (let i = 1; i <= n; i++) {
-        const t = i / n;
-        const x = a.x + dx * t;
-        const y = a.y + dy * t;
-        const ts = a.t + (p.t - a.t) * t;
-        this._addPoint({ x, y, t: ts });
-        this.points.push({ x, y });
+    // Restore canvas to pre-stroke snapshot, then redraw entire stroke smoothed.
+    // This is the key: we always draw the FULL stroke through ALL collected points,
+    // not just the new segment — so the curve always has full global context.
+    if (this._stroke.snapshot) {
+        this.ctx.putImageData(this._stroke.snapshot, 0, 0);
     }
 
-    this._stroke.raw = { x: p.x, y: p.y, t: p.t };
+    // Apply Chaikin corner-cutting to the raw points.
+    // Chaikin repeatedly cuts corners: each iteration replaces every segment's
+    // two endpoints with points 1/4 and 3/4 along it — this converges to a
+    // smooth B-spline through the control points with zero angular artifacts.
+    let pts = this._stroke.rawPts;
+    for (let iter = 0; iter < 4; iter++) {  // 4 passes = very smooth
+        const next = [pts[0]];
+        for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[i], b = pts[i + 1];
+            next.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25,
+                         t: a.t * 0.75 + b.t * 0.25 });
+            next.push({ x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75,
+                         t: a.t * 0.25 + b.t * 0.75 });
+        }
+        next.push(pts[pts.length - 1]);
+        pts = next;
+    }
+
+    // Draw the smoothed stroke as a single continuous path
+    if (pts.length < 2) return;
+    this.ctx.beginPath();
+    this.ctx.lineWidth = 2.0;
+    this.ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+        this.ctx.lineTo(pts[i].x, pts[i].y);
+    }
+    this.ctx.stroke();
 }
 
 _addPoint(p) {
-    // FIXED: Thinner, more realistic signature line widths
+    // Width tracking only — drawing is handled by _strokeMove's whole-stroke redraw.
     const dt = Math.max(8, p.t - this._stroke.lastT);
-    const lp = this._stroke.pts[this._stroke.pts.length - 1];
-    const v = Math.hypot(p.x - lp.x, p.y - lp.y) / dt; // px/ms
+    const lp = this._stroke.pts.length
+        ? this._stroke.pts[this._stroke.pts.length - 1]
+        : { x: p.x, y: p.y };
+    const v = Math.hypot(p.x - lp.x, p.y - lp.y) / dt;
 
-    // FIXED: Realistic signature pen widths (thinner than before)
-    const maxW = 3.0;  // Heavy pressure (was 5.0 - TOO THICK!)
-    const minW = 0.8;  // Light/fast (was 1.2)
-    const k = 5.5;     // Good responsiveness (was 6.0)
-    
-    // Power curve for natural pen feel
+    const maxW = 3.0;
+    const minW = 0.8;
+    const k = 5.5;
     const vf = Math.min(1, Math.pow(v * k / maxW, 0.8));
     const wRaw = maxW - vf * (maxW - minW);
-
-    // Smooth width transitions
     const w = this._stroke.lastW * 0.65 + wRaw * 0.35;
     this._stroke.lastW = w;
     this._stroke.lastT = p.t;
 
     const pt = { x: p.x, y: p.y, t: p.t, w };
-
-    // Position smoothing FIRST — blend incoming point toward previous to kill micro-kinks.
-    // This must happen before storing to PDF data AND before pushing to pts[].
-    const prev = this._stroke.pts.length ? this._stroke.pts[this._stroke.pts.length - 1] : null;
-    if (prev) {
-        pt.x = prev.x * 0.50 + pt.x * 0.50;
-        pt.y = prev.y * 0.50 + pt.y * 0.50;
-    }
-
-    // ✅ STORE VECTOR DATA FOR PDF (smoothed position)
-    if (this.strokes.length > 0) {
-        this.strokes[this.strokes.length - 1].push({
-            x: pt.x,
-            y: pt.y,
-            w: pt.w
-        });
-    }
-
     this._stroke.pts.push(pt);
-
-    // Keep only what we need
-    if (this._stroke.pts.length < 4) return;
-
-    // Draw latest Catmull-Rom segment converted to Bezier:
-    // Segment from P1 to P2 using P0,P1,P2,P3
-    const pts = this._stroke.pts;
-    const p0 = pts[pts.length - 4];
-    const p1 = pts[pts.length - 3];
-    const p2 = pts[pts.length - 2];
-    const p3 = pts[pts.length - 1];
-
-    // Standard Catmull-Rom → Bezier conversion (tension = 0.5).
-    // Control points are 1/6 of the chord length — this gives naturally
-    // smooth curves through every point with NO angular artifacts.
-    // cp1 pulls the curve from p1 toward p2; cp2 pulls from p2 toward p1.
-    const cp1 = {
-        x: p1.x + (p2.x - p0.x) / 6,
-        y: p1.y + (p2.y - p0.y) / 6
-    };
-    const cp2 = {
-        x: p2.x - (p3.x - p1.x) / 6,
-        y: p2.y - (p3.y - p1.y) / 6
-    };
-
-
-    // Line width based on destination point (smooth enough with resampling)
-    // Use averaged width for smoother segment joins.
-    this.ctx.lineWidth = (p1.w + p2.w) / 2;
-    
-    // PERFECT: Maximum quality rendering for every stroke
-    this.ctx.imageSmoothingEnabled = true;
-    this.ctx.imageSmoothingQuality = 'high';
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
-    
-    // FIXED: Very subtle shadow for thinner lines
-    this.ctx.shadowBlur = 0.15;  // Reduced (was 0.3)
-    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.05)';  // Lighter (was 0.1)
-    this.ctx.shadowOffsetX = 0;
-    this.ctx.shadowOffsetY = 0;
-    
-    this.ctx.beginPath();
-    this.ctx.moveTo(p1.x, p1.y);
-    this.ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, p2.x, p2.y);
-    this.ctx.stroke();
 }
 
 _strokeEnd() {
     this.isDrawing = false;
+
+    // Final draw: restore snapshot and draw the fully smoothed stroke one last time.
+    // This ensures the committed stroke on canvas matches exactly what was previewed.
+    if (this._stroke.snapshot && this._stroke.rawPts && this._stroke.rawPts.length >= 1) {
+        this.ctx.putImageData(this._stroke.snapshot, 0, 0);
+
+        let pts = this._stroke.rawPts;
+        for (let iter = 0; iter < 4; iter++) {
+            const next = [pts[0]];
+            for (let i = 0; i < pts.length - 1; i++) {
+                const a = pts[i], b = pts[i + 1];
+                next.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25,
+                             t: a.t * 0.75 + b.t * 0.25 });
+                next.push({ x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75,
+                             t: a.t * 0.25 + b.t * 0.75 });
+            }
+            next.push(pts[pts.length - 1]);
+            pts = next;
+        }
+
+        if (pts.length >= 2) {
+            this.ctx.beginPath();
+            this.ctx.lineWidth = 2.0;
+            this.ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) {
+                this.ctx.lineTo(pts[i].x, pts[i].y);
+            }
+            this.ctx.stroke();
+
+            // ✅ STORE VECTOR DATA FOR PDF from the smoothed points
+            if (this.strokes.length > 0) {
+                this.strokes[this.strokes.length - 1] = pts.map(pt => ({
+                    x: pt.x, y: pt.y, w: 2.0
+                }));
+            }
+        }
+    }
+
     this._stroke.raw = null;
     this._stroke.pts = [];
+    this._stroke.rawPts = [];
+    this._stroke.snapshot = null;
     this._stroke.lastT = 0;
     this._stroke.lastW = 2.8;
     console.log('Drawing stopped, total points:', this.points.length);
