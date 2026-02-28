@@ -352,7 +352,6 @@ _strokeStart(p) {
     this._stroke.pts = [];
     this._stroke.lastT = p.t;
     this._stroke.lastW = 2.8;
-    this._rawHistory = []; // reset spline history for new stroke
 
     // Seed points for curve engine
     const sp = { x: p.x, y: p.y, t: p.t, w: 2.8 };
@@ -378,48 +377,15 @@ _strokeMove(p) {
     // Ignore micro jitter
     if (dist < 0.35) return;
 
-    // Keep a short history of raw pointer positions for spline interpolation.
-    // On iPhone with a pen, events arrive ~50-100ms apart with large gaps.
-    // Linear interpolation between two raw points creates straight chords —
-    // where two chords meet at an angle you see the "kink". Instead we use
-    // Catmull-Rom through the last 4 raw points so each segment is curved.
-    if (!this._rawHistory) this._rawHistory = [];
-    this._rawHistory.push({ x: a.x, y: a.y, t: a.t });
-    if (this._rawHistory.length > 4) this._rawHistory.shift();
-
-    const dt = Math.max(1, (p.t - a.t) || 1); // ms
-    const speed = dist / dt;                   // px/ms
-
-    // Use Catmull-Rom spline through raw history to get smooth interpolated points.
-    // This replaces the straight-line lerp that caused iPhone angle artifacts.
-    const rh = this._rawHistory;
-    const p1 = rh[rh.length - 1];                              // previous raw point (= a)
-    const p2 = { x: p.x, y: p.y, t: p.t };                   // current raw point
-    const p0 = rh.length >= 2 ? rh[rh.length - 2] : p1;      // two back
-    const p3 = { x: p.x + (p.x - p1.x), y: p.y + (p.y - p1.y), t: p.t }; // phantom ahead
-
-    // Sample density: fixed fine step so curves are always smooth on iPhone
-    const step = 0.5; // px per sample — fine enough for smooth curves at any speed
-    const n = Math.max(4, Math.ceil(dist / step));
+    // Resample at ~1px steps so _addPoint's Catmull-Rom engine always has
+    // dense enough data to draw smooth arcs on both desktop and iPhone pen.
+    const n = Math.max(2, Math.ceil(dist)); // ~1px per sample
 
     for (let i = 1; i <= n; i++) {
         const t = i / n;
-        // Catmull-Rom formula
-        const t2 = t * t;
-        const t3 = t2 * t;
-        const x = 0.5 * (
-            (2 * p1.x) +
-            (-p0.x + p2.x) * t +
-            (2*p0.x - 5*p1.x + 4*p2.x - p3.x) * t2 +
-            (-p0.x + 3*p1.x - 3*p2.x + p3.x) * t3
-        );
-        const y = 0.5 * (
-            (2 * p1.y) +
-            (-p0.y + p2.y) * t +
-            (2*p0.y - 5*p1.y + 4*p2.y - p3.y) * t2 +
-            (-p0.y + 3*p1.y - 3*p2.y + p3.y) * t3
-        );
-        const ts = p1.t + (p2.t - p1.t) * t;
+        const x = a.x + dx * t;
+        const y = a.y + dy * t;
+        const ts = a.t + (p.t - a.t) * t;
         this._addPoint({ x, y, t: ts });
         this.points.push({ x, y });
     }
@@ -448,7 +414,16 @@ _addPoint(p) {
     this._stroke.lastT = p.t;
 
     const pt = { x: p.x, y: p.y, t: p.t, w };
-    // ✅ STORE VECTOR DATA FOR PDF
+
+    // Position smoothing FIRST — blend incoming point toward previous to kill micro-kinks.
+    // This must happen before storing to PDF data AND before pushing to pts[].
+    const prev = this._stroke.pts.length ? this._stroke.pts[this._stroke.pts.length - 1] : null;
+    if (prev) {
+        pt.x = prev.x * 0.50 + pt.x * 0.50;
+        pt.y = prev.y * 0.50 + pt.y * 0.50;
+    }
+
+    // ✅ STORE VECTOR DATA FOR PDF (smoothed position)
     if (this.strokes.length > 0) {
         this.strokes[this.strokes.length - 1].push({
             x: pt.x,
@@ -457,16 +432,7 @@ _addPoint(p) {
         });
     }
 
-    // Light position smoothing (reduces tiny kinks on curves without drifting)
-    const prev = this._stroke.pts.length ? this._stroke.pts[this._stroke.pts.length - 1] : null;
-    if (prev) {
-        // Slightly stronger smoothing to remove micro-kinks (helps iPhone curves).
-        pt.x = prev.x * 0.50 + pt.x * 0.50;
-        pt.y = prev.y * 0.50 + pt.y * 0.50;
-    }
-
     this._stroke.pts.push(pt);
-
 
     // Keep only what we need
     if (this._stroke.pts.length < 4) return;
@@ -479,17 +445,17 @@ _addPoint(p) {
     const p2 = pts[pts.length - 2];
     const p3 = pts[pts.length - 1];
 
-    // FIXED: Ultra-smooth Catmull-Rom curves - NO ANGULAR CORNERS
-    // Much higher divisor = smoother, rounder corners
-    const vForTension = v; // px/ms from above
-    const denom = 40 + Math.min(40, vForTension * 60); // 40..80 (smoother than 20..60)
+    // Standard Catmull-Rom → Bezier conversion (tension = 0.5).
+    // Control points are 1/6 of the chord length — this gives naturally
+    // smooth curves through every point with NO angular artifacts.
+    // cp1 pulls the curve from p1 toward p2; cp2 pulls from p2 toward p1.
     const cp1 = {
-        x: p1.x + (p2.x - p0.x) / denom,
-        y: p1.y + (p2.y - p0.y) / denom
+        x: p1.x + (p2.x - p0.x) / 6,
+        y: p1.y + (p2.y - p0.y) / 6
     };
     const cp2 = {
-        x: p2.x - (p3.x - p1.x) / denom,
-        y: p2.y - (p3.y - p1.y) / denom
+        x: p2.x - (p3.x - p1.x) / 6,
+        y: p2.y - (p3.y - p1.y) / 6
     };
 
 
