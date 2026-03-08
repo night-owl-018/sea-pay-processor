@@ -11,11 +11,22 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.colors import black
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from pathlib import Path
 
-# Register Times New Roman TTF
-pdfmetrics.registerFont(
-    TTFont("TimesNewRoman", "/app/Times_New_Roman.ttf")
-)
+_FONT_REGISTERED = False
+
+def _register_font_once() -> None:
+    global _FONT_REGISTERED
+    if _FONT_REGISTERED:
+        return
+    from app.core.config import FONT_FILE
+    font_path = Path(FONT_FILE)
+    if not font_path.exists():
+        raise FileNotFoundError(f"Times New Roman font not found: {font_path}")
+    pdfmetrics.registerFont(TTFont("TimesNewRoman", str(font_path)))
+    _FONT_REGISTERED = True
+
+_register_font_once()
 
 from app.core.logger import log
 from app.core.config import (
