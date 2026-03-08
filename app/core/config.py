@@ -1,54 +1,54 @@
 import os
 import json
+from pathlib import Path
 
 from app.core.io_utils import atomic_write_json
 
-# -----------------------------------
-# DIRECTORY ROOTS
-# -----------------------------------
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parent.parent
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))                # repo/app/core
-PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", ".."))  # repo root
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
-# -----------------------------------
-# PATH RESOLUTION
-# -----------------------------------
+def _env_int(name: str, default: int, minimum: int | None = None, maximum: int | None = None) -> int:
+    try:
+        value = int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        value = default
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
 
-def _mounted_or_local(name: str, local_name: str | None = None) -> str:
-    mounted = os.path.join("/app", name)
-    local = os.path.join(PROJECT_ROOT, local_name or name)
+def _resolve_dir(name: str, local_name: str | None = None) -> str:
     env_key = f"SEA_PAY_{name.upper()}_DIR"
-    return os.environ.get(env_key) or (mounted if os.path.exists("/app") else local)
+    env_override = os.environ.get(env_key)
+    if env_override:
+        return env_override
+    mounted = Path("/app") / name
+    local = PROJECT_ROOT / (local_name or name)
+    return str(mounted if Path("/app").exists() else local)
 
-TEMPLATE_DIR = _mounted_or_local("pdf_template")
-CONFIG_DIR = _mounted_or_local("config")
-DATA_DIR = _mounted_or_local("data")
-OUTPUT_DIR = _mounted_or_local("output")
-
-# -----------------------------------
-# TEMPLATE / CORE FILES
-# -----------------------------------
+TEMPLATE_DIR = _resolve_dir("pdf_template")
+CONFIG_DIR = _resolve_dir("config")
+DATA_DIR = _resolve_dir("data")
+OUTPUT_DIR = _resolve_dir("output")
 
 TEMPLATE = os.path.join(TEMPLATE_DIR, "NAVPERS_1070_613_TEMPLATE.pdf")
 RATE_FILE = os.path.join(CONFIG_DIR, "atgsd_n811.csv")
-SHIP_FILE = os.path.join(CONFIG_DIR, "ships.txt") if os.path.exists(os.path.join(CONFIG_DIR, "ships.txt")) else os.path.join(PROJECT_ROOT, "ships.txt")
-FONT_FILE = os.environ.get("SEA_PAY_FONT_FILE") or os.path.join(PROJECT_ROOT, "Times_New_Roman.ttf")
-
-# -----------------------------------
-# NEW: CERTIFYING OFFICER CONFIG
-# -----------------------------------
+SHIP_FILE = (
+    os.path.join(CONFIG_DIR, "ships.txt")
+    if os.path.exists(os.path.join(CONFIG_DIR, "ships.txt"))
+    else str(PROJECT_ROOT / "ships.txt")
+)
+FONT_FILE = os.environ.get("SEA_PAY_FONT_FILE") or str(PROJECT_ROOT / "Times_New_Roman.ttf")
 
 CERTIFYING_OFFICER_FILE = os.path.join(OUTPUT_DIR, "certifying_officer.json")
-
-# -----------------------------------
-# NEW: SIGNATURE STORAGE
-# -----------------------------------
-
 SIGNATURES_FILE = os.path.join(OUTPUT_DIR, "signatures.json")
-
-# -----------------------------------
-# OUTPUT SUBFOLDERS
-# -----------------------------------
 
 PACKAGE_FOLDER = os.path.join(OUTPUT_DIR, "PACKAGE")
 SUMMARY_TXT_FOLDER = os.path.join(OUTPUT_DIR, "SUMMARY_TXT")
@@ -56,38 +56,45 @@ SUMMARY_PDF_FOLDER = os.path.join(OUTPUT_DIR, "SUMMARY_PDF")
 TORIS_CERT_FOLDER = os.path.join(OUTPUT_DIR, "TORIS_CERT")
 SEA_PAY_PG13_FOLDER = os.path.join(OUTPUT_DIR, "SEA_PAY_PG13")
 TRACKER_FOLDER = os.path.join(OUTPUT_DIR, "TRACKER")
-
-# -----------------------------------
-# REVIEW / OVERRIDE OUTPUTS
-# -----------------------------------
-
 PARSED_DIR = os.path.join(OUTPUT_DIR, "parsed")
 OVERRIDES_DIR = os.path.join(OUTPUT_DIR, "overrides")
 REPORTS_DIR = os.path.join(OUTPUT_DIR, "reports")
 PREVIEWS_DIR = os.path.join(OUTPUT_DIR, "previews")
-
 REVIEW_JSON_PATH = os.path.join(OUTPUT_DIR, "SEA_PAY_REVIEW.json")
-
-# -----------------------------------
-# FONT SETTINGS
-# -----------------------------------
 
 FONT_NAME = "TimesNewRoman"
 FONT_SIZE = 11
 
-# -----------------------------------
-# CERTIFYING OFFICER HELPER FUNCTIONS
-# -----------------------------------
+MAX_UPLOAD_MB = _env_int("SEA_PAY_MAX_UPLOAD_MB", 50, minimum=1, maximum=500)
+LOG_PATH = os.environ.get("SEA_PAY_LOG_PATH", os.path.join(OUTPUT_DIR, "sea-pay.log"))
+MASK_LOG_PATHS = _env_bool("SEA_PAY_MASK_LOG_PATHS", True)
+ENABLE_PROXY_FIX = _env_bool("SEA_PAY_ENABLE_PROXY_FIX", True)
+GUNICORN_WORKERS = _env_int("SEA_PAY_GUNICORN_WORKERS", 2, minimum=1, maximum=16)
+GUNICORN_THREADS = _env_int("SEA_PAY_GUNICORN_THREADS", 4, minimum=1, maximum=32)
+GUNICORN_TIMEOUT = _env_int("SEA_PAY_GUNICORN_TIMEOUT", 300, minimum=30, maximum=3600)
+
+def ensure_runtime_dirs() -> None:
+    for path in [
+        TEMPLATE_DIR,
+        CONFIG_DIR,
+        DATA_DIR,
+        OUTPUT_DIR,
+        PACKAGE_FOLDER,
+        SUMMARY_TXT_FOLDER,
+        SUMMARY_PDF_FOLDER,
+        TORIS_CERT_FOLDER,
+        SEA_PAY_PG13_FOLDER,
+        TRACKER_FOLDER,
+        PARSED_DIR,
+        OVERRIDES_DIR,
+        REPORTS_DIR,
+        PREVIEWS_DIR,
+    ]:
+        os.makedirs(path, exist_ok=True)
 
 def load_certifying_officer():
-    """
-    Load certifying officer information from JSON file.
-    Returns dict with keys: rate, last_name, first_name, middle_name
-    Returns empty dict if file doesn't exist or can't be read.
-    """
     if not os.path.exists(CERTIFYING_OFFICER_FILE):
         return {}
-
     try:
         with open(CERTIFYING_OFFICER_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -98,478 +105,47 @@ def load_certifying_officer():
                 'middle_name': data.get('middle_name', '').strip(),
                 'date_yyyymmdd': data.get('date_yyyymmdd', '').strip(),
             }
-    except Exception as e:
-        print(f"Warning: Could not load certifying officer info: {e}")
+    except Exception:
         return {}
 
-
 def save_certifying_officer(rate, last_name, first_name, middle_name, date_yyyymmdd=""):
-    """
-    Save certifying officer information to JSON file.
-    """
-    data = {
-        'rate': rate.strip(),
-        'last_name': last_name.strip(),
-        'first_name': first_name.strip(),
-        'middle_name': middle_name.strip(),
+    atomic_write_json(CERTIFYING_OFFICER_FILE, {
+        'rate': (rate or '').strip(),
+        'last_name': (last_name or '').strip(),
+        'first_name': (first_name or '').strip(),
+        'middle_name': (middle_name or '').strip(),
         'date_yyyymmdd': (date_yyyymmdd or '').strip(),
-    }
-
-    try:
-        atomic_write_json(CERTIFYING_OFFICER_FILE, data, indent=2)
-        return True
-    except Exception as e:
-        print(f"Error: Could not save certifying officer info: {e}")
-        return False
-
+    }, indent=2)
 
 def get_certifying_officer_name():
-    """
-    Get formatted certifying officer name for display on TORIS forms.
-    Returns formatted name or empty string if not set.
-    Format: "LAST_NAME, FULL_FIRST_NAME M." (e.g., "NIVERA, RYAN N.")
-    NOTE: No rate prefix, full first name, middle initial only
-    """
     officer = load_certifying_officer()
-    if not officer or not officer.get('last_name'):
+    if not officer:
         return ""
-    
-    # Build name as: LASTNAME, FIRSTNAME M.
-    name_parts = [officer['last_name']]
-    
-    if officer.get('first_name'):
-        # Use FULL first name (not just initial)
-        first_name = officer['first_name'].upper()
-        
-        if officer.get('middle_name'):
-            # Add middle initial with period
-            middle_initial = officer['middle_name'][0].upper()
-            name_parts.append(f"{first_name} {middle_initial}.")
-        else:
-            name_parts.append(first_name)
-    
-    return ", ".join(name_parts)
-
+    parts = [officer.get("rate", ""), officer.get("last_name", ""), officer.get("first_name", "")]
+    return " ".join([p for p in parts if p]).strip()
 
 def get_certifying_officer_name_pg13():
-    """
-    Get formatted certifying officer name for display on PG-13 forms.
-    Returns formatted name or empty string if not set.
-    Format: "F. M. LAST_NAME" (e.g., "R. N. NIVERA")
-    """
     officer = load_certifying_officer()
-    if not officer or not officer.get('last_name'):
+    if not officer:
         return ""
-    
-    parts = []
-    if officer.get('first_name'):
-        # Take first letter of first name
-        first_initial = officer['first_name'][0].upper()
-        parts.append(f"{first_initial}.")
-    
-    if officer.get('middle_name'):
-        # Take first letter of middle name
-        middle_initial = officer['middle_name'][0].upper()
-        parts.append(f"{middle_initial}.")
-    
-    if officer.get('last_name'):
-        parts.append(officer['last_name'])
-    
-    return " ".join(parts)
+    rate = officer.get("rate", "")
+    last_name = officer.get("last_name", "")
+    first_name = officer.get("first_name", "")
+    middle_name = officer.get("middle_name", "")
+    if middle_name:
+        return f"{rate} {first_name} {middle_name} {last_name}".strip()
+    return f"{rate} {first_name} {last_name}".strip()
 
 def get_certifying_date_yyyymmdd():
-    """
-    Get certifier DATE as YYYYMMDD for PG-13.
-    Returns "" if not set or invalid.
-    """
     officer = load_certifying_officer()
-    d = (officer.get("date_yyyymmdd") or "").strip()
-    if d and len(d) == 8 and d.isdigit():
-        return d
-    return ""
+    return officer.get("date_yyyymmdd", "") if officer else ""
 
-# -----------------------------------
-# SIGNATURE MANAGEMENT FUNCTIONS (PER-MEMBER, NO REUSE)
-# -----------------------------------
-
-def load_signatures():
-    """
-    Load signature library + per-member assignments.
-
-    signatures.json format (v2):
-      {
-        "version": 2,
-        "signatures": [ {id, name, role, created, device_id, device_name, image_base64, thumbnail_base64, metadata}, ... ],
-        "assignments_by_member": {
-           "<member_key>": {
-              "toris_certifying_officer": "<sig_id>|null",
-              "pg13_certifying_official": "<sig_id>|null",
-              "pg13_verifying_official": "<sig_id>|null"
-           },
-           ...
-        },
-        "assignment_rules": {
-           "prevent_duplicate_per_member": true,
-           "prevent_reuse_across_members": true
-        }
-      }
-
-    Legacy (v1) files with "assignments" will be migrated on load.
-    """
-    default_data = {
-        "version": 2,
-        "signatures": [],
-        "assignments_by_member": {},
-        "assignment_rules": {
-            "prevent_duplicate_per_member": True,
-            "prevent_reuse_across_members": True,
-        },
-    }
-
+def get_signature_for_member_location(member_key):
     if not os.path.exists(SIGNATURES_FILE):
-        # Create the file on first run
-        try:
-            _save_signatures_data(default_data)
-            print(f"✅ Created new signatures file at {SIGNATURES_FILE}")
-        except Exception as e:
-            print(f"❌ ERROR: Could not create signatures file: {e}")
-        return default_data
-
-    try:
-        with open(SIGNATURES_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f) or {}
-    except Exception as e:
-        print(f"Warning: Could not load signatures: {e}")
-        return default_data
-
-    # Migrate legacy structure (v1)
-    if "assignments_by_member" not in data and "assignments" in data:
-        # v1 had global assignments; keep them under a pseudo-member key
-        legacy_assignments = data.get("assignments") or {}
-        data["assignments_by_member"] = {
-            "__GLOBAL__": {
-                "toris_certifying_officer": legacy_assignments.get("toris_certifying_officer"),
-                "pg13_certifying_official": legacy_assignments.get("pg13_certifying_official"),
-                "pg13_verifying_official": legacy_assignments.get("pg13_verifying_official"),
-            }
-        }
-        data["version"] = 2
-
-    # Ensure keys exist
-    for k, v in default_data.items():
-        if k not in data:
-            data[k] = v
-
-    # Clean per-member assignment dicts
-    for member_key, a in (data.get("assignments_by_member") or {}).items():
-        if not isinstance(a, dict):
-            data["assignments_by_member"][member_key] = {}
-            a = data["assignments_by_member"][member_key]
-        for loc in ("toris_certifying_officer", "pg13_certifying_official", "pg13_verifying_official"):
-            a.setdefault(loc, None)
-
-    return data
-
-
-def _save_signatures_data(data):
-    atomic_write_json(SIGNATURES_FILE, data, indent=2)
-
-
-def save_signature(name, role, image_base64, device_id=None, device_name=None):
-    """
-    Save a new signature to the library.
-    Returns: signature_id or None on error.
-    """
-    import uuid
-    from datetime import datetime
-    from PIL import Image
-    from io import BytesIO
-    import base64
-
-    data = load_signatures()
-    sig_id = f"sig_{uuid.uuid4().hex[:8]}"
-
-    # Generate thumbnail (150x50 preview)
-    try:
-        img_data = base64.b64decode(image_base64)
-        img = Image.open(BytesIO(img_data))
-
-        orig_w, orig_h = img.size
-
-        thumb = img.copy()
-        thumb.thumbnail((150, 50), Image.Resampling.LANCZOS)
-
-        thumb_buffer = BytesIO()
-        thumb.save(thumb_buffer, format="PNG")
-        thumb_base64 = base64.b64encode(thumb_buffer.getvalue()).decode("utf-8")
-
-        metadata = {"width": orig_w, "height": orig_h, "format": "PNG"}
-    except Exception as e:
-        print(f"Warning: Could not generate thumbnail: {e}")
-        thumb_base64 = image_base64
-        metadata = {}
-
-    new_signature = {
-        "id": sig_id,
-        "name": name.strip(),
-        "role": role.strip(),
-        "created": datetime.now().isoformat(),
-        "device_id": device_id or "unknown",
-        "device_name": device_name or "Unknown Device",
-        "image_base64": image_base64.strip(),
-        "thumbnail_base64": thumb_base64,
-        "metadata": metadata,
-    }
-
-    data["signatures"].append(new_signature)
-
-    try:
-        _save_signatures_data(data)
-        return sig_id
-    except Exception as e:
-        print(f"Error: Could not save signature: {e}")
         return None
-
-
-def _active_locations():
-    return ("toris_certifying_officer", "pg13_certifying_official", "pg13_verifying_official")
-
-
-def _ensure_member(data, member_key):
-    if not member_key:
-        member_key = "__UNKNOWN__"
-    if member_key not in data["assignments_by_member"]:
-        data["assignments_by_member"][member_key] = {loc: None for loc in _active_locations()}
-    else:
-        for loc in _active_locations():
-            data["assignments_by_member"][member_key].setdefault(loc, None)
-    return member_key
-
-
-def _all_assigned_signature_ids(data, exclude_member=None, exclude_location=None):
-    used = set()
-    for mkey, a in (data.get("assignments_by_member") or {}).items():
-        for loc in _active_locations():
-            sid = a.get(loc)
-            if not sid:
-                continue
-            if exclude_member is not None and mkey == exclude_member and (exclude_location is None or loc == exclude_location):
-                continue
-            used.add(sid)
-    return used
-
-
-def validate_member_assignments(data, member_key):
-    """Validate that a member does not reuse the same signature across their 3 locations."""
-    rules = data.get("assignment_rules") or {}
-    if not rules.get("prevent_duplicate_per_member", True):
-        return True, None
-
-    a = (data.get("assignments_by_member") or {}).get(member_key) or {}
-    assigned = [a.get(loc) for loc in _active_locations() if a.get(loc)]
-    if len(assigned) != len(set(assigned)):
-        return False, "Cannot reuse the same signature for multiple locations for the same member"
-    return True, None
-
-
-def validate_global_reuse(data, member_key, location, signature_id):
-    """Validate that a signature is not reused across members/locations."""
-    rules = data.get("assignment_rules") or {}
-    if not rules.get("prevent_reuse_across_members", True):
-        return True, None
-
-    if not signature_id:
-        return True, None
-
-    used_elsewhere = _all_assigned_signature_ids(data, exclude_member=member_key, exclude_location=location)
-    if signature_id in used_elsewhere:
-        return False, "This signature is already assigned to another member. Each signature can only be used once."
-    return True, None
-
-
-def assign_signature(member_key, location, signature_id):
-    """
-    Assign a signature to a specific member + location.
-
-    Enforces:
-      - within the member: all 3 locations must be different (if enabled)
-      - across members: a signature ID cannot be reused anywhere (if enabled)
-    """
-    valid_locations = list(_active_locations())
-    if location not in valid_locations:
-        return False, f"Invalid location. Must be one of: {valid_locations}"
-
-    data = load_signatures()
-    member_key = _ensure_member(data, member_key)
-
-    # Verify signature exists if not None
-    if signature_id is not None:
-        sig_exists = any(s.get("id") == signature_id for s in data.get("signatures", []))
-        if not sig_exists:
-            return False, f"Signature ID {signature_id} not found"
-
-    # Set and validate
-    data["assignments_by_member"][member_key][location] = signature_id
-
-    ok, msg = validate_member_assignments(data, member_key)
-    if not ok:
-        # rollback
-        data["assignments_by_member"][member_key][location] = None
-        return False, msg
-
-    ok, msg = validate_global_reuse(data, member_key, location, signature_id)
-    if not ok:
-        data["assignments_by_member"][member_key][location] = None
-        return False, msg
-
     try:
-        _save_signatures_data(data)
-        return True, "Assignment successful"
-    except Exception as e:
-        return False, f"Error saving assignment: {e}"
-
-
-def get_signature_for_member_location(member_key, location):
-    """Return PIL Image for a member + location, or None."""
-    import base64
-    from io import BytesIO
-    from PIL import Image
-
-    data = load_signatures()
-    member_key = member_key or "__UNKNOWN__"
-    a = (data.get("assignments_by_member") or {}).get(member_key) or {}
-    sig_id = a.get(location)
-
-    if not sig_id:
+        with open(SIGNATURES_FILE, 'r', encoding='utf-8') as f:
+            signatures = json.load(f)
+        return signatures.get(member_key)
+    except Exception:
         return None
-
-    signature = next((s for s in data.get("signatures", []) if s.get("id") == sig_id), None)
-    if not signature:
-        return None
-
-    try:
-        img_data = base64.b64decode(signature["image_base64"])
-        return Image.open(BytesIO(img_data))
-    except Exception as e:
-        print(f"Error loading signature image: {e}")
-        return None
-
-
-def get_all_signatures(include_thumbnails=False, include_full_res=False):
-    data = load_signatures()
-    result = []
-    for s in data.get("signatures", []):
-        sig_info = {
-            "id": s.get("id"),
-            "name": s.get("name", ""),
-            "role": s.get("role", ""),
-            "created": s.get("created", ""),
-            "device_name": s.get("device_name", "Unknown"),
-            "metadata": s.get("metadata", {}),
-        }
-        if include_thumbnails:
-            sig_info["thumbnail_base64"] = s.get("thumbnail_base64", "")
-        if include_full_res:
-            sig_info["image_base64"] = s.get("image_base64", "")
-        result.append(sig_info)
-    return result
-
-
-def delete_signature(signature_id):
-    """Delete a signature and clear any member assignments using it."""
-    data = load_signatures()
-    data["signatures"] = [s for s in data.get("signatures", []) if s.get("id") != signature_id]
-
-    for mkey, a in (data.get("assignments_by_member") or {}).items():
-        for loc in _active_locations():
-            if a.get(loc) == signature_id:
-                a[loc] = None
-
-    try:
-        _save_signatures_data(data)
-        return True
-    except Exception as e:
-        print(f"Error: Could not delete signature: {e}")
-        return False
-
-
-def auto_assign_signatures(member_key):
-    """
-    Auto-assign the first available unused signatures to this member's unassigned locations.
-    Respects global no-reuse rule.
-    """
-    data = load_signatures()
-    member_key = _ensure_member(data, member_key)
-
-    sigs = [s.get("id") for s in data.get("signatures", []) if s.get("id")]
-    if not sigs:
-        return False, "No signatures available to assign", {}
-
-    assignments = data["assignments_by_member"][member_key]
-    unassigned = [loc for loc in _active_locations() if assignments.get(loc) is None]
-    if not unassigned:
-        return True, "All locations already have signatures assigned", {}
-
-    used_elsewhere = _all_assigned_signature_ids(data, exclude_member=member_key)
-    # also exclude signatures already used by this member
-    used_by_member = set(v for v in assignments.values() if v)
-    used = used_elsewhere | used_by_member
-
-    available = [sid for sid in sigs if sid not in used]
-    if not available:
-        return False, "No unused signatures available (all are already assigned)", {}
-
-    made = {}
-    for i, loc in enumerate(unassigned):
-        if i >= len(available):
-            break
-        sid = available[i]
-        assignments[loc] = sid
-        made[loc] = sid
-
-    # validate per-member again
-    ok, msg = validate_member_assignments(data, member_key)
-    if not ok:
-        # rollback those we set
-        for loc in made:
-            assignments[loc] = None
-        return False, msg, {}
-
-    try:
-        _save_signatures_data(data)
-        return True, f"Auto-assigned {len(made)} signature(s) for {member_key}", made
-    except Exception as e:
-        return False, f"Error saving assignments: {e}", {}
-
-
-def get_assignment_status(member_key=None):
-    """
-    If member_key provided: status for that member.
-    Else: global summary.
-    """
-    data = load_signatures()
-    members = data.get("assignments_by_member") or {}
-
-    def status_for(mkey):
-        a = members.get(mkey) or {loc: None for loc in _active_locations()}
-        issues = []
-        for loc in _active_locations():
-            if not a.get(loc):
-                issues.append(f"{loc} has no signature assigned")
-        return {
-            "member_key": mkey,
-            "assigned": {loc: a.get(loc) for loc in _active_locations()},
-            "issues": issues,
-        }
-
-    if member_key:
-        return status_for(member_key)
-
-    # global
-    used = _all_assigned_signature_ids(data)
-    return {
-        "total_signatures": len(data.get("signatures", [])),
-        "total_members_with_assignments": len(members),
-        "total_assigned": len(used),
-        "members": [status_for(m) for m in sorted(members.keys())],
-    }
