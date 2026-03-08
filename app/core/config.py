@@ -1,23 +1,29 @@
 import os
 import json
 
+from app.core.io_utils import atomic_write_json
+
 # -----------------------------------
 # DIRECTORY ROOTS
 # -----------------------------------
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))                # /app/app/core
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))                # repo/app/core
 PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, "..", ".."))  # repo root
 
 # -----------------------------------
-# DOCKER-AWARE PATHS (explicit mounts)
+# PATH RESOLUTION
 # -----------------------------------
 
-TEMPLATE_DIR = "/app/pdf_template"
-CONFIG_DIR = "/app/config"
-DATA_DIR = "/app/data"
+def _mounted_or_local(name: str, local_name: str | None = None) -> str:
+    mounted = os.path.join("/app", name)
+    local = os.path.join(PROJECT_ROOT, local_name or name)
+    env_key = f"SEA_PAY_{name.upper()}_DIR"
+    return os.environ.get(env_key) or (mounted if os.path.exists("/app") else local)
 
-# Output directory (Docker-mapped)
-OUTPUT_DIR = "/app/output"
+TEMPLATE_DIR = _mounted_or_local("pdf_template")
+CONFIG_DIR = _mounted_or_local("config")
+DATA_DIR = _mounted_or_local("data")
+OUTPUT_DIR = _mounted_or_local("output")
 
 # -----------------------------------
 # TEMPLATE / CORE FILES
@@ -25,7 +31,8 @@ OUTPUT_DIR = "/app/output"
 
 TEMPLATE = os.path.join(TEMPLATE_DIR, "NAVPERS_1070_613_TEMPLATE.pdf")
 RATE_FILE = os.path.join(CONFIG_DIR, "atgsd_n811.csv")
-SHIP_FILE = os.path.join(PROJECT_ROOT, "ships.txt")
+SHIP_FILE = os.path.join(CONFIG_DIR, "ships.txt") if os.path.exists(os.path.join(CONFIG_DIR, "ships.txt")) else os.path.join(PROJECT_ROOT, "ships.txt")
+FONT_FILE = os.environ.get("SEA_PAY_FONT_FILE") or os.path.join(PROJECT_ROOT, "Times_New_Roman.ttf")
 
 # -----------------------------------
 # NEW: CERTIFYING OFFICER CONFIG
@@ -109,8 +116,7 @@ def save_certifying_officer(rate, last_name, first_name, middle_name, date_yyyym
     }
 
     try:
-        with open(CERTIFYING_OFFICER_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2)
+        atomic_write_json(CERTIFYING_OFFICER_FILE, data, indent=2)
         return True
     except Exception as e:
         print(f"Error: Could not save certifying officer info: {e}")
@@ -266,9 +272,7 @@ def load_signatures():
 
 
 def _save_signatures_data(data):
-    os.makedirs(os.path.dirname(SIGNATURES_FILE), exist_ok=True)
-    with open(SIGNATURES_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    atomic_write_json(SIGNATURES_FILE, data, indent=2)
 
 
 def save_signature(name, role, image_base64, device_id=None, device_name=None):
