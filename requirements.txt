@@ -1,8 +1,9 @@
-flask
-PyPDF2
-reportlab
-pytesseract
-pdf2image
-pycryptodome
-pdfplumber
-Pillow
+flask==3.0.3
+gunicorn==23.0.0
+PyPDF2==3.0.1
+reportlab==4.2.2
+pytesseract==0.3.10
+pdf2image==1.17.0
+pycryptodome==3.20.0
+pdfplumber==0.11.4
+Pillow==10.4.0
