@@ -37,12 +37,17 @@ Sea Pay Processor automatically extracts sea duty periods from certification she
 
 ### Run Example
 ```bash
-docker run --rm \
-  -v /mnt/user/SeaPayInput:/data \
-  -v /mnt/user/SeaPayOutput:/output \
-  -v /mnt/user/SeaPayTemplates:/templates \
-  -v /mnt/user/SeaPayConfig:/config \
+docker run --rm -p 8080:8080 \
+  -v /mnt/user/SeaPayInput:/app/data \
+  -v /mnt/user/SeaPayOutput:/app/output \
+  -v /mnt/user/SeaPayTemplates:/app/pdf_template \
+  -v /mnt/user/SeaPayConfig:/app/config \
   seapay-processor
+
+Optional hardening:
+- set `SEA_PAY_API_KEY` and send it as `X-API-Key`
+- set `SEA_PAY_MAX_UPLOAD_MB` to cap upload size
+- check `/healthz` after startup
 
 Ryan Nivera
 U.S. Navy Sonar Technician (Surface)
