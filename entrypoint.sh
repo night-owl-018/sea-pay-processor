@@ -1,41 +1,68 @@
 #!/bin/sh
 set -eu
 
+log() {
+  printf '%s %s\n' "[INIT]" "$*"
+}
+
+die() {
+  printf '%s %s\n' "[ERROR]" "$*" >&2
+  exit 1
+}
+
+copy_default_if_missing() {
+  src="$1"
+  dst="$2"
+  name="$3"
+  if [ ! -f "$dst" ]; then
+    [ -f "$src" ] || die "Missing default $name at $src"
+    log "Installing default $name -> $dst"
+    cp -f "$src" "$dst"
+  fi
+}
+
 mkdir -p /app/pdf_template /app/config /app/data /app/output
+mkdir -p /opt/app_defaults/pdf_template /opt/app_defaults/config
 
-chmod -R 755 /app/output 2>/dev/null || echo "[WARN] Could not set permissions on /app/output"
+copy_default_if_missing \
+  /opt/app_defaults/pdf_template/NAVPERS_1070_613_TEMPLATE.pdf \
+  /app/pdf_template/NAVPERS_1070_613_TEMPLATE.pdf \
+  "template PDF"
 
-if [ ! -f /app/pdf_template/NAVPERS_1070_613_TEMPLATE.pdf ]; then
-  echo "[INIT] Installing default template PDF -> /app/pdf_template"
-  if [ -f /opt/app_defaults/pdf_template/NAVPERS_1070_613_TEMPLATE.pdf ]; then
-    cp -f /opt/app_defaults/pdf_template/NAVPERS_1070_613_TEMPLATE.pdf /app/pdf_template/
-  else
-    echo "[ERROR] Default template PDF not found in image" >&2
-    exit 1
-  fi
-fi
-
-if [ ! -f /app/config/atgsd_n811.csv ]; then
-  echo "[INIT] Installing default rate CSV -> /app/config"
-  if [ -f /opt/app_defaults/config/atgsd_n811.csv ]; then
-    cp -f /opt/app_defaults/config/atgsd_n811.csv /app/config/
-  else
-    echo "[ERROR] Default rate CSV not found in image" >&2
-    exit 1
-  fi
-fi
+copy_default_if_missing \
+  /opt/app_defaults/config/atgsd_n811.csv \
+  /app/config/atgsd_n811.csv \
+  "rates CSV"
 
 if [ -f /app/config/ships.txt ]; then
-  echo "[INIT] Using ship list override from /app/config/ships.txt"
+  log "Using ship list override from /app/config/ships.txt"
   cp -f /app/config/ships.txt /app/ships.txt
 fi
 
-echo "[INIT] Verifying environment..."
-echo "  Template:   $(ls -lh /app/pdf_template/NAVPERS_1070_613_TEMPLATE.pdf 2>/dev/null || echo 'MISSING')"
-echo "  Rate CSV:   $(ls -lh /app/config/atgsd_n811.csv 2>/dev/null || echo 'MISSING')"
-echo "  Ships list: $(ls -lh /app/ships.txt 2>/dev/null || echo 'MISSING')"
-echo "  Data dir:   $(ls -ld /app/data 2>/dev/null || echo 'MISSING')"
-echo "  Output dir: $(ls -ld /app/output 2>/dev/null || echo 'MISSING')"
+command -v tesseract >/dev/null 2>&1 || die "tesseract is not installed"
+command -v pdftoppm >/dev/null 2>&1 || die "pdftoppm is not installed"
+[ -f /app/Times_New_Roman.ttf ] || die "Times_New_Roman.ttf is missing from image"
+[ -f /app/pdf_template/NAVPERS_1070_613_TEMPLATE.pdf ] || die "Template PDF missing after init"
+[ -f /app/config/atgsd_n811.csv ] || die "Rates CSV missing after init"
 
-echo "[INIT] Startup complete - starting Flask app"
-exec python /app/app.py
+export PYTHONUNBUFFERED=1
+HOST="${SEA_PAY_HOST:-0.0.0.0}"
+PORT="${PORT:-8080}"
+WORKERS="${SEA_PAY_GUNICORN_WORKERS:-2}"
+THREADS="${SEA_PAY_GUNICORN_THREADS:-4}"
+TIMEOUT="${SEA_PAY_GUNICORN_TIMEOUT:-300}"
+
+log "Template: $(ls -lh /app/pdf_template/NAVPERS_1070_613_TEMPLATE.pdf | awk '{print $5, $9}')"
+log "Rates CSV: $(ls -lh /app/config/atgsd_n811.csv | awk '{print $5, $9}')"
+log "Output dir: $(ls -ld /app/output | awk '{print $1, $9}')"
+log "Starting Gunicorn on ${HOST}:${PORT} (workers=${WORKERS}, threads=${THREADS}, timeout=${TIMEOUT})"
+
+exec gunicorn \
+  --bind "${HOST}:${PORT}" \
+  --workers "${WORKERS}" \
+  --threads "${THREADS}" \
+  --timeout "${TIMEOUT}" \
+  --access-logfile - \
+  --error-logfile - \
+  --capture-output \
+  "wsgi:app"
