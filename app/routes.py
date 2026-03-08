@@ -7,6 +7,7 @@ import threading
 import re
 import csv
 from flask import Blueprint, request, jsonify, send_file, send_from_directory
+from werkzeug.utils import secure_filename
 
 from app.core.logger import (
     log,
@@ -31,6 +32,7 @@ from app.core.config import (
 )
 
 from app.processing import process_all
+from app.core.io_utils import atomic_write_json, atomic_write_bytes
 import app.core.rates as rates
 from app.core.overrides import (
     save_override,
@@ -81,8 +83,7 @@ def _delete_single_override(member_key, sheet_file, event_index):
     if not data["overrides"]:
         clear_overrides(member_key)
     elif len(data["overrides"]) < original_count:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        atomic_write_json(path, data, indent=2)
 
 
 def _norm_status(v):
@@ -138,18 +139,21 @@ def process_route():
     files = request.files.getlist("files") or request.files.getlist("pdfs") or []
     for f in files:
         if f and getattr(f, "filename", ""):
-            dst = os.path.join(DATA_DIR, f.filename)
-            f.save(dst)
+            name = secure_filename(os.path.basename(f.filename))
+            if not name:
+                continue
+            dst = os.path.join(DATA_DIR, name)
+            atomic_write_bytes(dst, f.read())
             log(f"SAVED INPUT FILE → {dst}")
 
     if "template_pdf" in request.files:
-        request.files["template_pdf"].save(TEMPLATE)
+        atomic_write_bytes(TEMPLATE, request.files["template_pdf"].read())
         log("UPDATED TEMPLATE PDF")
 
     if "rates_csv" in request.files:
-        request.files["rates_csv"].save(RATE_FILE)
+        atomic_write_bytes(RATE_FILE, request.files["rates_csv"].read())
         try:
-            rates.load_rates()
+            rates.reload_rates()
         except Exception as e:
             log(f"RATES CSV RELOAD ERROR → {e}")
         else:
@@ -287,9 +291,7 @@ def _load_review():
 
 def _write_review(state: dict) -> None:
     """Write the review state with overrides applied."""
-    os.makedirs(os.path.dirname(REVIEW_JSON_PATH), exist_ok=True)
-    with open(REVIEW_JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2)
+    atomic_write_json(REVIEW_JSON_PATH, state, indent=2)
 
 
 @bp.route("/api/members")
