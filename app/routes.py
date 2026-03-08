@@ -53,6 +53,16 @@ processing_lock = threading.Lock()
 processing_thread = None
 processing_active = False
 
+ALLOWED_UPLOAD_EXTENSIONS = {".pdf", ".csv"}
+MAX_BULK_FILE_COUNT = 250
+
+def _allowed_upload(name: str) -> bool:
+    return os.path.splitext(name.lower())[1] in ALLOWED_UPLOAD_EXTENSIONS
+
+def _json_error(message: str, status: int = 400):
+    return jsonify({"status": "error", "message": message}), status
+
+
 
 def _get_override_path(member_key):
     """
@@ -137,14 +147,20 @@ def process_route():
     set_progress(status="PROCESSING", percent=1, current_step="Saving input files")
 
     files = request.files.getlist("files") or request.files.getlist("pdfs") or []
+    if len(files) > MAX_BULK_FILE_COUNT:
+        return _json_error(f"Too many files. Max is {MAX_BULK_FILE_COUNT}.", 400)
+
     for f in files:
-        if f and getattr(f, "filename", ""):
-            name = secure_filename(os.path.basename(f.filename))
-            if not name:
-                continue
-            dst = os.path.join(DATA_DIR, name)
-            atomic_write_bytes(dst, f.read())
-            log(f"SAVED INPUT FILE → {dst}")
+        if not (f and getattr(f, "filename", "")):
+            continue
+        name = secure_filename(os.path.basename(f.filename))
+        if not name:
+            continue
+        if not _allowed_upload(name):
+            return _json_error(f"Unsupported upload type for {name}", 400)
+        dst = os.path.join(DATA_DIR, name)
+        atomic_write_bytes(dst, f.read())
+        log(f"SAVED INPUT FILE → {name}")
 
     if "template_pdf" in request.files:
         atomic_write_bytes(TEMPLATE, request.files["template_pdf"].read())
@@ -172,6 +188,7 @@ def process_route():
                     log("PROCESSING CANCELLED BEFORE START")
                     set_progress(status="CANCELLED", percent=0, current_step="Cancelled")
                     processing_active = False
+
                     return
 
             set_progress(status="PROCESSING", percent=5, current_step="Processing")
@@ -187,6 +204,7 @@ def process_route():
                     log("PROCESSING CANCELLED AFTER COMPLETION")
                     set_progress(status="CANCELLED", percent=0, current_step="Cancelled")
                     processing_active = False
+
                     return
 
             original_path = REVIEW_JSON_PATH.replace('.json', '_ORIGINAL.json')
@@ -204,6 +222,7 @@ def process_route():
         finally:
             with processing_lock:
                 processing_active = False
+
                 processing_cancelled = False
 
     processing_thread = threading.Thread(target=_run, daemon=True)
@@ -1510,4 +1529,3 @@ def sync_signatures():
             'status': 'error',
             'message': str(e)
         }), 500
-
