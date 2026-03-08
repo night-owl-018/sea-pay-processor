@@ -1529,3 +1529,4 @@ def sync_signatures():
             'status': 'error',
             'message': str(e)
         }), 500
+
