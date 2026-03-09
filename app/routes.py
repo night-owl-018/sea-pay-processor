@@ -29,6 +29,8 @@ from app.core.config import (
     CONFIG_DIR,
     load_certifying_officer,
     save_certifying_officer,
+    MAX_SIGNATURE_IMAGE_MB,
+    validate_signature_payload,
 )
 
 from app.processing import process_all
@@ -63,6 +65,36 @@ def _json_error(message: str, status: int = 400):
     return jsonify({"status": "error", "message": message}), status
 
 
+def _reset_processing_state() -> None:
+    global processing_cancelled, processing_active, processing_thread
+    with processing_lock:
+        processing_cancelled = False
+        processing_active = False
+        processing_thread = None
+
+
+def _cleanup_failed_process_start(message: str, status: int = 400):
+    _reset_processing_state()
+    set_progress(status="ERROR", percent=0, current_step=message)
+    log(f"PROCESS START REJECTED → {message}")
+    return _json_error(message, status)
+
+
+def _extract_base64_payload(value: str) -> str:
+    value = (value or "").strip()
+    if not value:
+        return ""
+    if "," in value and value.lower().startswith("data:"):
+        return value.split(",", 1)[1].strip()
+    return value
+
+
+
+def _validate_signature_request(sig_b64: str):
+    try:
+        return validate_signature_payload(sig_b64)
+    except ValueError as exc:
+        return str(exc)
 
 def _get_override_path(member_key):
     """
@@ -148,7 +180,10 @@ def process_route():
 
     files = request.files.getlist("files") or request.files.getlist("pdfs") or []
     if len(files) > MAX_BULK_FILE_COUNT:
-        return _json_error(f"Too many files. Max is {MAX_BULK_FILE_COUNT}.", 400)
+        return _cleanup_failed_process_start(f"Too many files. Max is {MAX_BULK_FILE_COUNT}.", 400)
+
+    if not files and "template_pdf" not in request.files and "rates_csv" not in request.files:
+        return _cleanup_failed_process_start("No files uploaded.", 400)
 
     for f in files:
         if not (f and getattr(f, "filename", "")):
@@ -157,16 +192,22 @@ def process_route():
         if not name:
             continue
         if not _allowed_upload(name):
-            return _json_error(f"Unsupported upload type for {name}", 400)
+            return _cleanup_failed_process_start(f"Unsupported upload type for {name}", 400)
         dst = os.path.join(DATA_DIR, name)
         atomic_write_bytes(dst, f.read())
         log(f"SAVED INPUT FILE → {name}")
 
     if "template_pdf" in request.files:
+        template_name = secure_filename(os.path.basename(request.files["template_pdf"].filename or "template.pdf"))
+        if os.path.splitext(template_name.lower())[1] != ".pdf":
+            return _cleanup_failed_process_start("template_pdf must be a PDF file", 400)
         atomic_write_bytes(TEMPLATE, request.files["template_pdf"].read())
         log("UPDATED TEMPLATE PDF")
 
     if "rates_csv" in request.files:
+        rates_name = secure_filename(os.path.basename(request.files["rates_csv"].filename or "rates.csv"))
+        if os.path.splitext(rates_name.lower())[1] != ".csv":
+            return _cleanup_failed_process_start("rates_csv must be a CSV file", 400)
         atomic_write_bytes(RATE_FILE, request.files["rates_csv"].read())
         try:
             rates.reload_rates()
@@ -234,19 +275,16 @@ def process_route():
 @bp.route("/cancel_process", methods=["POST"])
 def cancel_process():
     global processing_cancelled
-    
+
     with processing_lock:
+        if not processing_active:
+            reset_progress()
+            return jsonify({"status": "idle", "message": "No active processing job"}), 200
         processing_cancelled = True
-    
+
     log("=== CANCEL REQUEST RECEIVED ===")
     set_progress(status="CANCELLING", percent=0, current_step="Cancelling operation...")
-    
-    import time
-    time.sleep(0.5)
-    
-    set_progress(status="CANCELLED", percent=0, current_step="Processing cancelled by user")
-    
-    return jsonify({"status": "cancelled", "message": "Cancellation signal sent"})
+    return jsonify({"status": "cancelling", "message": "Cancellation signal sent"})
 
 
 @bp.route("/rebuild_outputs", methods=["POST"])
@@ -1128,10 +1166,10 @@ def create_signature():
     try:
         from app.core.config import save_signature
         
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         name = data.get('name', '').strip()
         role = data.get('role', '').strip()
-        sig_b64 = data.get('signature_base64', '').strip()
+        sig_b64 = _extract_base64_payload(data.get('signature_base64', ''))
         device_id = data.get('device_id', 'unknown')
         device_name = data.get('device_name', 'Unknown Device')
         
@@ -1147,16 +1185,13 @@ def create_signature():
                 'message': 'Signature image is required'
             }), 400
         
-        # Validate base64
-        try:
-            import base64
-            base64.b64decode(sig_b64)
-        except:
+        validation = _validate_signature_request(sig_b64)
+        if isinstance(validation, str):
             return jsonify({
                 'status': 'error',
-                'message': 'Invalid base64 encoding'
+                'message': validation
             }), 400
-        
+
         sig_id = save_signature(name, role, sig_b64, device_id, device_name)
         
         if sig_id:
@@ -1342,12 +1377,19 @@ def import_signature_png():
 
         if not name:
             return jsonify({"status": "error", "message": "name is required"}), 400
+        if len(name) > 120:
+            return jsonify({"status": "error", "message": "name must be 120 characters or less"}), 400
+        if (f.mimetype or "").lower() not in {"image/png", "image/jpeg", "image/jpg", "application/octet-stream"}:
+            return jsonify({"status": "error", "message": "file must be a PNG or JPEG image"}), 400
 
         content = f.read()
         if not content:
             return jsonify({"status": "error", "message": "empty file"}), 400
 
         sig_b64 = base64.b64encode(content).decode("utf-8")
+        validation = _validate_signature_request(sig_b64)
+        if isinstance(validation, str):
+            return jsonify({"status": "error", "message": validation}), 400
         sig_id = save_signature(name, role, sig_b64, device_id=device_id, device_name=device_name)
 
         if sig_id:
@@ -1482,7 +1524,7 @@ def sync_signatures():
     try:
         from app.core.config import save_signature
         
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         signatures_to_sync = data.get('signatures', [])
         
         synced = []
@@ -1493,14 +1535,19 @@ def sync_signatures():
                 local_id = sig_data.get('local_id')
                 name = sig_data.get('name', '').strip()
                 role = sig_data.get('role', '').strip()
-                sig_b64 = sig_data.get('signature_base64', '').strip()
+                sig_b64 = _extract_base64_payload(sig_data.get('signature_base64', ''))
                 device_id = sig_data.get('device_id', 'unknown')
                 device_name = sig_data.get('device_name', 'Unknown Device')
                 
                 if not name or not sig_b64:
                     errors.append({'local_id': local_id, 'error': 'Missing required fields'})
                     continue
-                
+
+                validation = _validate_signature_request(sig_b64)
+                if isinstance(validation, str):
+                    errors.append({'local_id': local_id, 'error': validation})
+                    continue
+
                 server_id = save_signature(name, role, sig_b64, device_id, device_name)
                 
                 if server_id:
@@ -1529,4 +1576,3 @@ def sync_signatures():
             'status': 'error',
             'message': str(e)
         }), 500
-
