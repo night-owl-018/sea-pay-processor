@@ -33,7 +33,6 @@ def _require_api_key(app: Flask):
             return None
         provided = (
             request.headers.get("X-API-Key")
-            or request.args.get("api_key")
             or request.cookies.get("sea_pay_api_key")
         )
         if provided != secret:
@@ -124,3 +123,4 @@ def create_app():
     from .routes import bp
     app.register_blueprint(bp)
     return app
+
