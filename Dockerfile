@@ -29,14 +29,9 @@ USER appuser
 
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-  CMD python - <<'PY' || exit 1
-import json, sys, urllib.request
-try:
-    with urllib.request.urlopen("http://127.0.0.1:8080/healthz", timeout=5) as r:
-        data = json.loads(r.read().decode("utf-8"))
-    sys.exit(0 if data.get("status") in {"ok", "degraded"} else 1)
-except Exception:
-    sys.exit(1)
-PY
+  CMD python -c "import json,urllib.request,sys; \
+r=urllib.request.urlopen('http://127.0.0.1:8080/healthz',timeout=5); \
+d=json.loads(r.read().decode()); \
+sys.exit(0 if d.get('status') in {'ok','degraded'} else 1)" || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint.sh"]
