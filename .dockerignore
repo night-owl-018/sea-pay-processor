@@ -1,1 +1,12 @@
-seapay.db
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.pyo
+*.pyd
+*.log
+.env
+.git/
+.github/
+output/
+data/
+PACKAGE/
