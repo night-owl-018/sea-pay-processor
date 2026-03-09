@@ -94,8 +94,8 @@ def save_override(member_key, sheet_file, event_index, status, reason, source):
     data["overrides"].append(new_override)
 
     os.makedirs(OVERRIDES_DIR, exist_ok=True)
-    with open(_override_path(member_key), "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    from app.core.io_utils import atomic_write_json
+    atomic_write_json(_override_path(member_key), data, indent=2)
 
 
 # -----------------------------------------------------------
