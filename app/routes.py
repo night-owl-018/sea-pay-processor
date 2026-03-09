@@ -1507,8 +1507,8 @@ def delete_signature_endpoint(signature_id):
         else:
             return jsonify({
                 'status': 'error',
-                'message': 'Failed to delete signature'
-            }), 500
+                'message': 'Signature not found'
+            }), 404
             
     except Exception as e:
         log(f"❌ DELETE SIGNATURE ERROR → {e}")
@@ -1579,4 +1579,5 @@ def sync_signatures():
             'status': 'error',
             'message': str(e)
         }), 500
+
 
