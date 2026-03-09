@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, g
+from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 import os
 import shutil
@@ -10,6 +11,7 @@ from app.core.config import (
     FONT_FILE,
     MAX_UPLOAD_MB,
     ENABLE_PROXY_FIX,
+    APP_VERSION,
     ensure_runtime_dirs,
 )
 from app.core.logger import log
@@ -20,7 +22,7 @@ def _require_api_key(app: Flask):
     if not secret:
         return
 
-    exempt = {"/", "/healthz", "/readyz", "/signatures.html", "/signature-manager.js"}
+    exempt = {"/", "/favicon.ico", "/healthz", "/readyz", "/signatures.html", "/signature-manager.js"}
 
     @app.before_request
     def _check_api_key():
@@ -60,10 +62,14 @@ def create_app():
     @app.after_request
     def _harden_response(response):
         response.headers.setdefault("X-Request-ID", getattr(g, "request_id", ""))
+        response.headers.setdefault("X-App-Version", APP_VERSION)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         response.headers.setdefault("Cache-Control", "no-store")
+        if request.is_secure:
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
         csp = (
             "default-src 'self'; "
             "img-src 'self' data: blob:; "
@@ -83,6 +89,13 @@ def create_app():
 
     @app.errorhandler(Exception)
     def unhandled(err):
+        if isinstance(err, HTTPException):
+            return jsonify({
+                "status": "error",
+                "message": err.description,
+                "code": err.code,
+                "request_id": getattr(g, "request_id", ""),
+            }), err.code
         log(f"UNHANDLED ERROR [{getattr(g, 'request_id', 'unknown')}] -> {err}")
         return jsonify({"status": "error", "message": "Internal server error", "request_id": getattr(g, "request_id", "")}), 500
 
@@ -96,7 +109,7 @@ def create_app():
             "pdftoppm": shutil.which("pdftoppm") is not None,
         }
         http_status = 200 if all(status.values()) else 503
-        return jsonify({"status": "ok" if http_status == 200 else "degraded", "checks": status}), http_status
+        return jsonify({"status": "ok" if http_status == 200 else "degraded", "version": APP_VERSION, "checks": status}), http_status
 
     @app.get("/readyz")
     def readyz():
@@ -106,7 +119,7 @@ def create_app():
             "font_exists": os.path.exists(FONT_FILE),
         }
         ready = all(checks.values())
-        return jsonify({"status": "ready" if ready else "not-ready", "checks": checks}), (200 if ready else 503)
+        return jsonify({"status": "ready" if ready else "not-ready", "version": APP_VERSION, "checks": checks}), (200 if ready else 503)
 
     from .routes import bp
     app.register_blueprint(bp)
