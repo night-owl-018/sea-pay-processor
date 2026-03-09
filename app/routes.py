@@ -193,7 +193,7 @@ def process_route():
             continue
         if not _allowed_upload(name):
             return _cleanup_failed_process_start(f"Unsupported upload type for {name}", 400)
-        dst = os.path.join(DATA_DIR, name)
+        dst = os.path.join(, name)
         atomic_write_bytes(dst, f.read())
         log(f"SAVED INPUT FILE → {name}")
 
@@ -837,13 +837,16 @@ def download_custom():
 @bp.route("/reset", methods=["POST"])
 def reset():
     """Reset all data including original backup."""
-    for root, _, files in os.walk(DATA_DIR):
-        for f in files:
-            try:
-                os.remove(os.path.join(root, f))
-            except Exception as e:
-                log(f"RESET INPUT FILE ERROR → {e}")
-
+    for root, _, existing_files in os.walk(DATA_DIR):
+        for existing in existing_files:
+            if existing.lower().endswith((".pdf", ".csv")):
+                try:
+                    os.remove(os.path.join(root, existing))
+                except OSError as exc:
+                    return _cleanup_failed_process_start(
+                        f"Failed to clear previous input {existing}: {exc}", 500
+                    )
+                    
     for root, _, files in os.walk(OUTPUT_DIR):
         for f in files:
             try:
@@ -1576,3 +1579,4 @@ def sync_signatures():
             'status': 'error',
             'message': str(e)
         }), 500
+
